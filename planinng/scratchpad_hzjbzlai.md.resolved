@@ -1,0 +1,18 @@
+# Task: Verify App Alignments on Web (FAILED)
+
+## Checklist
+- [x] Navigate to http://localhost:8081 (FAILED: Connection Refused on all ports)
+- [ ] Reach Home/Dashboard screen (login/onboarding skip if needed)
+- [ ] Screenshot Home screen and verify alignments:
+    - [ ] "Today's Meals" cards center constraint
+    - [ ] FAB position
+    - [ ] Bottom Tab Bar (labels and Scan button)
+- [ ] Navigate to "Stats" tab
+- [ ] Screenshot Stats screen and verify alignments:
+    - [ ] "Daily Averages" cards constraint
+    - [ ] "Macro Distribution" cards alignment
+- [ ] Report visually based on screenshots.
+
+## Status
+Could not connect to the local server. Tried ports 8081, 8082, 8083, 19006 and variants like 127.0.0.1 and [::1]. All returned net::ERR_CONNECTION_REFUSED.
+Suggest checking if the Expo server is actually running or if it's bound to a different port.

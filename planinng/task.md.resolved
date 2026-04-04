@@ -1,0 +1,26 @@
+# Comprehensive Onboarding Flow
+
+## Planning
+- [/] Research existing onboarding, routing, database schema, and types
+- [/] Write implementation plan and get user approval
+
+## Implementation
+- [ ] Create `OnboardingData` type in [src/types/index.ts](file:///c:/Users/user/Desktop/computing%20project%20PUSL3190/Computing%20Projects/Evolve%206/calorie-tracker/src/types/index.ts)
+- [ ] Add `user_health_profile` table to [database.ts](file:///c:/Users/user/Desktop/computing%20project%20PUSL3190/Computing%20Projects/Evolve%206/calorie-tracker/src/lib/database.ts)
+- [ ] Add `saveOnboardingProfile` + `getOnboardingProfile` DB functions
+- [ ] Create shared onboarding step components (progress bar, step layout)
+- [ ] Build Step 1: Welcome + Basics (gender, age, height, weight, nationality)
+- [ ] Build Step 2: Activity & Routine (activity level, daily routine, work type)
+- [ ] Build Step 3: Diet & Food Habits (daily diet, food preferences, meal patterns)
+- [ ] Build Step 4: Health & Medical (sugar, cholesterol, conditions, medications)
+- [ ] Build Step 5: Lifestyle (smoking, alcohol, sleep, stress, marital/pregnancy)
+- [ ] Build Step 6: Personal Thoughts (free text — anything to share)
+- [ ] Build Step 7: Dream Goals (dream weight, fitness, habits, routine)
+- [ ] Build Review & Finish step (summary + submit)
+- [ ] Wire [onboarding.tsx](file:///c:/Users/user/Desktop/computing%20project%20PUSL3190/Computing%20Projects/Evolve%206/calorie-tracker/app/%28auth%29/onboarding.tsx) intro → profile flow → register
+- [ ] Update auth layout to include new profile-setup route
+
+## Verification
+- [ ] Run app and walk through all onboarding steps
+- [ ] Verify data is saved to SQLite
+- [ ] Verify routing: onboarding → profile → register → tabs

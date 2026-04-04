@@ -1,0 +1,13 @@
+﻿Calling HF API with new token...
+Defaulting to 'auto' which will select the first provider available for the model, sorted by the user's order in https://hf.co/settings/inference-providers.
+node : Error from HF API: Failed to fetch inference provider 
+mapping for model naviniekanayake4/food-vit-fine-tuned: 
+Invalid username or password.
+At line:1 char:1
++ node test_hf_model_local.js 2>&1 | Out-File -FilePath 
+out.txt -Encodi ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Error from HF A 
+   ...me or password.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
