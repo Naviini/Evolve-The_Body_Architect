@@ -13,6 +13,7 @@
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase } from '@/src/lib/supabase';
+import { migrateTempOnboardingProfileToUser } from '@/src/lib/database';
 import { Session, User } from '@supabase/supabase-js';
 
 interface AuthContextType {
@@ -49,6 +50,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (error) console.error('getSession error:', error.message);
             setSession(session);
             setLoading(false);
+
+            if (session?.user?.id) {
+                migrateTempOnboardingProfileToUser(session.user.id).catch((err) => {
+                    console.error('Failed to migrate onboarding profile:', err?.message ?? err);
+                });
+            }
         });
 
         // Listen for auth state changes (SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED, etc.)
@@ -56,6 +63,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             console.log('Auth event:', event, '| user:', session?.user?.email ?? 'none');
             setSession(session);
             setLoading(false);
+
+            if (event === 'SIGNED_IN' && session?.user?.id) {
+                migrateTempOnboardingProfileToUser(session.user.id).catch((err) => {
+                    console.error('Failed to migrate onboarding profile:', err?.message ?? err);
+                });
+            }
         });
 
         return () => subscription.unsubscribe();
