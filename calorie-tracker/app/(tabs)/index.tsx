@@ -23,7 +23,14 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Spacing, BorderRadius, Typography, Shadows, MealIcons } from '@/constants/theme';
-import { getMealEntriesByDate, getDailyLog, getWorkoutPlan, saveWorkoutPlan, getOnboardingProfile } from '@/src/lib/database';
+import {
+  getMealEntriesByDate,
+  getDailyLog,
+  getWorkoutPlan,
+  saveWorkoutPlan,
+  getOnboardingProfile,
+  getDailyCalorieGoalForUser,
+} from '@/src/lib/database';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { MealEntry, MealType, WorkoutDay } from '@/src/types';
 import { generateWeeklyPlan, getWeekStart } from '@/src/lib/workoutEngine';
@@ -48,6 +55,9 @@ export default function HomeScreen() {
   const loadData = useCallback(async () => {
     try {
       const userId = user?.id || 'demo-user';
+      const personalizedGoal = await getDailyCalorieGoalForUser(userId);
+      setCalorieGoal(personalizedGoal);
+
       const meals = await getMealEntriesByDate(userId, today);
       setTodayMeals(meals);
 

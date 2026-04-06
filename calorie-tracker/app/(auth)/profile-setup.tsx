@@ -265,7 +265,7 @@ export default function ProfileSetupScreen() {
                 // Return to home after editing
                 router.replace('/(tabs)');
             } else {
-                router.replace('/(auth)/register');
+                router.push('/(auth)/register');
             }
         } catch (e) {
             console.error('Save error', e);
@@ -429,7 +429,16 @@ export default function ProfileSetupScreen() {
                         <Text style={s.backBtnText}>Back</Text>
                     </TouchableOpacity>
                 ) : (
-                    <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
+                    <TouchableOpacity
+                        onPress={() => {
+                            if (isEditMode) {
+                                router.back();
+                                return;
+                            }
+                            router.replace('/(auth)/onboarding' as any);
+                        }}
+                        style={s.backBtn}
+                    >
                         <Ionicons name="arrow-back" size={20} color={Colors.dark.textTertiary} />
                     </TouchableOpacity>
                 )}

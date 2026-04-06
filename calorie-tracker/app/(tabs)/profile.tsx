@@ -22,7 +22,13 @@ import { useRouter } from 'expo-router';
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from '@/constants/theme';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { syncAll, getSyncStatus } from '@/src/lib/sync';
-import { getOnboardingProfile, saveBodyTypeResult, getBodyTypeResult } from '@/src/lib/database';
+import {
+    getOnboardingProfile,
+    saveBodyTypeResult,
+    getBodyTypeResult,
+    hydrateOnboardingProfileFromSupabase,
+    getDailyCalorieGoalForUser,
+} from '@/src/lib/database';
 import { detectBodyType } from '@/src/lib/bodyTypeEngine';
 import type { BodyTypeResult } from '@/src/types';
 
@@ -31,10 +37,17 @@ export default function ProfileScreen() {
     const router = useRouter();
     const [calorieGoal, setCalorieGoal] = useState('2000');
     const [isSyncing, setIsSyncing] = useState(false);
+    const [isRefreshingCloud, setIsRefreshingCloud] = useState(false);
+    const [lastCloudRefresh, setLastCloudRefresh] = useState<string | null>(null);
     const [bodyTypeResult, setBodyTypeResult] = useState<BodyTypeResult | null>(null);
 
     useEffect(() => {
         const uid = user?.id ?? 'onboarding-temp';
+
+        getDailyCalorieGoalForUser(uid)
+            .then((goal) => setCalorieGoal(String(goal)))
+            .catch(() => { });
+
         // 1. Load cached result instantly
         getBodyTypeResult(uid).then(cached => {
             if (cached) {
@@ -66,6 +79,35 @@ export default function ProfileScreen() {
             Alert.alert('Sync Failed', 'Please check your connection and try again.');
         } finally {
             setIsSyncing(false);
+        }
+    };
+
+    const handleRefreshFromCloud = async () => {
+        if (!user?.id) {
+            Alert.alert('Sign in required', 'Please sign in to refresh your profile from cloud.');
+            return;
+        }
+
+        setIsRefreshingCloud(true);
+        try {
+            await hydrateOnboardingProfileFromSupabase(user.id);
+            const profile = await getOnboardingProfile(user.id);
+
+            if (profile) {
+                const fresh = detectBodyType(profile);
+                if (fresh) {
+                    setBodyTypeResult(fresh);
+                    saveBodyTypeResult(user.id, fresh).catch(() => { });
+                }
+            }
+
+            setLastCloudRefresh(new Date().toISOString());
+
+            Alert.alert('Cloud Refresh Complete', 'Your onboarding profile was refreshed from Supabase.');
+        } catch (e) {
+            Alert.alert('Refresh Failed', 'Could not refresh profile from cloud. Please try again.');
+        } finally {
+            setIsRefreshingCloud(false);
         }
     };
 
@@ -154,7 +196,7 @@ export default function ProfileScreen() {
                 {/* Sync */}
                 <Text style={styles.sectionTitle}>Data & Sync</Text>
                 <View style={styles.settingCard}>
-                    <TouchableOpacity style={styles.settingRow} onPress={handleSync} disabled={isSyncing}>
+                    <TouchableOpacity style={[styles.settingRow, styles.settingBorder]} onPress={handleSync} disabled={isSyncing}>
                         <View style={styles.settingLeft}>
                             <Ionicons
                                 name={isSyncing ? 'sync' : 'sync-outline'}
@@ -169,6 +211,27 @@ export default function ProfileScreen() {
                                     {syncStatus.lastSync
                                         ? `Last: ${new Date(syncStatus.lastSync).toLocaleTimeString()}`
                                         : 'Not synced yet'}
+                                </Text>
+                            </View>
+                        </View>
+                        <Ionicons name="chevron-forward" size={20} color={Colors.dark.textTertiary} />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={styles.settingRow} onPress={handleRefreshFromCloud} disabled={isRefreshingCloud}>
+                        <View style={styles.settingLeft}>
+                            <Ionicons
+                                name={isRefreshingCloud ? 'cloud-download' : 'cloud-download-outline'}
+                                size={22}
+                                color={Colors.primary}
+                            />
+                            <View>
+                                <Text style={styles.settingLabel}>
+                                    {isRefreshingCloud ? 'Refreshing...' : 'Refresh From Cloud'}
+                                </Text>
+                                <Text style={styles.settingSub}>
+                                    {lastCloudRefresh
+                                        ? `Last: ${new Date(lastCloudRefresh).toLocaleTimeString()}`
+                                        : 'Pull latest onboarding profile from Supabase'}
                                 </Text>
                             </View>
                         </View>

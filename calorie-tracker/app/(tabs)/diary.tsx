@@ -39,15 +39,12 @@ import {
     deleteMealEntry,
     restoreMealEntry,
     updateMealEntry,
+    getDailyCalorieGoalForUser,
 } from '@/src/lib/database';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { MealEntry, MealType } from '@/src/types';
 
 // ── constants ────────────────────────────────────────────────
-const CALORIE_GOAL = 2000;
-const PROTEIN_GOAL = 150;
-const CARBS_GOAL = 250;
-const FAT_GOAL = 65;
 const MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 
 type HistoryAction =
@@ -63,6 +60,7 @@ export default function DiaryScreen() {
 
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [meals, setMeals] = useState<MealEntry[]>([]);
+    const [calorieGoal, setCalorieGoal] = useState(2000);
     const [expandedMeal, setExpandedMeal] = useState<MealType | null>('breakfast');
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -110,8 +108,12 @@ export default function DiaryScreen() {
     // ── data ─────────────────────────────────────────────────
     const loadMeals = useCallback(async () => {
         try {
-            const data = await getMealEntriesByDate(userId, dateStr);
+            const [data, goal] = await Promise.all([
+                getMealEntriesByDate(userId, dateStr),
+                getDailyCalorieGoalForUser(userId),
+            ]);
             setMeals(data);
+            setCalorieGoal(goal);
         } catch (e) {
             console.error('loadMeals error:', e);
         } finally {
@@ -255,9 +257,12 @@ export default function DiaryScreen() {
     const totalProtein = meals.reduce((s, m) => s + m.protein_g * m.servings, 0);
     const totalCarbs = meals.reduce((s, m) => s + m.carbs_g * m.servings, 0);
     const totalFat = meals.reduce((s, m) => s + m.fat_g * m.servings, 0);
+    const proteinGoal = Math.round((calorieGoal * 0.30) / 4);
+    const carbsGoal = Math.round((calorieGoal * 0.40) / 4);
+    const fatGoal = Math.round((calorieGoal * 0.30) / 9);
     const typeCals = (t: MealType) => getMealsByType(t).reduce((s, m) => s + m.calories * m.servings, 0);
-    const calorieProgress = Math.min(totalCals / CALORIE_GOAL, 1);
-    const remaining = Math.max(CALORIE_GOAL - totalCals, 0);
+    const calorieProgress = Math.min(totalCals / calorieGoal, 1);
+    const remaining = Math.max(calorieGoal - totalCals, 0);
 
     // ════════════════════════════════════════════════════════
     // RENDER
@@ -340,7 +345,7 @@ export default function DiaryScreen() {
                         </View>
                         <View style={styles.summaryCol}>
                             <Text style={[styles.summaryNum, { color: Colors.dark.textSecondary }]}>
-                                {CALORIE_GOAL}
+                                {calorieGoal}
                             </Text>
                             <Text style={styles.summaryLbl}>Goal</Text>
                         </View>
@@ -360,9 +365,9 @@ export default function DiaryScreen() {
                     </Text>
 
                     <View style={styles.macroRow}>
-                        <MacroBar label="Protein" value={totalProtein} goal={PROTEIN_GOAL} color={Colors.protein} />
-                        <MacroBar label="Carbs" value={totalCarbs} goal={CARBS_GOAL} color={Colors.carbs} />
-                        <MacroBar label="Fat" value={totalFat} goal={FAT_GOAL} color={Colors.fat} />
+                        <MacroBar label="Protein" value={totalProtein} goal={proteinGoal} color={Colors.protein} />
+                        <MacroBar label="Carbs" value={totalCarbs} goal={carbsGoal} color={Colors.carbs} />
+                        <MacroBar label="Fat" value={totalFat} goal={fatGoal} color={Colors.fat} />
                     </View>
                 </LinearGradient>
 

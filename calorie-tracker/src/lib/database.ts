@@ -9,6 +9,7 @@
 import * as SQLite from 'expo-sqlite';
 import { MealEntry, FoodItem, MealType, OnboardingProfile, WorkoutPlan, WorkoutSession, UserRewards } from '@/src/types';
 import { supabase } from './supabase';
+import { calculatePersonalizedCalorieRecommendation } from './calorieEngine';
 
 let db: SQLite.SQLiteDatabase | null = null;
 
@@ -541,12 +542,68 @@ export async function saveOnboardingProfile(
     userId: string,
     data: Partial<OnboardingProfile>
 ): Promise<void> {
+    await upsertLocalOnboardingProfile(userId, data, null);
+
+    // Mirror onboarding data to Supabase when authenticated.
+    if (userId !== 'onboarding-temp') {
+        await syncOnboardingToSupabase(userId, data);
+    }
+}
+
+export async function hydrateOnboardingProfileFromSupabase(userId: string): Promise<void> {
+    if (!userId || userId === 'onboarding-temp') return;
+
+    try {
+        const { data: remote, error } = await supabase
+            .from('user_health_profiles')
+            .select('*')
+            .eq('user_id', userId)
+            .maybeSingle();
+
+        if (error) {
+            console.error('Failed to fetch onboarding profile from Supabase:', error.message);
+            return;
+        }
+
+        if (!remote) return;
+
+        const local = await getOnboardingProfile(userId);
+        const remoteTs = Date.parse(remote.updated_at ?? '');
+        const localTs = Date.parse(local?.updated_at ?? '');
+        const remoteHasTs = Number.isFinite(remoteTs);
+        const localHasTs = Number.isFinite(localTs);
+
+        // Keep local data when it is as new or newer.
+        if (local && remoteHasTs && localHasTs && localTs >= remoteTs) {
+            return;
+        }
+
+        await upsertLocalOnboardingProfile(userId, remote as Partial<OnboardingProfile>, remote.updated_at ?? null);
+    } catch (e: any) {
+        console.error('Unexpected onboarding hydration error:', e?.message ?? e);
+    }
+}
+
+async function upsertLocalOnboardingProfile(
+    userId: string,
+    data: Partial<OnboardingProfile>,
+    updatedAt: string | null
+): Promise<void> {
     const database = getDb();
     const id = generateId();
+    const existing = await database.getFirstAsync<any>(
+        `SELECT * FROM user_health_profiles WHERE user_id = ?`,
+        [userId]
+    );
 
-    // Serialize any JSON arrays
-    const serialize = (arr: any) =>
-        Array.isArray(arr) ? JSON.stringify(arr) : '[]';
+    const pick = (key: string, fallback: any = null) => {
+        const incoming = (data as any)[key];
+        if (incoming !== undefined) return incoming;
+        if (existing && existing[key] !== undefined) return existing[key];
+        return fallback;
+    };
+
+    const serialize = (arr: any) => JSON.stringify(normalizeStringArray(arr));
 
     await database.runAsync(
         `INSERT OR REPLACE INTO user_health_profiles (
@@ -564,6 +621,10 @@ export async function saveOnboardingProfile(
             dream_weight_kg, dream_fitness_level, dream_food_habits,
             dream_daily_routine, dream_special_habits,
             waist_cm, hip_cm, neck_cm, wrist_cm,
+            body_type_dominant, body_type_blend,
+            body_type_ecto, body_type_meso, body_type_endo,
+            body_type_bf, body_type_frame, body_type_confidence,
+            body_type_insights, body_type_updated_at,
             updated_at
         ) VALUES (
             COALESCE((SELECT id FROM user_health_profiles WHERE user_id = ?), ?),
@@ -581,59 +642,69 @@ export async function saveOnboardingProfile(
             ?, ?, ?,
             ?, ?,
             ?, ?, ?, ?,
-            datetime('now')
+            ?, ?,
+            ?, ?, ?,
+            ?, ?, ?,
+            ?, ?,
+            COALESCE(?, datetime('now'))
         )`,
         [
             userId, id,
             userId,
-            data.biological_gender ?? null,
-            data.gender_identity ?? null,
-            data.age ?? null,
-            data.height_cm ?? null,
-            data.weight_kg ?? null,
-            data.nationality_or_race ?? null,
-            data.activity_level ?? null,
-            data.work_type ?? null,
-            data.wake_time ?? null,
-            data.sleep_time ?? null,
-            data.commute_type ?? null,
-            data.exercise_frequency ?? null,
-            data.diet_type ?? null,
-            data.meals_per_day ?? null,
-            data.snacking_habit ?? null,
-            data.water_intake_glasses ?? null,
-            serialize(data.food_allergies),
-            serialize(data.cuisine_preferences),
-            data.blood_sugar_level ?? null,
-            data.cholesterol_level ?? null,
-            serialize(data.health_conditions),
-            data.medications ?? null,
-            serialize(data.family_history),
-            data.smoking_status ?? null,
-            data.alcohol_frequency ?? null,
-            data.sleep_hours ?? null,
-            data.stress_level ?? null,
-            data.marital_status ?? null,
-            data.pregnancy_status ?? null,
-            data.num_children ?? null,
-            data.children_notes ?? null,
-            data.personal_notes ?? null,
-            data.dream_weight_kg ?? null,
-            data.dream_fitness_level ?? null,
-            serialize(data.dream_food_habits),
-            data.dream_daily_routine ?? null,
-            serialize(data.dream_special_habits),
-            data.waist_cm ?? null,
-            data.hip_cm ?? null,
-            data.neck_cm ?? null,
-            data.wrist_cm ?? null,
+            pick('biological_gender'),
+            pick('gender_identity'),
+            pick('age'),
+            pick('height_cm'),
+            pick('weight_kg'),
+            pick('nationality_or_race'),
+            pick('activity_level'),
+            pick('work_type'),
+            pick('wake_time'),
+            pick('sleep_time'),
+            pick('commute_type'),
+            pick('exercise_frequency'),
+            pick('diet_type'),
+            pick('meals_per_day'),
+            pick('snacking_habit'),
+            pick('water_intake_glasses'),
+            serialize(pick('food_allergies', [])),
+            serialize(pick('cuisine_preferences', [])),
+            pick('blood_sugar_level'),
+            pick('cholesterol_level'),
+            serialize(pick('health_conditions', [])),
+            pick('medications'),
+            serialize(pick('family_history', [])),
+            pick('smoking_status'),
+            pick('alcohol_frequency'),
+            pick('sleep_hours'),
+            pick('stress_level'),
+            pick('marital_status'),
+            pick('pregnancy_status'),
+            pick('num_children'),
+            pick('children_notes'),
+            pick('personal_notes'),
+            pick('dream_weight_kg'),
+            pick('dream_fitness_level'),
+            serialize(pick('dream_food_habits', [])),
+            pick('dream_daily_routine'),
+            serialize(pick('dream_special_habits', [])),
+            pick('waist_cm'),
+            pick('hip_cm'),
+            pick('neck_cm'),
+            pick('wrist_cm'),
+            pick('body_type_dominant'),
+            pick('body_type_blend'),
+            pick('body_type_ecto'),
+            pick('body_type_meso'),
+            pick('body_type_endo'),
+            pick('body_type_bf'),
+            pick('body_type_frame'),
+            pick('body_type_confidence'),
+            serialize(pick('body_type_insights', [])),
+            pick('body_type_updated_at'),
+            updatedAt,
         ]
     );
-
-    // Mirror onboarding data to Supabase when authenticated.
-    if (userId !== 'onboarding-temp') {
-        await syncOnboardingToSupabase(userId, data);
-    }
 }
 
 export async function migrateTempOnboardingProfileToUser(userId: string): Promise<void> {
@@ -690,79 +761,97 @@ async function syncOnboardingToSupabase(
     data: Partial<OnboardingProfile>
 ): Promise<void> {
     try {
+        const calorieRecommendation = calculatePersonalizedCalorieRecommendation(data);
+
+        const assignIfDefined = (obj: Record<string, any>, key: string, value: any) => {
+            if (value !== undefined) obj[key] = value;
+        };
+
+        const profilePayload: Record<string, any> = {
+            id: userId,
+            daily_calorie_goal: calorieRecommendation.dailyCalories,
+            updated_at: new Date().toISOString(),
+        };
+        assignIfDefined(profilePayload, 'height_cm', data.height_cm);
+        assignIfDefined(profilePayload, 'weight_kg', data.weight_kg);
+        assignIfDefined(profilePayload, 'age', data.age);
+        assignIfDefined(profilePayload, 'gender', data.biological_gender === undefined ? undefined : toProfileGender(data.biological_gender));
+        assignIfDefined(profilePayload, 'activity_level', data.activity_level);
+
         const { error: profileError } = await supabase
             .from('profiles')
-            .upsert({
-                id: userId,
-                height_cm: data.height_cm ?? null,
-                weight_kg: data.weight_kg ?? null,
-                age: data.age ?? null,
-                gender: toProfileGender(data.biological_gender),
-                activity_level: data.activity_level ?? null,
-                updated_at: new Date().toISOString(),
-            }, { onConflict: 'id' });
+            .upsert(profilePayload, { onConflict: 'id' });
 
         if (profileError) {
             console.error('Failed to sync onboarding profile basics to Supabase:', profileError.message);
         }
 
+        const healthPayload: Record<string, any> = {
+            user_id: userId,
+            recommended_daily_calories: calorieRecommendation.dailyCalories,
+            recommendation_bmr: calorieRecommendation.bmr,
+            recommendation_tdee: calorieRecommendation.tdee,
+            recommendation_activity_multiplier: calorieRecommendation.activityMultiplier,
+            recommendation_goal_adjustment_pct: calorieRecommendation.goalAdjustmentPct,
+            recommendation_reasons: calorieRecommendation.reasons,
+            updated_at: new Date().toISOString(),
+        };
+
+        assignIfDefined(healthPayload, 'biological_gender', data.biological_gender);
+        assignIfDefined(healthPayload, 'gender_identity', data.gender_identity);
+        assignIfDefined(healthPayload, 'age', data.age);
+        assignIfDefined(healthPayload, 'height_cm', data.height_cm);
+        assignIfDefined(healthPayload, 'weight_kg', data.weight_kg);
+        assignIfDefined(healthPayload, 'nationality_or_race', data.nationality_or_race);
+        assignIfDefined(healthPayload, 'activity_level', data.activity_level);
+        assignIfDefined(healthPayload, 'work_type', data.work_type);
+        assignIfDefined(healthPayload, 'wake_time', data.wake_time);
+        assignIfDefined(healthPayload, 'sleep_time', data.sleep_time);
+        assignIfDefined(healthPayload, 'commute_type', data.commute_type);
+        assignIfDefined(healthPayload, 'exercise_frequency', data.exercise_frequency);
+        assignIfDefined(healthPayload, 'diet_type', data.diet_type);
+        assignIfDefined(healthPayload, 'meals_per_day', data.meals_per_day);
+        assignIfDefined(healthPayload, 'snacking_habit', data.snacking_habit);
+        assignIfDefined(healthPayload, 'water_intake_glasses', data.water_intake_glasses);
+        if ((data as any).food_allergies !== undefined) healthPayload.food_allergies = normalizeStringArray((data as any).food_allergies);
+        if ((data as any).cuisine_preferences !== undefined) healthPayload.cuisine_preferences = normalizeStringArray((data as any).cuisine_preferences);
+        assignIfDefined(healthPayload, 'blood_sugar_level', data.blood_sugar_level);
+        assignIfDefined(healthPayload, 'cholesterol_level', data.cholesterol_level);
+        if ((data as any).health_conditions !== undefined) healthPayload.health_conditions = normalizeStringArray((data as any).health_conditions);
+        assignIfDefined(healthPayload, 'medications', data.medications);
+        if ((data as any).family_history !== undefined) healthPayload.family_history = normalizeStringArray((data as any).family_history);
+        assignIfDefined(healthPayload, 'smoking_status', data.smoking_status);
+        assignIfDefined(healthPayload, 'alcohol_frequency', data.alcohol_frequency);
+        assignIfDefined(healthPayload, 'sleep_hours', data.sleep_hours);
+        assignIfDefined(healthPayload, 'stress_level', data.stress_level);
+        assignIfDefined(healthPayload, 'marital_status', data.marital_status);
+        assignIfDefined(healthPayload, 'pregnancy_status', data.pregnancy_status);
+        assignIfDefined(healthPayload, 'num_children', data.num_children);
+        assignIfDefined(healthPayload, 'children_notes', data.children_notes);
+        assignIfDefined(healthPayload, 'personal_notes', data.personal_notes);
+        assignIfDefined(healthPayload, 'dream_weight_kg', data.dream_weight_kg);
+        assignIfDefined(healthPayload, 'dream_fitness_level', data.dream_fitness_level);
+        if ((data as any).dream_food_habits !== undefined) healthPayload.dream_food_habits = normalizeStringArray((data as any).dream_food_habits);
+        assignIfDefined(healthPayload, 'dream_daily_routine', data.dream_daily_routine);
+        if ((data as any).dream_special_habits !== undefined) healthPayload.dream_special_habits = normalizeStringArray((data as any).dream_special_habits);
+        assignIfDefined(healthPayload, 'waist_cm', data.waist_cm);
+        assignIfDefined(healthPayload, 'hip_cm', data.hip_cm);
+        assignIfDefined(healthPayload, 'neck_cm', data.neck_cm);
+        assignIfDefined(healthPayload, 'wrist_cm', data.wrist_cm);
+        if ((data as any).body_type_dominant !== undefined) healthPayload.body_type_dominant = (data as any).body_type_dominant;
+        if ((data as any).body_type_blend !== undefined) healthPayload.body_type_blend = (data as any).body_type_blend;
+        if ((data as any).body_type_ecto !== undefined) healthPayload.body_type_ecto = (data as any).body_type_ecto;
+        if ((data as any).body_type_meso !== undefined) healthPayload.body_type_meso = (data as any).body_type_meso;
+        if ((data as any).body_type_endo !== undefined) healthPayload.body_type_endo = (data as any).body_type_endo;
+        if ((data as any).body_type_bf !== undefined) healthPayload.body_type_bf = (data as any).body_type_bf;
+        if ((data as any).body_type_frame !== undefined) healthPayload.body_type_frame = (data as any).body_type_frame;
+        if ((data as any).body_type_confidence !== undefined) healthPayload.body_type_confidence = (data as any).body_type_confidence;
+        if ((data as any).body_type_insights !== undefined) healthPayload.body_type_insights = normalizeStringArray((data as any).body_type_insights);
+        if ((data as any).body_type_updated_at !== undefined) healthPayload.body_type_updated_at = (data as any).body_type_updated_at;
+
         const { error: healthError } = await supabase
             .from('user_health_profiles')
-            .upsert({
-                user_id: userId,
-                biological_gender: data.biological_gender ?? null,
-                gender_identity: data.gender_identity ?? null,
-                age: data.age ?? null,
-                height_cm: data.height_cm ?? null,
-                weight_kg: data.weight_kg ?? null,
-                nationality_or_race: data.nationality_or_race ?? null,
-                activity_level: data.activity_level ?? null,
-                work_type: data.work_type ?? null,
-                wake_time: data.wake_time ?? null,
-                sleep_time: data.sleep_time ?? null,
-                commute_type: data.commute_type ?? null,
-                exercise_frequency: data.exercise_frequency ?? null,
-                diet_type: data.diet_type ?? null,
-                meals_per_day: data.meals_per_day ?? null,
-                snacking_habit: data.snacking_habit ?? null,
-                water_intake_glasses: data.water_intake_glasses ?? null,
-                food_allergies: normalizeStringArray((data as any).food_allergies),
-                cuisine_preferences: normalizeStringArray((data as any).cuisine_preferences),
-                blood_sugar_level: data.blood_sugar_level ?? null,
-                cholesterol_level: data.cholesterol_level ?? null,
-                health_conditions: normalizeStringArray((data as any).health_conditions),
-                medications: data.medications ?? null,
-                family_history: normalizeStringArray((data as any).family_history),
-                smoking_status: data.smoking_status ?? null,
-                alcohol_frequency: data.alcohol_frequency ?? null,
-                sleep_hours: data.sleep_hours ?? null,
-                stress_level: data.stress_level ?? null,
-                marital_status: data.marital_status ?? null,
-                pregnancy_status: data.pregnancy_status ?? null,
-                num_children: data.num_children ?? null,
-                children_notes: data.children_notes ?? null,
-                personal_notes: data.personal_notes ?? null,
-                dream_weight_kg: data.dream_weight_kg ?? null,
-                dream_fitness_level: data.dream_fitness_level ?? null,
-                dream_food_habits: normalizeStringArray((data as any).dream_food_habits),
-                dream_daily_routine: data.dream_daily_routine ?? null,
-                dream_special_habits: normalizeStringArray((data as any).dream_special_habits),
-                waist_cm: data.waist_cm ?? null,
-                hip_cm: data.hip_cm ?? null,
-                neck_cm: data.neck_cm ?? null,
-                wrist_cm: data.wrist_cm ?? null,
-                body_type_dominant: (data as any).body_type_dominant ?? null,
-                body_type_blend: (data as any).body_type_blend ?? null,
-                body_type_ecto: (data as any).body_type_ecto ?? null,
-                body_type_meso: (data as any).body_type_meso ?? null,
-                body_type_endo: (data as any).body_type_endo ?? null,
-                body_type_bf: (data as any).body_type_bf ?? null,
-                body_type_frame: (data as any).body_type_frame ?? null,
-                body_type_confidence: (data as any).body_type_confidence ?? null,
-                body_type_insights: normalizeStringArray((data as any).body_type_insights),
-                body_type_updated_at: (data as any).body_type_updated_at ?? null,
-                updated_at: new Date().toISOString(),
-            }, { onConflict: 'user_id' });
+            .upsert(healthPayload, { onConflict: 'user_id' });
 
         if (healthError) {
             console.error('Failed to sync full onboarding profile to Supabase:', healthError.message);
@@ -770,6 +859,33 @@ async function syncOnboardingToSupabase(
     } catch (e: any) {
         console.error('Unexpected onboarding sync error:', e?.message ?? e);
     }
+}
+
+export async function getDailyCalorieGoalForUser(userId: string): Promise<number> {
+    if (!userId || userId === 'demo-user') return 2000;
+
+    const localProfile = await getOnboardingProfile(userId);
+    if (localProfile) {
+        return calculatePersonalizedCalorieRecommendation(localProfile).dailyCalories;
+    }
+
+    if (userId === 'onboarding-temp') return 2000;
+
+    try {
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('daily_calorie_goal')
+            .eq('id', userId)
+            .maybeSingle();
+
+        if (!error && typeof data?.daily_calorie_goal === 'number' && data.daily_calorie_goal > 0) {
+            return data.daily_calorie_goal;
+        }
+    } catch {
+        // fall through to default
+    }
+
+    return 2000;
 }
 
 export async function getOnboardingProfile(
@@ -795,6 +911,7 @@ export async function getOnboardingProfile(
         family_history: parse(row.family_history),
         dream_food_habits: parse(row.dream_food_habits),
         dream_special_habits: parse(row.dream_special_habits),
+        body_type_insights: parse(row.body_type_insights),
     };
 }
 
@@ -811,6 +928,8 @@ export async function saveBodyTypeResult(
     }
 ): Promise<void> {
     const database = getDb();
+    const updatedAtIso = new Date().toISOString();
+
     await database.runAsync(
         `UPDATE user_health_profiles SET
             body_type_dominant = ?,
@@ -837,6 +956,33 @@ export async function saveBodyTypeResult(
             userId,
         ]
     );
+
+    if (userId !== 'onboarding-temp') {
+        try {
+            const { error } = await supabase
+                .from('user_health_profiles')
+                .upsert({
+                    user_id: userId,
+                    body_type_dominant: result.dominant,
+                    body_type_blend: result.blend ?? null,
+                    body_type_ecto: result.scores.ecto,
+                    body_type_meso: result.scores.meso,
+                    body_type_endo: result.scores.endo,
+                    body_type_bf: result.estimatedBF ?? null,
+                    body_type_frame: result.frameSize ?? null,
+                    body_type_confidence: result.confidence,
+                    body_type_insights: result.insights,
+                    body_type_updated_at: updatedAtIso,
+                    updated_at: updatedAtIso,
+                }, { onConflict: 'user_id' });
+
+            if (error) {
+                console.error('Failed to sync body type result to Supabase:', error.message);
+            }
+        } catch (e: any) {
+            console.error('Unexpected body type sync error:', e?.message ?? e);
+        }
+    }
 }
 
 export async function getBodyTypeResult(
