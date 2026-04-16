@@ -10,15 +10,25 @@ import React from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Shadows } from '@/constants/theme';
+import { useAppTheme } from '@/src/contexts/ThemeContext';
 
 export default function TabLayout() {
+  const { isDark } = useAppTheme();
+  const palette = isDark ? Colors.dark : Colors.light;
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.dark.textTertiary,
-        tabBarStyle: styles.tabBar,
+        tabBarInactiveTintColor: palette.textTertiary,
+        tabBarStyle: [
+          styles.tabBar,
+          {
+            backgroundColor: palette.tabBar,
+            borderTopColor: palette.border,
+          },
+        ],
         tabBarLabelStyle: styles.tabBarLabel,
         tabBarItemStyle: styles.tabBarItem,
       }}
@@ -108,8 +118,6 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    backgroundColor: Colors.dark.tabBar,
-    borderTopColor: Colors.dark.border,
     borderTopWidth: 1,
     minHeight: Platform.OS === 'ios' ? 88 : 70,
     paddingTop: 8,

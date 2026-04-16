@@ -590,6 +590,36 @@ function derivePlanParams(
   else if (goal === 'bulk' || bodyType === 'ectomorph') primaryFocus = 'strength';
   else if (highStress) primaryFocus = 'yoga';
 
+  // ── Dream body style adjustments ────────────────────────
+  const dreamStyle = (profile as any).dream_body_style;
+  if (dreamStyle) {
+    switch (dreamStyle) {
+      case 'muscular':
+      case 'powerlifter':
+        primaryFocus = 'strength';
+        if (fitnessLevel !== 'beginner') restDaysPerWeek = Math.max(restDaysPerWeek - 1, 1);
+        reasons.push(`Dream body "${dreamStyle}" → heavy compound lifts prioritised 🏋️`);
+        break;
+      case 'swimmer':
+        reasons.push('Swimmer physique → back, shoulders & cardio emphasis 🏊');
+        break;
+      case 'runner':
+        primaryFocus = 'cardio';
+        reasons.push('Runner build → endurance cardio + leg conditioning 🏃');
+        break;
+      case 'lean_athletic':
+        reasons.push('Lean athletic goal → balanced strength + HIIT 🔥');
+        break;
+      case 'toned':
+        reasons.push('Toned physique → moderate resistance + core work ✨');
+        break;
+      case 'slim':
+        primaryFocus = goal === 'cut' ? 'hiit' : 'cardio';
+        reasons.push('Slim body goal → calorie-burning focus with light strength 🌿');
+        break;
+    }
+  }
+
   return {
     fitnessLevel, bodyType, goal, calorieDeficit: avgDailyDeficit,
     activityLevel: profile.activity_level ?? 'sedentary',

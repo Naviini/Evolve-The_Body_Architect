@@ -249,6 +249,15 @@ export default function BodyInsightsScreen() {
                     <Text style={styles.updateBtnText}>Update Profile & Recalculate</Text>
                 </TouchableOpacity>
 
+                {/* Simulate Transformation CTA */}
+                <TouchableOpacity
+                    style={[styles.updateBtn, { borderColor: '#10B981', marginTop: Spacing.sm }]}
+                    onPress={() => router.push('/body-simulation' as any)}
+                >
+                    <Ionicons name="body-outline" size={18} color="#10B981" />
+                    <Text style={[styles.updateBtnText, { color: '#10B981' }]}>Simulate My Transformation</Text>
+                </TouchableOpacity>
+
                 <View style={{ height: 100 }} />
             </ScrollView>
         </View>

@@ -159,8 +159,23 @@ function metabolicScore(p: OnboardingProfile): { ecto: number; meso: number; end
 
     switch (p.diet_type) {
         case 'keto': case 'paleo': meso += 0.25; ecto += 0.1; break;
+        case 'mediterranean': meso += 0.2; endo -= 0.05; break;
         case 'vegan': case 'vegetarian': ecto += 0.2; break;
         case 'omnivore': break;
+    }
+
+    // Cuisine preferences can subtly influence metabolic tendencies.
+    const cuisinePrefs = (p.cuisine_preferences ?? []).map(c => c.toLowerCase());
+    const hasFlexibleCuisinePreference = cuisinePrefs.includes('other') || cuisinePrefs.includes('no preference');
+
+    if (hasFlexibleCuisinePreference) {
+        // User is open to non-listed cuisines: keep metabolic cuisine weighting light and adaptable.
+        meso += 0.02;
+    } else {
+        if (cuisinePrefs.includes('sri lankan')) {
+            meso += 0.08;
+            ecto += 0.04;
+        }
     }
 
     switch (p.snacking_habit) {
@@ -179,6 +194,23 @@ function metabolicScore(p: OnboardingProfile): { ecto: number; meso: number; end
 
     if (p.blood_sugar_level === 'high') endo += 0.2;
     if (p.cholesterol_level === 'high') endo += 0.15;
+
+    const familyHistory = (p.family_history ?? []).map(v => v.toLowerCase());
+    const hasNeutralFamilyHistory =
+        familyHistory.includes('none / unknown') ||
+        familyHistory.includes('none/unknown') ||
+        familyHistory.includes('none unknown') ||
+        familyHistory.includes('none') ||
+        familyHistory.includes('unknown') ||
+        familyHistory.includes('other');
+
+    if (!hasNeutralFamilyHistory) {
+        if (familyHistory.includes('diabetes')) endo += 0.08;
+        if (familyHistory.includes('hypertension')) endo += 0.06;
+        if (familyHistory.includes('heart disease')) endo += 0.06;
+        if (familyHistory.includes('obesity')) endo += 0.08;
+        if (familyHistory.includes('stroke')) endo += 0.05;
+    }
 
     switch (p.smoking_status) {
         case 'daily': ecto += 0.1; break; // nicotine suppresses appetite

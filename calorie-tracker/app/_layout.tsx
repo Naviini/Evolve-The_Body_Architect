@@ -20,6 +20,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import 'react-native-reanimated';
 
 import { AuthProvider, useAuth } from '@/src/contexts/AuthContext';
+import { ThemeProvider } from '@/src/contexts/ThemeContext';
 import { initDatabase } from '@/src/lib/database';
 import { startAutoSync } from '@/src/lib/sync';
 import { Colors, Typography } from '@/constants/theme';
@@ -51,9 +52,14 @@ function useProtectedRoute(
     if (loading) return;
 
     const inAuthGroup = segments[0] === '(auth)';
-    const inTabsGroup = segments[0] === '(tabs)';
+    const currentPath = segments.join('/');
+    const inProfileSetup = currentPath === '(auth)/profile-setup';
 
     if (!onboardingDone) {
+      // Allow the first transition from onboarding -> profile setup.
+      // onboardingDone state is sourced from AsyncStorage and may lag one render.
+      if (inProfileSetup) return;
+
       // Always show onboarding to first-timers
       router.replace('/(auth)/onboarding' as any);
       return;
@@ -138,6 +144,14 @@ function InnerLayout({
               headerShown: false,
             }}
           />
+          <Stack.Screen
+            name="body-simulation"
+            options={{
+              presentation: 'modal',
+              animation: 'slide_from_bottom',
+              headerShown: false,
+            }}
+          />
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         </Stack>
         <StatusBar style="light" />
@@ -178,9 +192,11 @@ export default function RootLayout() {
   }
 
   return (
-    <AuthProvider>
-      <InnerLayout onboardingDone={onboardingDone} setOnboardingDone={setOnboardingDone} />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <InnerLayout onboardingDone={onboardingDone} setOnboardingDone={setOnboardingDone} />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 
