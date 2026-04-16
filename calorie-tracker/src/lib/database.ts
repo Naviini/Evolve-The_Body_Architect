@@ -7,7 +7,7 @@
  */
 
 import * as SQLite from 'expo-sqlite';
-import { MealEntry, FoodItem, MealType, OnboardingProfile, WorkoutPlan, WorkoutSession, UserRewards } from '@/src/types';
+import { MealEntry, FoodItem, MealType, OnboardingProfile, WorkoutPlan, WorkoutSession, UserRewards, BodyPhotoRecord, BodySimulationResult, MilestonePhase } from '@/src/types';
 import { supabase } from './supabase';
 import { calculatePersonalizedCalorieRecommendation } from './calorieEngine';
 
@@ -216,10 +216,41 @@ export async function initDatabase(): Promise<void> {
         `ALTER TABLE user_health_profiles ADD COLUMN body_type_confidence TEXT`,
         `ALTER TABLE user_health_profiles ADD COLUMN body_type_insights TEXT DEFAULT '[]'`,
         `ALTER TABLE user_health_profiles ADD COLUMN body_type_updated_at TEXT`,
+        // Body simulation columns
+        `ALTER TABLE user_health_profiles ADD COLUMN dream_body_style TEXT`,
+        `ALTER TABLE user_health_profiles ADD COLUMN dream_body_description TEXT`,
+        `ALTER TABLE user_health_profiles ADD COLUMN target_bf_percent REAL`,
     ];
     for (const sql of migrations) {
         try { await db.execAsync(sql); } catch { /* column already exists, ignore */ }
     }
+
+    // Body photos table
+    await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS body_photos (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      local_uri TEXT NOT NULL,
+      date_taken TEXT NOT NULL,
+      phase INTEGER DEFAULT -1,
+      notes TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_body_photos_user ON body_photos(user_id);
+  `);
+
+    // Body simulations cache table
+    await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS body_simulations (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL UNIQUE,
+      phases_json TEXT NOT NULL,
+      dream_body_style TEXT,
+      dream_body_description TEXT,
+      target_bf_percent REAL,
+      generated_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
 }
 
 function getDb(): SQLite.SQLiteDatabase {
@@ -668,12 +699,12 @@ async function upsertLocalOnboardingProfile(
             pick('snacking_habit'),
             pick('water_intake_glasses'),
             serialize(pick('food_allergies', [])),
-            serialize(pick('cuisine_preferences', [])),
+            JSON.stringify(normalizeCuisinePreferences(pick('cuisine_preferences', []))),
             pick('blood_sugar_level'),
             pick('cholesterol_level'),
             serialize(pick('health_conditions', [])),
             pick('medications'),
-            serialize(pick('family_history', [])),
+            JSON.stringify(normalizeFamilyHistory(pick('family_history', []))),
             pick('smoking_status'),
             pick('alcohol_frequency'),
             pick('sleep_hours'),
@@ -743,6 +774,43 @@ function toProfileGender(value: any): 'male' | 'female' | 'other' | null {
     return 'other';
 }
 
+const CUISINE_PREFERENCE_CANONICAL_MAP: Record<string, string> = {
+    'sri lankan': 'Sri Lankan',
+    'srilankan': 'Sri Lankan',
+    'sri-lankan': 'Sri Lankan',
+    'mediterranean': 'Mediterranean',
+    'asian': 'Asian',
+    'middle eastern': 'Middle Eastern',
+    'western': 'Western',
+    'latin': 'Latin',
+    'african': 'African',
+    'africn': 'African',
+    'japanese': 'Japanese',
+    'indian': 'Indian',
+    'no preference': 'No Preference',
+    'no preferences': 'No Preference',
+    'other': 'Other',
+    'others': 'Other',
+    'other cuisine': 'Other',
+    'other cuisines': 'Other',
+};
+
+const FAMILY_HISTORY_CANONICAL_MAP: Record<string, string> = {
+    'diabetes': 'Diabetes',
+    'heart disease': 'Heart Disease',
+    'cancer': 'Cancer',
+    'hypertension': 'Hypertension',
+    'obesity': 'Obesity',
+    'stroke': 'Stroke',
+    'none / unknown': 'None / Unknown',
+    'none/unknown': 'None / Unknown',
+    'none unknown': 'None / Unknown',
+    'none': 'None / Unknown',
+    'unknown': 'None / Unknown',
+    'other': 'Other',
+    'others': 'Other',
+};
+
 function normalizeStringArray(value: any): string[] {
     if (Array.isArray(value)) return value;
     if (typeof value === 'string') {
@@ -754,6 +822,30 @@ function normalizeStringArray(value: any): string[] {
         }
     }
     return [];
+}
+
+function normalizeCuisinePreferences(value: any): string[] {
+    const normalized = normalizeStringArray(value)
+        .map(item => (typeof item === 'string' ? item.trim() : ''))
+        .filter(Boolean)
+        .map(item => {
+            const key = item.toLowerCase().replace(/\s+/g, ' ');
+            return CUISINE_PREFERENCE_CANONICAL_MAP[key] ?? item;
+        });
+
+    return Array.from(new Set(normalized));
+}
+
+function normalizeFamilyHistory(value: any): string[] {
+    const normalized = normalizeStringArray(value)
+        .map(item => (typeof item === 'string' ? item.trim() : ''))
+        .filter(Boolean)
+        .map(item => {
+            const key = item.toLowerCase().replace(/\s+/g, ' ');
+            return FAMILY_HISTORY_CANONICAL_MAP[key] ?? item;
+        });
+
+    return Array.from(new Set(normalized));
 }
 
 async function syncOnboardingToSupabase(
@@ -814,12 +906,12 @@ async function syncOnboardingToSupabase(
         assignIfDefined(healthPayload, 'snacking_habit', data.snacking_habit);
         assignIfDefined(healthPayload, 'water_intake_glasses', data.water_intake_glasses);
         if ((data as any).food_allergies !== undefined) healthPayload.food_allergies = normalizeStringArray((data as any).food_allergies);
-        if ((data as any).cuisine_preferences !== undefined) healthPayload.cuisine_preferences = normalizeStringArray((data as any).cuisine_preferences);
+        if ((data as any).cuisine_preferences !== undefined) healthPayload.cuisine_preferences = normalizeCuisinePreferences((data as any).cuisine_preferences);
         assignIfDefined(healthPayload, 'blood_sugar_level', data.blood_sugar_level);
         assignIfDefined(healthPayload, 'cholesterol_level', data.cholesterol_level);
         if ((data as any).health_conditions !== undefined) healthPayload.health_conditions = normalizeStringArray((data as any).health_conditions);
         assignIfDefined(healthPayload, 'medications', data.medications);
-        if ((data as any).family_history !== undefined) healthPayload.family_history = normalizeStringArray((data as any).family_history);
+        if ((data as any).family_history !== undefined) healthPayload.family_history = normalizeFamilyHistory((data as any).family_history);
         assignIfDefined(healthPayload, 'smoking_status', data.smoking_status);
         assignIfDefined(healthPayload, 'alcohol_frequency', data.alcohol_frequency);
         assignIfDefined(healthPayload, 'sleep_hours', data.sleep_hours);
@@ -848,6 +940,11 @@ async function syncOnboardingToSupabase(
         if ((data as any).body_type_confidence !== undefined) healthPayload.body_type_confidence = (data as any).body_type_confidence;
         if ((data as any).body_type_insights !== undefined) healthPayload.body_type_insights = normalizeStringArray((data as any).body_type_insights);
         if ((data as any).body_type_updated_at !== undefined) healthPayload.body_type_updated_at = (data as any).body_type_updated_at;
+        
+        // Sync dream body simulation fields
+        assignIfDefined(healthPayload, 'dream_body_style', (data as any).dream_body_style);
+        assignIfDefined(healthPayload, 'dream_body_description', (data as any).dream_body_description);
+        assignIfDefined(healthPayload, 'target_bf_percent', (data as any).target_bf_percent);
 
         const { error: healthError } = await supabase
             .from('user_health_profiles')
@@ -906,9 +1003,9 @@ export async function getOnboardingProfile(
     return {
         ...row,
         food_allergies: parse(row.food_allergies),
-        cuisine_preferences: parse(row.cuisine_preferences),
+        cuisine_preferences: normalizeCuisinePreferences(parse(row.cuisine_preferences)),
         health_conditions: parse(row.health_conditions),
-        family_history: parse(row.family_history),
+        family_history: normalizeFamilyHistory(parse(row.family_history)),
         dream_food_habits: parse(row.dream_food_habits),
         dream_special_habits: parse(row.dream_special_habits),
         body_type_insights: parse(row.body_type_insights),
@@ -1281,4 +1378,124 @@ export async function saveProfileHash(userId: string, hash: string): Promise<voi
          ON CONFLICT(user_id) DO UPDATE SET profile_hash = ?, last_updated = datetime('now')`,
         [userId, hash, hash]
     );
+}
+
+// ============================================================
+// Body Photos
+// ============================================================
+
+export async function saveBodyPhoto(photo: Omit<BodyPhotoRecord, 'createdAt'>): Promise<string> {
+    const database = getDb();
+    const id = photo.id || generateId();
+    await database.runAsync(
+        `INSERT INTO body_photos (id, user_id, local_uri, date_taken, phase, notes)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [id, photo.userId, photo.localUri, photo.dateTaken, photo.phase, photo.notes]
+    );
+
+    // Sync to Supabase
+    if (photo.userId !== 'onboarding-temp') {
+        supabase.from('body_photos').upsert({
+            id,
+            user_id: photo.userId,
+            local_uri: photo.localUri,
+            date_taken: photo.dateTaken,
+            phase: photo.phase,
+            notes: photo.notes,
+            created_at: new Date().toISOString()
+        }, { onConflict: 'id' })
+        .then(({error}) => { if (error) console.error("Body photo sync error:", error); });
+    }
+
+    return id;
+}
+
+export async function getBodyPhotos(userId: string): Promise<BodyPhotoRecord[]> {
+    const database = getDb();
+    const rows = await database.getAllAsync<any>(
+        `SELECT * FROM body_photos WHERE user_id = ? ORDER BY date_taken DESC`,
+        [userId]
+    );
+    return rows.map(r => ({
+        id: r.id,
+        userId: r.user_id,
+        localUri: r.local_uri,
+        dateTaken: r.date_taken,
+        phase: r.phase,
+        notes: r.notes,
+        createdAt: r.created_at,
+    }));
+}
+
+export async function deleteBodyPhoto(id: string): Promise<void> {
+    const database = getDb();
+    await database.runAsync(`DELETE FROM body_photos WHERE id = ?`, [id]);
+    
+    // Sync to Supabase
+    supabase.from('body_photos').delete().eq('id', id)
+    .then(({error}) => { if (error) console.error("Body photo delete sync error:", error); });
+}
+
+// ============================================================
+// Body Simulation Cache
+// ============================================================
+
+export async function saveBodySimulation(
+    userId: string,
+    phases: MilestonePhase[],
+    dreamStyle: string | null,
+    dreamDesc: string | null,
+    targetBF: number | null,
+): Promise<void> {
+    const database = getDb();
+    const id = generateId();
+    await database.runAsync(
+        `INSERT OR REPLACE INTO body_simulations
+         (id, user_id, phases_json, dream_body_style, dream_body_description, target_bf_percent, generated_at)
+         VALUES (
+           COALESCE((SELECT id FROM body_simulations WHERE user_id = ?), ?),
+           ?, ?, ?, ?, ?, datetime('now')
+         )`,
+        [userId, id, userId, JSON.stringify(phases), dreamStyle, dreamDesc, targetBF]
+    );
+
+    // Sync to Supabase
+    if (userId !== 'onboarding-temp') {
+        supabase.from('body_simulations').upsert({
+            id,
+            user_id: userId,
+            phases_json: JSON.stringify(phases),
+            dream_body_style: dreamStyle,
+            dream_body_description: dreamDesc,
+            target_bf_percent: targetBF,
+            generated_at: new Date().toISOString()
+        }, { onConflict: 'user_id' })
+        .then(({error}) => { if (error) console.error("Body simulation sync error:", error); });
+    }
+}
+
+export async function getBodySimulation(userId: string): Promise<{
+    phases: MilestonePhase[];
+    dreamBodyStyle: string | null;
+    dreamBodyDescription: string | null;
+    targetBFPercent: number | null;
+    generatedAt: string;
+} | null> {
+    const database = getDb();
+    const row = await database.getFirstAsync<any>(
+        `SELECT * FROM body_simulations WHERE user_id = ?`,
+        [userId]
+    );
+    if (!row) return null;
+    try {
+        return {
+            phases: JSON.parse(row.phases_json),
+            dreamBodyStyle: row.dream_body_style,
+            dreamBodyDescription: row.dream_body_description,
+            targetBFPercent: row.target_bf_percent,
+            generatedAt: row.generated_at,
+        };
+    } catch {
+        return null;
+    }
 }

@@ -91,6 +91,26 @@ function getGoalAdjustment(profile: Partial<OnboardingProfile>, reasons: string[
     reasons.push('Metabolic health condition detected, applying conservative adjustment.');
   }
 
+  // Dream body style adjustments (if available via extended profile fields)
+  const profileAny = profile as any;
+  if (profileAny.dream_body_style) {
+    const styleAdjust: Record<string, number> = {
+      muscular: 0.08,
+      powerlifter: 0.10,
+      lean_athletic: -0.03,
+      swimmer: 0.02,
+      runner: -0.05,
+      slim: -0.08,
+      toned: -0.02,
+      custom: 0,
+    };
+    const adj = styleAdjust[profileAny.dream_body_style] ?? 0;
+    if (adj !== 0) {
+      adjustment += adj;
+      reasons.push(`Dream body style "${profileAny.dream_body_style}" applied to calorie target.`);
+    }
+  }
+
   return clamp(adjustment, -0.3, 0.25);
 }
 
@@ -98,6 +118,12 @@ export function calculatePersonalizedCalorieRecommendation(
   profile: Partial<OnboardingProfile>
 ): CalorieRecommendation {
   const reasons: string[] = [];
+
+  const cuisinePrefs = profile.cuisine_preferences ?? [];
+  const hasFlexibleCuisinePreference = cuisinePrefs.some((pref) => /^(other|others|no preference|no preferences)$/i.test(String(pref).trim()));
+  if (hasFlexibleCuisinePreference) {
+    reasons.push('Flexible cuisine preference detected: recommendations may include additional cuisines while respecting diet type and allergies.');
+  }
 
   const weight = profile.weight_kg ?? 70;
   const height = profile.height_cm ?? 170;

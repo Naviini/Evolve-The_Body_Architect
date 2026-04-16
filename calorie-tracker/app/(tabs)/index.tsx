@@ -32,8 +32,10 @@ import {
   getDailyCalorieGoalForUser,
 } from '@/src/lib/database';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { MealEntry, MealType, WorkoutDay } from '@/src/types';
+import { MealEntry, MealType, WorkoutDay, MilestonePhase } from '@/src/types';
 import { generateWeeklyPlan, getWeekStart } from '@/src/lib/workoutEngine';
+import { generateBodySimulation, inferDreamBodyStyle } from '@/src/lib/bodySimulationEngine';
+import { BodySilhouetteMini } from '@/components/BodySilhouette';
 
 const { width: windowWidth } = Dimensions.get('window');
 const SCREEN_WIDTH = Platform.OS === 'web' ? Math.min(windowWidth, 480) : windowWidth;
@@ -49,6 +51,7 @@ export default function HomeScreen() {
   const [calorieGoal, setCalorieGoal] = useState(2000);
   const [refreshing, setRefreshing] = useState(false);
   const [todayWorkout, setTodayWorkout] = useState<WorkoutDay | null>(null);
+  const [simPhases, setSimPhases] = useState<MilestonePhase[]>([]);
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -92,6 +95,16 @@ export default function HomeScreen() {
         if (plan) {
           const dayIdx = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
           setTodayWorkout(plan.days[dayIdx] ?? null);
+        }
+      } catch { }
+
+      // Load body simulation preview
+      try {
+        const simProfile = await getOnboardingProfile(userId);
+        if (simProfile) {
+          const dreamStyle = inferDreamBodyStyle(simProfile.dream_daily_routine);
+          const phases = generateBodySimulation({ profile: simProfile, dreamBodyStyle: dreamStyle });
+          setSimPhases(phases);
         }
       } catch { }
     } catch (e) {
@@ -258,6 +271,56 @@ export default function HomeScreen() {
                     <Ionicons name="play-circle" size={32} color={Colors.primary} />
                   </View>
                 )}
+              </LinearGradient>
+            </TouchableOpacity>
+          </>
+        )}
+
+        {/* Body Transformation Preview */}
+        {simPhases.length >= 2 && (
+          <>
+            <Text style={styles.sectionTitle}>Body Transformation</Text>
+            <TouchableOpacity
+              onPress={() => router.push('/body-simulation' as any)}
+              activeOpacity={0.8}
+              style={styles.transformCard}
+            >
+              <LinearGradient
+                colors={['#1A1040', '#0F2A40']}
+                style={styles.transformGradient}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              >
+                <View style={styles.transformSilhouettes}>
+                  <View style={styles.transformPhaseCol}>
+                    <Text style={styles.transformPhaseLabel}>Now</Text>
+                    <BodySilhouetteMini
+                      params={simPhases[0].bodyParams}
+                      gender={(user?.user_metadata?.gender === 'female' ? 'female' : 'male') as any}
+                      size={90}
+                      accentColor="#6B7280"
+                    />
+                    <Text style={styles.transformWeight}>{simPhases[0].estimatedWeightKg} kg</Text>
+                  </View>
+                  <View style={styles.transformArrow}>
+                    <Text style={styles.transformArrowEmoji}>➜</Text>
+                  </View>
+                  <View style={styles.transformPhaseCol}>
+                    <Text style={[styles.transformPhaseLabel, { color: '#10B981' }]}>Dream</Text>
+                    <BodySilhouetteMini
+                      params={simPhases[simPhases.length - 1].bodyParams}
+                      gender={(user?.user_metadata?.gender === 'female' ? 'female' : 'male') as any}
+                      size={90}
+                      accentColor="#10B981"
+                    />
+                    <Text style={[styles.transformWeight, { color: '#10B981' }]}>
+                      {simPhases[simPhases.length - 1].estimatedWeightKg} kg
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.transformCta}>
+                  <Text style={styles.transformCtaText}>View Your Journey</Text>
+                  <Ionicons name="arrow-forward-circle" size={20} color={Colors.primary} />
+                </View>
               </LinearGradient>
             </TouchableOpacity>
           </>
@@ -673,5 +736,61 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+
+  // Body Transformation Preview
+  transformCard: {
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.primary + '30',
+    ...Shadows.medium,
+  },
+  transformGradient: {
+    padding: Spacing.md,
+  },
+  transformSilhouettes: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  transformPhaseCol: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  transformPhaseLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.dark.textSecondary,
+  },
+  transformWeight: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.dark.textTertiary,
+  },
+  transformArrow: {
+    paddingHorizontal: 8,
+  },
+  transformArrowEmoji: {
+    fontSize: 22,
+    color: Colors.primary,
+    opacity: 0.7,
+  },
+  transformCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.08)',
+  },
+  transformCtaText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.primary,
   },
 });

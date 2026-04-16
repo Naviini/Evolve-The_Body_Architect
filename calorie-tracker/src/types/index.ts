@@ -138,9 +138,23 @@ export interface WeeklyStats {
 
 // ---- Onboarding Profile ----
 export type BiologicalGender = 'male' | 'female' | 'intersex';
-export type GenderIdentity = 'man' | 'woman' | 'non_binary' | 'prefer_not_to_say' | 'other';
+export type GenderIdentity =
+  | 'man'
+  | 'woman'
+  | 'non_binary'
+  | 'agender'
+  | 'genderfluid'
+  | 'genderqueer'
+  | 'trans_man'
+  | 'trans_woman'
+  | 'bigender'
+  | 'demiboy'
+  | 'demigirl'
+  | 'questioning'
+  | 'prefer_not_to_say'
+  | 'other';
 export type WorkType = 'desk' | 'standing' | 'physical' | 'student' | 'retired' | 'other';
-export type DietType = 'omnivore' | 'vegetarian' | 'vegan' | 'pescatarian' | 'keto' | 'paleo' | 'other';
+export type DietType = 'omnivore' | 'vegetarian' | 'vegan' | 'pescatarian' | 'keto' | 'paleo' | 'mediterranean' | 'other';
 export type SnackingHabit = 'never' | 'sometimes' | 'often' | 'always';
 export type HealthLevel = 'normal' | 'borderline' | 'high' | 'low' | 'unknown';
 export type SmokingStatus = 'never' | 'former' | 'occasionally' | 'daily';
@@ -364,4 +378,67 @@ export interface UserRewards {
   totalCaloriesBurned: number;
   profileHash?: string; // change-detection for plan refresh
   lastUpdated: string;
+}
+
+// ============================================================
+// Body Simulation Types
+// ============================================================
+
+export type DreamBodyStyle =
+  | 'lean_athletic'
+  | 'muscular'
+  | 'toned'
+  | 'slim'
+  | 'powerlifter'
+  | 'swimmer'
+  | 'runner'
+  | 'custom';
+
+/** Normalised 0–1 body proportion parameters used by the SVG renderer */
+export interface BodySimulationParams {
+  shoulderWidth: number;  // 0 = very narrow, 1 = very broad
+  chestWidth: number;
+  waistWidth: number;
+  hipWidth: number;
+  armSize: number;        // 0 = thin, 1 = very muscular
+  legSize: number;
+  muscleTone: number;     // 0 = no definition, 1 = very defined
+  bodyFatOverlay: number; // 0 = very lean, 1 = high body fat
+}
+
+/** One phase in the transformation timeline */
+export interface MilestonePhase {
+  phase: number;               // 0 = current, 1–4 = milestones, 5 = dream
+  label: string;               // e.g. "Current", "Month 1", "Month 3", …, "Dream"
+  monthsFromNow: number;
+  estimatedWeightKg: number;
+  estimatedBFPercent: number;
+  bodyParams: BodySimulationParams;
+  dietFocus: string;           // brief diet recommendation for this phase
+  workoutFocus: string;        // brief workout recommendation
+  motivationalMessage: string;
+  macroSplit: { protein: number; carbs: number; fat: number }; // percentages
+  dailyCalories: number;
+}
+
+/** Stored body photo record */
+export interface BodyPhotoRecord {
+  id: string;
+  userId: string;
+  localUri: string;            // local file path
+  dateTaken: string;           // ISO date
+  phase: number;               // which milestone phase this corresponds to (-1 = ad-hoc)
+  notes: string | null;
+  createdAt: string;
+}
+
+/** Complete simulation result stored in DB */
+export interface BodySimulationResult {
+  id: string;
+  userId: string;
+  phases: MilestonePhase[];
+  dreamBodyStyle: DreamBodyStyle | null;
+  dreamBodyDescription: string | null;
+  targetBFPercent: number | null;
+  generatedAt: string;
 }

@@ -20,6 +20,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import 'react-native-reanimated';
 
 import { AuthProvider, useAuth } from '@/src/contexts/AuthContext';
+import { ThemeProvider } from '@/src/contexts/ThemeContext';
 import { initDatabase } from '@/src/lib/database';
 import { startAutoSync } from '@/src/lib/sync';
 import { Colors, Typography } from '@/constants/theme';
@@ -143,6 +144,14 @@ function InnerLayout({
               headerShown: false,
             }}
           />
+          <Stack.Screen
+            name="body-simulation"
+            options={{
+              presentation: 'modal',
+              animation: 'slide_from_bottom',
+              headerShown: false,
+            }}
+          />
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         </Stack>
         <StatusBar style="light" />
@@ -183,9 +192,11 @@ export default function RootLayout() {
   }
 
   return (
-    <AuthProvider>
-      <InnerLayout onboardingDone={onboardingDone} setOnboardingDone={setOnboardingDone} />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <InnerLayout onboardingDone={onboardingDone} setOnboardingDone={setOnboardingDone} />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

@@ -23,11 +23,22 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Colors, Spacing, BorderRadius, Typography, Shadows } from '@/constants/theme';
+import { Spacing, BorderRadius, Typography, Shadows } from '@/constants/theme';
 
 const { width: windowWidth, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SCREEN_WIDTH = Platform.OS === 'web' ? Math.min(windowWidth, 480) : windowWidth;
 const ONBOARDING_KEY = '@calorie_tracker_onboarding_done';
+
+const ONBOARDING_THEME = {
+    bg: '#050A1D',
+    surface: '#171E3F',
+    border: '#2B366C',
+    accent: '#6664FF',
+    accentStrong: '#8D9BFF',
+    text: '#EEF2FF',
+    textMuted: '#9AA8D7',
+    textSoft: '#7F8BB9',
+};
 
 interface OnboardingPage {
     icon: keyof typeof Ionicons.glyphMap;
@@ -41,8 +52,8 @@ interface OnboardingPage {
 const PAGES: OnboardingPage[] = [
     {
         icon: 'flame',
-        iconColor: '#FF6B6B',
-        gradient: ['#FF6B6B', '#FFD93D'] as const,
+        iconColor: '#A8B6FF',
+        gradient: ['#5E68FF', '#7D8BFF'] as const,
         title: 'Track Calories',
         subtitle: 'Effortlessly',
         description:
@@ -50,8 +61,8 @@ const PAGES: OnboardingPage[] = [
     },
     {
         icon: 'camera',
-        iconColor: '#00D2FF',
-        gradient: ['#6C63FF', '#00D2FF'] as const,
+        iconColor: '#9FB0FF',
+        gradient: ['#5C73FF', '#7193FF'] as const,
         title: 'Scan Your Food',
         subtitle: 'With AI Vision',
         description:
@@ -59,8 +70,8 @@ const PAGES: OnboardingPage[] = [
     },
     {
         icon: 'trophy',
-        iconColor: '#00E676',
-        gradient: ['#00E676', '#00D2FF'] as const,
+        iconColor: '#B4BEFF',
+        gradient: ['#6366FF', '#8A93FF'] as const,
         title: 'Achieve Goals',
         subtitle: 'Stay Consistent',
         description:
@@ -234,7 +245,7 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: Colors.dark.background,
+        backgroundColor: ONBOARDING_THEME.bg,
     },
     bgGlow: {
         position: 'absolute',
@@ -243,8 +254,8 @@ const styles = StyleSheet.create({
         width: SCREEN_WIDTH * 0.8,
         height: SCREEN_WIDTH * 0.8,
         borderRadius: SCREEN_WIDTH * 0.4,
-        backgroundColor: Colors.primary,
-        opacity: 0.04,
+        backgroundColor: ONBOARDING_THEME.accent,
+        opacity: 0.12,
     },
 
     // Skip
@@ -258,7 +269,7 @@ const styles = StyleSheet.create({
     },
     skipText: {
         fontSize: Typography.sizes.bodyLarge,
-        color: Colors.dark.textTertiary,
+        color: ONBOARDING_THEME.textMuted,
         fontWeight: Typography.weights.medium,
     },
 
@@ -285,13 +296,15 @@ const styles = StyleSheet.create({
         borderRadius: 70,
         justifyContent: 'center',
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: ONBOARDING_THEME.border,
         ...Shadows.glow,
     },
     iconCircleInner: {
         width: 120,
         height: 120,
         borderRadius: 60,
-        backgroundColor: Colors.dark.background,
+        backgroundColor: ONBOARDING_THEME.surface,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -328,7 +341,7 @@ const styles = StyleSheet.create({
     title: {
         fontSize: Typography.sizes.hero,
         fontWeight: Typography.weights.heavy,
-        color: Colors.dark.text,
+        color: ONBOARDING_THEME.text,
         textAlign: 'center',
         letterSpacing: -0.5,
     },
@@ -341,7 +354,7 @@ const styles = StyleSheet.create({
     },
     description: {
         fontSize: Typography.sizes.bodyLarge,
-        color: Colors.dark.textSecondary,
+        color: ONBOARDING_THEME.textMuted,
         textAlign: 'center',
         lineHeight: 24,
     },
@@ -370,6 +383,8 @@ const styles = StyleSheet.create({
         width: '100%',
         borderRadius: BorderRadius.lg,
         overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: ONBOARDING_THEME.border,
     },
     actionButtonGradient: {
         flexDirection: 'row',
