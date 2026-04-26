@@ -27,8 +27,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from '@/constants/theme';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useAppStyles } from '@/hooks/useAppStyles';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 export default function LoginScreen() {
+  const colors = useThemeColors();
+  const styles = useAppStyles(createStyles);
     const { signIn } = useAuth();
     const router = useRouter();
 
@@ -139,12 +143,12 @@ export default function LoginScreen() {
                     <View style={styles.fieldGroup}>
                         <Text style={styles.fieldLabel}>Email</Text>
                         <View style={[styles.inputRow, !!error && email === '' && styles.inputRowError]}>
-                            <Ionicons name="mail-outline" size={18} color={Colors.dark.textTertiary} />
+                            <Ionicons name="mail-outline" size={18} color={colors.textTertiary} />
                             <TextInput
                                 ref={emailRef}
                                 style={styles.input}
                                 placeholder="you@example.com"
-                                placeholderTextColor={Colors.dark.textTertiary}
+                                placeholderTextColor={colors.textTertiary}
                                 value={email}
                                 onChangeText={(t) => { setEmail(t); setError(''); }}
                                 keyboardType="email-address"
@@ -165,12 +169,12 @@ export default function LoginScreen() {
                             </TouchableOpacity>
                         </View>
                         <View style={styles.inputRow}>
-                            <Ionicons name="lock-closed-outline" size={18} color={Colors.dark.textTertiary} />
+                            <Ionicons name="lock-closed-outline" size={18} color={colors.textTertiary} />
                             <TextInput
                                 ref={passwordRef}
                                 style={styles.input}
                                 placeholder="••••••••"
-                                placeholderTextColor={Colors.dark.textTertiary}
+                                placeholderTextColor={colors.textTertiary}
                                 value={password}
                                 onChangeText={(t) => { setPassword(t); setError(''); }}
                                 secureTextEntry={!showPassword}
@@ -181,7 +185,7 @@ export default function LoginScreen() {
                                 <Ionicons
                                     name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                                     size={18}
-                                    color={Colors.dark.textTertiary}
+                                    color={colors.textTertiary}
                                 />
                             </TouchableOpacity>
                         </View>
@@ -228,10 +232,10 @@ export default function LoginScreen() {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: Colors.dark.background,
+        backgroundColor: colors.background,
     },
     scrollContent: {
         flexGrow: 1,
@@ -256,34 +260,34 @@ const styles = StyleSheet.create({
     },
     appName: {
         fontSize: Typography.sizes.heading,
-        color: Colors.dark.text,
+        color: colors.text,
         fontWeight: Typography.weights.heavy,
         letterSpacing: -0.5,
     },
     tagline: {
         fontSize: Typography.sizes.body,
-        color: Colors.dark.textSecondary,
+        color: colors.textSecondary,
         marginTop: 4,
     },
 
     // Card
     card: {
-        backgroundColor: Colors.dark.surface,
+        backgroundColor: colors.surface,
         borderRadius: BorderRadius.lg,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
         padding: Spacing.xl,
         gap: Spacing.md,
         ...Shadows.medium,
     },
     cardTitle: {
         fontSize: Typography.sizes.title,
-        color: Colors.dark.text,
+        color: colors.text,
         fontWeight: Typography.weights.bold,
     },
     cardSubtitle: {
         fontSize: Typography.sizes.body,
-        color: Colors.dark.textSecondary,
+        color: colors.textSecondary,
         marginTop: -Spacing.sm,
     },
 
@@ -312,7 +316,7 @@ const styles = StyleSheet.create({
     },
     fieldLabel: {
         fontSize: Typography.sizes.body,
-        color: Colors.dark.textSecondary,
+        color: colors.textSecondary,
         fontWeight: Typography.weights.semibold,
     },
     labelRow: {
@@ -328,10 +332,10 @@ const styles = StyleSheet.create({
     inputRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: Colors.dark.surfaceLight,
+        backgroundColor: colors.surfaceLight,
         borderRadius: BorderRadius.md,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
         paddingHorizontal: Spacing.md,
         gap: Spacing.sm,
     },
@@ -340,7 +344,7 @@ const styles = StyleSheet.create({
     },
     input: {
         flex: 1,
-        color: Colors.dark.text,
+        color: colors.text,
         fontSize: Typography.sizes.bodyLarge,
         paddingVertical: Platform.OS === 'ios' ? 14 : 12,
     },
@@ -371,11 +375,11 @@ const styles = StyleSheet.create({
     dividerLine: {
         flex: 1,
         height: 1,
-        backgroundColor: Colors.dark.border,
+        backgroundColor: colors.border,
     },
     dividerText: {
         fontSize: Typography.sizes.body,
-        color: Colors.dark.textTertiary,
+        color: colors.textTertiary,
     },
 
     // Register
@@ -385,7 +389,7 @@ const styles = StyleSheet.create({
     },
     registerText: {
         fontSize: Typography.sizes.body,
-        color: Colors.dark.textSecondary,
+        color: colors.textSecondary,
     },
     registerLink: {
         fontSize: Typography.sizes.body,

@@ -33,6 +33,8 @@ import {
 } from '@/src/lib/rewardEngine';
 import { getTutorial, getCoachingCue, MOTIVATIONAL_QUOTES } from '@/src/lib/exerciseTutorials';
 import { WorkoutDay, WorkoutExercise, ExerciseLog, WorkoutSession } from '@/src/types';
+import { useAppStyles } from '@/hooks/useAppStyles';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 // ════════════════════════════════════════════════════════════
 // Types
@@ -51,6 +53,8 @@ interface SetState {
 // ════════════════════════════════════════════════════════════
 
 export default function WorkoutSessionScreen() {
+  const colors = useThemeColors();
+  const styles = useAppStyles(createStyles);
   const { user } = useAuth();
   const router = useRouter();
   const params = useLocalSearchParams<{ dayJson?: string; planId?: string }>();
@@ -365,7 +369,7 @@ export default function WorkoutSessionScreen() {
   if (!day) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ color: Colors.dark.textSecondary, fontSize: 15 }}>Loading workout…</Text>
+        <Text style={{ color: colors.textSecondary, fontSize: 15 }}>Loading workout…</Text>
       </View>
     );
   }
@@ -497,7 +501,7 @@ export default function WorkoutSessionScreen() {
               <Animated.View style={[styles.restCircleArc, {
                 borderTopColor: restCircleAnim.interpolate({
                   inputRange: [0, 1],
-                  outputRange: [Colors.dark.border, Colors.primary],
+                  outputRange: [colors.border, Colors.primary],
                 }),
               }]} />
             </View>
@@ -556,7 +560,7 @@ export default function WorkoutSessionScreen() {
             { text: 'Cancel', style: 'cancel' },
             { text: 'Quit', style: 'destructive', onPress: () => router.back() },
           ])} style={styles.closeBtn}>
-            <Ionicons name="close" size={24} color={Colors.dark.text} />
+            <Ionicons name="close" size={24} color={colors.text} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
             <Text style={styles.headerTitle}>{day.theme}</Text>
@@ -695,7 +699,7 @@ export default function WorkoutSessionScreen() {
         {/* Header */}
         <View style={styles.sessionHeader}>
           <TouchableOpacity onPress={() => setPhase('briefing')} style={styles.closeBtn}>
-            <Ionicons name="arrow-back" size={24} color={Colors.dark.text} />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
             <Text style={styles.headerTitle}>{currentExercise.name}</Text>
@@ -777,6 +781,8 @@ export default function WorkoutSessionScreen() {
 // Summary Stat card
 // ════════════════════════════════════════════════════════════
 function SummaryStat({ emoji, label, value }: { emoji: string; label: string; value: string }) {
+  const colors = useThemeColors();
+  const styles = useAppStyles(createStyles);
   return (
     <View style={styles.summaryStatCard}>
       <Text style={{ fontSize: 22 }}>{emoji}</Text>
@@ -789,8 +795,8 @@ function SummaryStat({ emoji, label, value }: { emoji: string; label: string; va
 // ════════════════════════════════════════════════════════════
 // Styles
 // ════════════════════════════════════════════════════════════
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.dark.background },
+const createStyles = (colors: any) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
 
   // Shared Header
   sessionHeader: {
@@ -800,17 +806,17 @@ const styles = StyleSheet.create({
   },
   closeBtn: { padding: 8 },
   headerCenter: { flex: 1, alignItems: 'center' },
-  headerTitle: { fontSize: 15, fontWeight: '700', color: Colors.dark.text },
-  headerSub: { fontSize: 11, color: Colors.dark.textSecondary },
+  headerTitle: { fontSize: 15, fontWeight: '700', color: colors.text },
+  headerSub: { fontSize: 11, color: colors.textSecondary },
   elapsed: { fontSize: 13, color: Colors.primary, fontWeight: '700', minWidth: 48, textAlign: 'right' },
 
-  progressTrack: { height: 3, backgroundColor: Colors.dark.border },
+  progressTrack: { height: 3, backgroundColor: colors.border },
   progressFill: { height: '100%', backgroundColor: Colors.primary },
 
   // ── Briefing ──
   briefingHero: {
     borderRadius: BorderRadius.lg, padding: Spacing.lg, marginBottom: Spacing.md,
-    alignItems: 'center', borderWidth: 1, borderColor: Colors.dark.border,
+    alignItems: 'center', borderWidth: 1, borderColor: colors.border,
   },
   briefingName: { fontSize: Typography.sizes.heading, fontWeight: '800', color: '#FFF', textAlign: 'center' },
   briefingMuscles: { fontSize: 13, color: Colors.primary, marginTop: 4 },
@@ -818,11 +824,11 @@ const styles = StyleSheet.create({
   briefingStat: { alignItems: 'center' },
   briefingStatVal: { fontSize: Typography.sizes.subtitle, fontWeight: '800', color: '#FFF' },
   briefingStatLbl: { fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 2 },
-  briefingSubtitle: { fontSize: 15, fontWeight: '700', color: Colors.dark.text, marginBottom: Spacing.sm, marginTop: Spacing.sm },
+  briefingSubtitle: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: Spacing.sm, marginTop: Spacing.sm },
 
   quickPhaseRow: {
     flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-start',
-    paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.dark.border,
+    paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   quickPhaseNum: {
     width: 24, height: 24, borderRadius: 12,
@@ -832,8 +838,8 @@ const styles = StyleSheet.create({
   quickPhaseNumText: { fontSize: 12, fontWeight: '800', color: Colors.primary },
   quickPhaseEmoji: { fontSize: 18, marginTop: 2 },
   quickPhaseContent: { flex: 1 },
-  quickPhaseLabel: { fontSize: 13, fontWeight: '700', color: Colors.dark.text },
-  quickPhaseCue: { fontSize: 12, color: Colors.dark.textSecondary, marginTop: 2, lineHeight: 17 },
+  quickPhaseLabel: { fontSize: 13, fontWeight: '700', color: colors.text },
+  quickPhaseCue: { fontSize: 12, color: colors.textSecondary, marginTop: 2, lineHeight: 17 },
 
   safetyBanner: {
     flexDirection: 'row', gap: 8, alignItems: 'flex-start',
@@ -841,7 +847,7 @@ const styles = StyleSheet.create({
     padding: Spacing.sm, marginTop: Spacing.sm,
     borderLeftWidth: 3, borderLeftColor: Colors.success,
   },
-  safetyBannerText: { flex: 1, fontSize: 13, color: Colors.dark.textSecondary },
+  safetyBannerText: { flex: 1, fontSize: 13, color: colors.textSecondary },
   breathInfo: {
     flexDirection: 'row', gap: 6, alignItems: 'center',
     backgroundColor: Colors.accent + '10', borderRadius: BorderRadius.sm,
@@ -850,10 +856,10 @@ const styles = StyleSheet.create({
   breathInfoText: { fontSize: 13, color: Colors.accent },
 
   noTutCard: {
-    backgroundColor: Colors.dark.surface, borderRadius: BorderRadius.md,
-    borderWidth: 1, borderColor: Colors.dark.border, padding: Spacing.md, marginBottom: Spacing.sm,
+    backgroundColor: colors.surface, borderRadius: BorderRadius.md,
+    borderWidth: 1, borderColor: colors.border, padding: Spacing.md, marginBottom: Spacing.sm,
   },
-  noTutText: { fontSize: 14, color: Colors.dark.textSecondary, lineHeight: 20 },
+  noTutText: { fontSize: 14, color: colors.textSecondary, lineHeight: 20 },
   noTutMod: { fontSize: 13, color: Colors.accent, marginTop: 8 },
 
   learnMoreBtn: {
@@ -869,15 +875,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingBottom: Platform.OS === 'ios' ? 36 : 20,
     paddingTop: 12,
-    backgroundColor: Colors.dark.background,
-    borderTopWidth: 1, borderTopColor: Colors.dark.border,
+    backgroundColor: colors.background,
+    borderTopWidth: 1, borderTopColor: colors.border,
   },
   skipExBtn: {
     paddingHorizontal: 20, paddingVertical: 14,
-    borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.dark.border,
+    borderRadius: BorderRadius.md, borderWidth: 1, borderColor: colors.border,
     justifyContent: 'center',
   },
-  skipExText: { color: Colors.dark.textTertiary, fontSize: 14 },
+  skipExText: { color: colors.textTertiary, fontSize: 14 },
   startExBtn: { flex: 1, borderRadius: BorderRadius.md, overflow: 'hidden' },
   startExBtnGradient: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
@@ -892,7 +898,7 @@ const styles = StyleSheet.create({
   },
   setDot: {
     width: 10, height: 10, borderRadius: 5,
-    backgroundColor: Colors.dark.border,
+    backgroundColor: colors.border,
   },
   setDotDone: { backgroundColor: Colors.primary },
 
@@ -900,8 +906,8 @@ const styles = StyleSheet.create({
     flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: Spacing.md,
   },
   repDisplay: { alignItems: 'center' },
-  repNumbers: { fontSize: 96, fontWeight: '900', color: Colors.dark.text, lineHeight: 100 },
-  repLabel: { fontSize: 16, color: Colors.dark.textSecondary, fontWeight: '600' },
+  repNumbers: { fontSize: 96, fontWeight: '900', color: colors.text, lineHeight: 100 },
+  repLabel: { fontSize: 16, color: colors.textSecondary, fontWeight: '600' },
 
   durationCircle: { width: 160, height: 160, borderRadius: 80 },
   durationCircleInner: {
@@ -912,24 +918,24 @@ const styles = StyleSheet.create({
   durationUnit: { fontSize: 16, color: 'rgba(255,255,255,0.7)', fontWeight: '600' },
 
   cueBox: {
-    backgroundColor: Colors.dark.surface, borderRadius: BorderRadius.md,
+    backgroundColor: colors.surface, borderRadius: BorderRadius.md,
     borderWidth: 1, borderColor: Colors.primary + '40',
     padding: Spacing.md, marginTop: Spacing.xl, maxWidth: 300,
   },
-  cueText: { fontSize: 15, color: Colors.dark.text, textAlign: 'center', fontWeight: '600', lineHeight: 21 },
+  cueText: { fontSize: 15, color: colors.text, textAlign: 'center', fontWeight: '600', lineHeight: 21 },
 
   breathDot: {
-    marginTop: Spacing.lg, backgroundColor: Colors.dark.border + '60',
+    marginTop: Spacing.lg, backgroundColor: colors.border + '60',
     borderRadius: BorderRadius.round, paddingHorizontal: 16, paddingVertical: 6,
   },
-  breathDotText: { fontSize: 13, color: Colors.dark.textSecondary, fontWeight: '600' },
+  breathDotText: { fontSize: 13, color: colors.textSecondary, fontWeight: '600' },
 
   activeBottom: {
     flexDirection: 'row', gap: Spacing.sm,
     paddingHorizontal: Spacing.md,
     paddingBottom: Platform.OS === 'ios' ? 36 : 20,
     paddingTop: 12,
-    borderTopWidth: 1, borderTopColor: Colors.dark.border,
+    borderTopWidth: 1, borderTopColor: colors.border,
   },
   doneSetBtn: { flex: 1, borderRadius: BorderRadius.md, overflow: 'hidden', ...Shadows.glow },
   doneSetBtnGradient: {
@@ -939,11 +945,11 @@ const styles = StyleSheet.create({
   doneSetBtnText: { fontSize: 15, fontWeight: '800', color: '#FFF' },
 
   // ── Rest ──
-  restTitle: { fontSize: Typography.sizes.subtitle, fontWeight: '800', color: Colors.dark.text, marginBottom: Spacing.lg },
+  restTitle: { fontSize: Typography.sizes.subtitle, fontWeight: '800', color: colors.text, marginBottom: Spacing.lg },
   restCircleOuter: { width: 160, height: 160, justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.lg },
   restCircleTrack: {
     position: 'absolute', width: 160, height: 160, borderRadius: 80,
-    borderWidth: 8, borderColor: Colors.dark.border,
+    borderWidth: 8, borderColor: colors.border,
   },
   restCircleArc: {
     position: 'absolute', width: 160, height: 160, borderRadius: 80,
@@ -952,27 +958,27 @@ const styles = StyleSheet.create({
   },
   restCircleCenter: { alignItems: 'center' },
   restTimer: { fontSize: 48, fontWeight: '900', color: Colors.primary },
-  restTimerLabel: { fontSize: 13, color: Colors.dark.textSecondary },
+  restTimerLabel: { fontSize: 13, color: colors.textSecondary },
   quoteBox: {
-    backgroundColor: Colors.dark.surface, borderRadius: BorderRadius.md,
-    borderWidth: 1, borderColor: Colors.dark.border,
+    backgroundColor: colors.surface, borderRadius: BorderRadius.md,
+    borderWidth: 1, borderColor: colors.border,
     padding: Spacing.md, width: '100%', marginBottom: Spacing.md,
   },
-  quoteText: { fontSize: 14, color: Colors.dark.text, fontStyle: 'italic', textAlign: 'center', lineHeight: 20 },
-  quoteAuthor: { fontSize: 12, color: Colors.dark.textTertiary, textAlign: 'right', marginTop: 6 },
+  quoteText: { fontSize: 14, color: colors.text, fontStyle: 'italic', textAlign: 'center', lineHeight: 20 },
+  quoteAuthor: { fontSize: 12, color: colors.textTertiary, textAlign: 'right', marginTop: 6 },
   nextExPreview: {
     backgroundColor: Colors.primary + '15', borderRadius: BorderRadius.md,
     padding: Spacing.md, width: '100%', alignItems: 'center', marginBottom: Spacing.md,
     borderWidth: 1, borderColor: Colors.primary + '30',
   },
   nextExLabel: { fontSize: 11, color: Colors.primary, fontWeight: '700', marginBottom: 4 },
-  nextExName: { fontSize: 17, fontWeight: '700', color: Colors.dark.text },
-  nextExInfo: { fontSize: 13, color: Colors.dark.textSecondary, marginTop: 2 },
+  nextExName: { fontSize: 17, fontWeight: '700', color: colors.text },
+  nextExInfo: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
   restBreath: {
-    backgroundColor: Colors.dark.border + '40', borderRadius: BorderRadius.round,
+    backgroundColor: colors.border + '40', borderRadius: BorderRadius.round,
     paddingHorizontal: 20, paddingVertical: 8, marginBottom: Spacing.lg,
   },
-  restBreathText: { fontSize: 14, color: Colors.dark.textSecondary, fontWeight: '600' },
+  restBreathText: { fontSize: 14, color: colors.textSecondary, fontWeight: '600' },
   skipRestBtn: {
     borderWidth: 1, borderColor: Colors.primary, borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.xl, paddingVertical: Spacing.sm,
@@ -994,38 +1000,38 @@ const styles = StyleSheet.create({
   },
   summaryRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md },
   summaryStatCard: {
-    flex: 1, backgroundColor: Colors.dark.surface, borderRadius: BorderRadius.md,
-    borderWidth: 1, borderColor: Colors.dark.border, padding: Spacing.md,
+    flex: 1, backgroundColor: colors.surface, borderRadius: BorderRadius.md,
+    borderWidth: 1, borderColor: colors.border, padding: Spacing.md,
     alignItems: 'center', gap: 4,
   },
-  summaryStatVal: { fontSize: 16, fontWeight: '800', color: Colors.dark.text },
-  summaryStatLbl: { fontSize: 11, color: Colors.dark.textTertiary },
+  summaryStatVal: { fontSize: 16, fontWeight: '800', color: colors.text },
+  summaryStatLbl: { fontSize: 11, color: colors.textTertiary },
 
   // Level
   levelCard: {
-    backgroundColor: Colors.dark.surface, borderRadius: BorderRadius.md,
-    borderWidth: 1, borderColor: Colors.dark.border, padding: Spacing.md, marginBottom: Spacing.md,
+    backgroundColor: colors.surface, borderRadius: BorderRadius.md,
+    borderWidth: 1, borderColor: colors.border, padding: Spacing.md, marginBottom: Spacing.md,
   },
   levelHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.sm },
-  levelName: { fontSize: 15, fontWeight: '700', color: Colors.dark.text },
+  levelName: { fontSize: 15, fontWeight: '700', color: colors.text },
   levelXP: { fontSize: 13, color: Colors.primary, fontWeight: '700' },
-  levelTrack: { height: 8, backgroundColor: Colors.dark.border, borderRadius: 4, overflow: 'hidden' },
+  levelTrack: { height: 8, backgroundColor: colors.border, borderRadius: 4, overflow: 'hidden' },
   levelFill: { height: '100%', backgroundColor: Colors.primary, borderRadius: 4 },
-  levelNext: { fontSize: 11, color: Colors.dark.textTertiary, marginTop: 6 },
+  levelNext: { fontSize: 11, color: colors.textTertiary, marginTop: 6 },
 
   // XP Breakdown
-  breakdownTitle: { fontSize: 14, fontWeight: '700', color: Colors.dark.text, marginBottom: Spacing.sm },
+  breakdownTitle: { fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: Spacing.sm },
   card: {
-    backgroundColor: Colors.dark.surface, borderRadius: BorderRadius.md,
-    borderWidth: 1, borderColor: Colors.dark.border, marginBottom: Spacing.md, overflow: 'hidden',
+    backgroundColor: colors.surface, borderRadius: BorderRadius.md,
+    borderWidth: 1, borderColor: colors.border, marginBottom: Spacing.md, overflow: 'hidden',
   },
   breakdownRow: { flexDirection: 'row', justifyContent: 'space-between', padding: Spacing.md },
-  breakdownLabel: { fontSize: 14, color: Colors.dark.textSecondary },
+  breakdownLabel: { fontSize: 14, color: colors.textSecondary },
   breakdownXP: { fontSize: 14, fontWeight: '700', color: Colors.primary },
-  rowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.dark.border },
+  rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
 
   // Badges
-  badgesTitle: { fontSize: 16, fontWeight: '700', color: Colors.dark.text, marginBottom: Spacing.sm },
+  badgesTitle: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: Spacing.sm },
   badgesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.md },
   badgeCard: {
     backgroundColor: Colors.warning + '20', borderRadius: BorderRadius.md,

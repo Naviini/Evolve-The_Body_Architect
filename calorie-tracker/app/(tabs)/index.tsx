@@ -36,6 +36,8 @@ import { MealEntry, MealType, WorkoutDay, MilestonePhase } from '@/src/types';
 import { generateWeeklyPlan, getWeekStart } from '@/src/lib/workoutEngine';
 import { generateBodySimulation, inferDreamBodyStyle } from '@/src/lib/bodySimulationEngine';
 import { BodySilhouetteMini } from '@/components/BodySilhouette';
+import { useAppStyles } from '@/hooks/useAppStyles';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 const { width: windowWidth } = Dimensions.get('window');
 const SCREEN_WIDTH = Platform.OS === 'web' ? Math.min(windowWidth, 480) : windowWidth;
@@ -43,6 +45,8 @@ const RING_SIZE = 200;
 const RING_STROKE = 14;
 
 export default function HomeScreen() {
+  const colors = useThemeColors();
+  const styles = useAppStyles(createStyles);
   const { user } = useAuth();
   const router = useRouter();
   const [todayMeals, setTodayMeals] = useState<MealEntry[]>([]);
@@ -162,13 +166,13 @@ export default function HomeScreen() {
             </Text>
           </View>
           <TouchableOpacity style={styles.notifButton}>
-            <Ionicons name="notifications-outline" size={24} color={Colors.dark.text} />
+            <Ionicons name="notifications-outline" size={24} color={colors.text} />
           </TouchableOpacity>
         </View>
 
         {/* Calorie Ring Card */}
         <LinearGradient
-          colors={[Colors.dark.surfaceLight, Colors.dark.card]}
+          colors={[colors.surfaceLight, colors.card]}
           style={styles.calorieCard}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
@@ -340,7 +344,7 @@ export default function HomeScreen() {
                 activeOpacity={0.7}
               >
                 <LinearGradient
-                  colors={[Colors.dark.surfaceLight, Colors.dark.card]}
+                  colors={[colors.surfaceLight, colors.card]}
                   style={styles.mealCardGradient}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
@@ -362,7 +366,7 @@ export default function HomeScreen() {
         {/* Quick Stats */}
         <Text style={styles.sectionTitle}>Quick Stats</Text>
         <LinearGradient
-          colors={[Colors.dark.surfaceLight, Colors.dark.card]}
+          colors={[colors.surfaceLight, colors.card]}
           style={styles.statsCard}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
@@ -427,12 +431,14 @@ function MacroCard({
   color: string;
   unit: string;
 }) {
+  const colors = useThemeColors();
+  const styles = useAppStyles(createStyles);
   const progress = Math.min(value / goal, 1);
 
   return (
     <View style={styles.macroCard}>
       <LinearGradient
-        colors={[Colors.dark.surfaceLight, Colors.dark.card]}
+        colors={[colors.surfaceLight, colors.card]}
         style={styles.macroCardGradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
@@ -457,10 +463,10 @@ function MacroCard({
 // Styles
 // ============================================================
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.background,
+    backgroundColor: colors.background,
   },
   scrollContent: {
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
@@ -476,12 +482,12 @@ const styles = StyleSheet.create({
   },
   greeting: {
     fontSize: Typography.sizes.body,
-    color: Colors.dark.textSecondary,
+    color: colors.textSecondary,
     fontWeight: Typography.weights.medium,
   },
   headerTitle: {
     fontSize: Typography.sizes.heading,
-    color: Colors.dark.text,
+    color: colors.text,
     fontWeight: Typography.weights.bold,
     marginTop: 2,
   },
@@ -489,11 +495,11 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: Colors.dark.surfaceLight,
+    backgroundColor: colors.surfaceLight,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: colors.border,
   },
 
   // Calorie Card
@@ -502,7 +508,7 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     marginBottom: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: colors.border,
     ...Shadows.medium,
   },
   ringContainer: {
@@ -521,7 +527,7 @@ const styles = StyleSheet.create({
     height: RING_SIZE,
     borderRadius: RING_SIZE / 2,
     borderWidth: RING_STROKE,
-    borderColor: Colors.dark.border,
+    borderColor: colors.border,
   },
   ringProgress: {
     position: 'absolute',
@@ -539,18 +545,18 @@ const styles = StyleSheet.create({
   },
   ringCalories: {
     fontSize: Typography.sizes.hero,
-    color: Colors.dark.text,
+    color: colors.text,
     fontWeight: Typography.weights.bold,
   },
   ringLabel: {
     fontSize: Typography.sizes.caption,
-    color: Colors.dark.textSecondary,
+    color: colors.textSecondary,
     fontWeight: Typography.weights.medium,
   },
   ringDivider: {
     width: 40,
     height: 1,
-    backgroundColor: Colors.dark.border,
+    backgroundColor: colors.border,
     marginVertical: 6,
   },
   ringRemaining: {
@@ -560,7 +566,7 @@ const styles = StyleSheet.create({
   },
   ringRemainingLabel: {
     fontSize: Typography.sizes.caption,
-    color: Colors.dark.textTertiary,
+    color: colors.textTertiary,
   },
 
   // Progress bar
@@ -570,7 +576,7 @@ const styles = StyleSheet.create({
   progressBarTrack: {
     height: 8,
     borderRadius: 4,
-    backgroundColor: Colors.dark.border,
+    backgroundColor: colors.border,
     overflow: 'hidden',
   },
   progressBarFill: {
@@ -579,7 +585,7 @@ const styles = StyleSheet.create({
   },
   progressText: {
     fontSize: Typography.sizes.caption,
-    color: Colors.dark.textSecondary,
+    color: colors.textSecondary,
     textAlign: 'center',
     marginTop: 6,
   },
@@ -599,7 +605,7 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: colors.border,
   },
   macroValue: {
     fontSize: Typography.sizes.title,
@@ -607,14 +613,14 @@ const styles = StyleSheet.create({
   },
   macroLabel: {
     fontSize: Typography.sizes.caption,
-    color: Colors.dark.textSecondary,
+    color: colors.textSecondary,
     marginTop: 2,
     marginBottom: 8,
   },
   macroBarTrack: {
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.dark.border,
+    backgroundColor: colors.border,
     overflow: 'hidden',
   },
   macroBarFill: {
@@ -623,14 +629,14 @@ const styles = StyleSheet.create({
   },
   macroGoal: {
     fontSize: 10,
-    color: Colors.dark.textTertiary,
+    color: colors.textTertiary,
     marginTop: 4,
   },
 
   // Section
   sectionTitle: {
     fontSize: Typography.sizes.subtitle,
-    color: Colors.dark.text,
+    color: colors.text,
     fontWeight: Typography.weights.bold,
     marginBottom: Spacing.md,
   },
@@ -652,7 +658,7 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: colors.border,
     minHeight: 110,
   },
   mealEmoji: {
@@ -661,7 +667,7 @@ const styles = StyleSheet.create({
   },
   mealType: {
     fontSize: Typography.sizes.body,
-    color: Colors.dark.text,
+    color: colors.text,
     fontWeight: Typography.weights.semibold,
   },
   mealCalories: {
@@ -672,7 +678,7 @@ const styles = StyleSheet.create({
   },
   mealCount: {
     fontSize: Typography.sizes.caption,
-    color: Colors.dark.textTertiary,
+    color: colors.textTertiary,
     marginTop: 2,
   },
 
@@ -685,8 +691,8 @@ const styles = StyleSheet.create({
   workoutPreviewGradient: { padding: Spacing.md },
   workoutPreviewLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flex: 1 },
   workoutPreviewEmoji: { fontSize: 32 },
-  workoutPreviewTheme: { fontSize: 16, fontWeight: '700', color: Colors.dark.text },
-  workoutPreviewSub: { fontSize: 12, color: Colors.dark.textSecondary, marginTop: 2 },
+  workoutPreviewTheme: { fontSize: 16, fontWeight: '700', color: colors.text },
+  workoutPreviewSub: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
   workoutPreviewCta: { paddingLeft: Spacing.sm },
 
   // Stats Card
@@ -694,7 +700,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: colors.border,
     marginBottom: Spacing.md,
   },
   statRow: {
@@ -707,19 +713,19 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: Typography.sizes.title,
-    color: Colors.dark.text,
+    color: colors.text,
     fontWeight: Typography.weights.bold,
     marginTop: 4,
   },
   statLabel: {
     fontSize: Typography.sizes.caption,
-    color: Colors.dark.textSecondary,
+    color: colors.textSecondary,
     marginTop: 2,
   },
   statDivider: {
     width: 1,
     height: 40,
-    backgroundColor: Colors.dark.border,
+    backgroundColor: colors.border,
   },
 
   // FAB
@@ -764,12 +770,12 @@ const styles = StyleSheet.create({
   transformPhaseLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: Colors.dark.textSecondary,
+    color: colors.textSecondary,
   },
   transformWeight: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.dark.textTertiary,
+    color: colors.textTertiary,
   },
   transformArrow: {
     paddingHorizontal: 8,

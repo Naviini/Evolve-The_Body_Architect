@@ -23,8 +23,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from '@/constants/theme';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useAppStyles } from '@/hooks/useAppStyles';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 export default function ForgotPasswordScreen() {
+  const colors = useThemeColors();
+  const styles = useAppStyles(createStyles);
     const { resetPassword } = useAuth();
     const router = useRouter();
 
@@ -78,7 +82,7 @@ export default function ForgotPasswordScreen() {
             >
                 {/* Back */}
                 <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-                    <Ionicons name="arrow-back" size={20} color={Colors.dark.text} />
+                    <Ionicons name="arrow-back" size={20} color={colors.text} />
                 </TouchableOpacity>
 
                 {/* Success State */}
@@ -146,11 +150,11 @@ export default function ForgotPasswordScreen() {
                             <View style={styles.fieldGroup}>
                                 <Text style={styles.fieldLabel}>Email Address</Text>
                                 <View style={styles.inputRow}>
-                                    <Ionicons name="mail-outline" size={18} color={Colors.dark.textTertiary} />
+                                    <Ionicons name="mail-outline" size={18} color={colors.textTertiary} />
                                     <TextInput
                                         style={styles.input}
                                         placeholder="you@example.com"
-                                        placeholderTextColor={Colors.dark.textTertiary}
+                                        placeholderTextColor={colors.textTertiary}
                                         value={email}
                                         onChangeText={(t) => { setEmail(t); setError(''); }}
                                         keyboardType="email-address"
@@ -196,10 +200,10 @@ export default function ForgotPasswordScreen() {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: Colors.dark.background,
+        backgroundColor: colors.background,
     },
     scrollContent: {
         flexGrow: 1,
@@ -211,9 +215,9 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: Colors.dark.surfaceLight,
+        backgroundColor: colors.surfaceLight,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: Spacing.lg,
@@ -235,12 +239,12 @@ const styles = StyleSheet.create({
     },
     title: {
         fontSize: Typography.sizes.heading,
-        color: Colors.dark.text,
+        color: colors.text,
         fontWeight: Typography.weights.bold,
     },
     subtitle: {
         fontSize: Typography.sizes.body,
-        color: Colors.dark.textSecondary,
+        color: colors.textSecondary,
         textAlign: 'center',
         marginTop: 6,
         lineHeight: 22,
@@ -249,10 +253,10 @@ const styles = StyleSheet.create({
 
     // Card
     card: {
-        backgroundColor: Colors.dark.surface,
+        backgroundColor: colors.surface,
         borderRadius: BorderRadius.lg,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
         padding: Spacing.xl,
         gap: Spacing.md,
         ...Shadows.medium,
@@ -281,22 +285,22 @@ const styles = StyleSheet.create({
     fieldGroup: { gap: 6 },
     fieldLabel: {
         fontSize: Typography.sizes.body,
-        color: Colors.dark.textSecondary,
+        color: colors.textSecondary,
         fontWeight: Typography.weights.semibold,
     },
     inputRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: Colors.dark.surfaceLight,
+        backgroundColor: colors.surfaceLight,
         borderRadius: BorderRadius.md,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
         paddingHorizontal: Spacing.md,
         gap: Spacing.sm,
     },
     input: {
         flex: 1,
-        color: Colors.dark.text,
+        color: colors.text,
         fontSize: Typography.sizes.bodyLarge,
         paddingVertical: Platform.OS === 'ios' ? 14 : 12,
     },
@@ -322,7 +326,7 @@ const styles = StyleSheet.create({
     },
     cancelText: {
         fontSize: Typography.sizes.body,
-        color: Colors.dark.textTertiary,
+        color: colors.textTertiary,
     },
 
     // Success state
@@ -343,12 +347,12 @@ const styles = StyleSheet.create({
     },
     successTitle: {
         fontSize: Typography.sizes.heading,
-        color: Colors.dark.text,
+        color: colors.text,
         fontWeight: Typography.weights.bold,
     },
     successBody: {
         fontSize: Typography.sizes.body,
-        color: Colors.dark.textSecondary,
+        color: colors.textSecondary,
         textAlign: 'center',
         lineHeight: 24,
         maxWidth: 300,
@@ -359,7 +363,7 @@ const styles = StyleSheet.create({
     },
     resendLink: {
         fontSize: Typography.sizes.body,
-        color: Colors.dark.textTertiary,
+        color: colors.textTertiary,
         textDecorationLine: 'underline',
         marginTop: Spacing.sm,
     },

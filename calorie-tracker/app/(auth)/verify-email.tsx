@@ -20,8 +20,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from '@/constants/theme';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useAppStyles } from '@/hooks/useAppStyles';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 export default function VerifyEmailScreen() {
+  const colors = useThemeColors();
+  const styles = useAppStyles(createStyles);
     const { user, signOut, resendVerification } = useAuth();
     const [resending, setResending] = useState(false);
     const [resentOk, setResentOk] = useState(false);
@@ -119,17 +123,17 @@ export default function VerifyEmailScreen() {
                 onPress={signOut}
                 activeOpacity={0.7}
             >
-                <Ionicons name="log-out-outline" size={16} color={Colors.dark.textTertiary} />
+                <Ionicons name="log-out-outline" size={16} color={colors.textTertiary} />
                 <Text style={styles.signOutText}>Sign out and use a different account</Text>
             </TouchableOpacity>
         </View>
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: Colors.dark.background,
+        backgroundColor: colors.background,
         justifyContent: 'center',
         alignItems: 'center',
         paddingHorizontal: Spacing.xl,
@@ -149,13 +153,13 @@ const styles = StyleSheet.create({
 
     title: {
         fontSize: Typography.sizes.heading,
-        color: Colors.dark.text,
+        color: colors.text,
         fontWeight: Typography.weights.bold,
         textAlign: 'center',
     },
     body: {
         fontSize: Typography.sizes.body,
-        color: Colors.dark.textSecondary,
+        color: colors.textSecondary,
         textAlign: 'center',
         lineHeight: 24,
         maxWidth: 320,
@@ -168,7 +172,7 @@ const styles = StyleSheet.create({
     divider: {
         width: '80%',
         height: 1,
-        backgroundColor: Colors.dark.border,
+        backgroundColor: colors.border,
         marginVertical: Spacing.xs,
     },
 
@@ -208,7 +212,7 @@ const styles = StyleSheet.create({
 
     resendPrompt: {
         fontSize: Typography.sizes.body,
-        color: Colors.dark.textSecondary,
+        color: colors.textSecondary,
     },
 
     resendButton: {
@@ -233,7 +237,7 @@ const styles = StyleSheet.create({
 
     spamHint: {
         fontSize: Typography.sizes.caption,
-        color: Colors.dark.textTertiary,
+        color: colors.textTertiary,
         textAlign: 'center',
         lineHeight: 18,
         maxWidth: 280,
@@ -247,7 +251,7 @@ const styles = StyleSheet.create({
     },
     signOutText: {
         fontSize: Typography.sizes.body,
-        color: Colors.dark.textTertiary,
+        color: colors.textTertiary,
         textDecorationLine: 'underline',
     },
 });

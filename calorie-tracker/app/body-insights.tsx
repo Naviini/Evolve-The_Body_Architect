@@ -19,6 +19,8 @@ import { useAuth } from '@/src/contexts/AuthContext';
 import { getOnboardingProfile, saveBodyTypeResult, getBodyTypeResult } from '@/src/lib/database';
 import { detectBodyType } from '@/src/lib/bodyTypeEngine';
 import { BodyTypeResult, OnboardingProfile } from '@/src/types';
+import { useAppStyles } from '@/hooks/useAppStyles';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 // ════════════════════════════════════════════════════════════
 // Constants
@@ -63,6 +65,8 @@ const CONFIDENCE_CONFIG = {
 // Main Screen
 // ════════════════════════════════════════════════════════════
 export default function BodyInsightsScreen() {
+  const colors = useThemeColors();
+  const styles = useAppStyles(createStyles);
     const router = useRouter();
     const { user } = useAuth();
     const [loading, setLoading] = useState(true);
@@ -265,8 +269,8 @@ export default function BodyInsightsScreen() {
 }
 
 // ════════════════════════════════════════════════════════════
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: Colors.dark.background },
+const createStyles = (colors: any) => StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
 
     // Header
     header: {
@@ -287,16 +291,16 @@ const styles = StyleSheet.create({
     body: { flex: 1, paddingHorizontal: Spacing.md, paddingTop: Spacing.lg },
     sectionTitle: {
         fontSize: Typography.sizes.bodyLarge,
-        color: Colors.dark.textSecondary,
+        color: colors.textSecondary,
         fontWeight: '600',
         marginBottom: Spacing.sm,
         marginTop: Spacing.sm,
     },
     card: {
-        backgroundColor: Colors.dark.surface,
+        backgroundColor: colors.surface,
         borderRadius: BorderRadius.md,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
         marginBottom: Spacing.md,
         overflow: 'hidden',
     },
@@ -304,24 +308,24 @@ const styles = StyleSheet.create({
     // Score bars
     barRow: { padding: Spacing.md, gap: 6 },
     barLabelRow: { flexDirection: 'row', justifyContent: 'space-between' },
-    barLabel: { fontSize: 14, color: Colors.dark.text, fontWeight: '600' },
+    barLabel: { fontSize: 14, color: colors.text, fontWeight: '600' },
     barPct: { fontSize: 14, fontWeight: '700' },
-    barTrack: { height: 10, backgroundColor: Colors.dark.border, borderRadius: 5, overflow: 'hidden' },
+    barTrack: { height: 10, backgroundColor: colors.border, borderRadius: 5, overflow: 'hidden' },
     barFill: { height: '100%', borderRadius: 5 },
 
     // Stats
     statsRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md },
     statCard: {
         flex: 1,
-        backgroundColor: Colors.dark.surface,
+        backgroundColor: colors.surface,
         borderRadius: BorderRadius.md,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
         padding: Spacing.md,
         alignItems: 'center',
     },
     statVal: { fontSize: 22, fontWeight: '800', color: Colors.primary },
-    statLbl: { fontSize: 11, color: Colors.dark.textTertiary, marginTop: 2 },
+    statLbl: { fontSize: 11, color: colors.textTertiary, marginTop: 2 },
 
     // Confidence bar
     confBar: {
@@ -337,12 +341,12 @@ const styles = StyleSheet.create({
 
     // Insights
     insightRow: { padding: Spacing.md },
-    insightBorder: { borderBottomWidth: 1, borderBottomColor: Colors.dark.border },
-    insightText: { fontSize: 14, color: Colors.dark.text, lineHeight: 20 },
+    insightBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
+    insightText: { fontSize: 14, color: colors.text, lineHeight: 20 },
 
     // Trait detail
     traitDetailRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.md },
-    traitDetail: { fontSize: 15, color: Colors.dark.text },
+    traitDetail: { fontSize: 15, color: colors.text },
 
     // Update btn
     updateBtn: {
@@ -357,8 +361,8 @@ const styles = StyleSheet.create({
     updateBtnText: { fontSize: 15, color: Colors.primary, fontWeight: '600' },
 
     // Empty state
-    emptyTitle: { fontSize: 22, fontWeight: '700', color: Colors.dark.text, marginTop: 16, textAlign: 'center' },
-    emptyBody: { fontSize: 14, color: Colors.dark.textSecondary, textAlign: 'center', marginTop: 8, lineHeight: 20 },
+    emptyTitle: { fontSize: 22, fontWeight: '700', color: colors.text, marginTop: 16, textAlign: 'center' },
+    emptyBody: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginTop: 8, lineHeight: 20 },
     emptyBtn: { marginTop: 24, backgroundColor: Colors.primary, borderRadius: BorderRadius.md, paddingHorizontal: 28, paddingVertical: 12 },
     emptyBtnText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
 });
