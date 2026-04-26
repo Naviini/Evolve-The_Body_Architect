@@ -43,6 +43,8 @@ import {
 } from '@/src/lib/database';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { MealEntry, MealType } from '@/src/types';
+import { useAppStyles } from '@/hooks/useAppStyles';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 // ── constants ────────────────────────────────────────────────
 const MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
@@ -55,6 +57,8 @@ type HistoryAction =
 // Main Screen
 // ════════════════════════════════════════════════════════════
 export default function DiaryScreen() {
+  const colors = useThemeColors();
+  const styles = useAppStyles(createStyles);
     const { user } = useAuth();
     const router = useRouter();
 
@@ -280,7 +284,7 @@ export default function DiaryScreen() {
                         disabled={past.length === 0}
                     >
                         <Ionicons name="arrow-undo" size={18}
-                            color={past.length > 0 ? Colors.primary : Colors.dark.textTertiary} />
+                            color={past.length > 0 ? Colors.primary : colors.textTertiary} />
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={[styles.historyBtn, future.length === 0 && styles.historyBtnOff]}
@@ -288,7 +292,7 @@ export default function DiaryScreen() {
                         disabled={future.length === 0}
                     >
                         <Ionicons name="arrow-redo" size={18}
-                            color={future.length > 0 ? Colors.primary : Colors.dark.textTertiary} />
+                            color={future.length > 0 ? Colors.primary : colors.textTertiary} />
                     </TouchableOpacity>
                     <Text style={styles.headerCals}>{Math.round(totalCals)} kcal</Text>
                 </View>
@@ -297,7 +301,7 @@ export default function DiaryScreen() {
             {/* ── Date nav ────────────────────────────────── */}
             <View style={styles.dateNav}>
                 <TouchableOpacity onPress={() => navigateDate(-1)} style={styles.dateBtn}>
-                    <Ionicons name="chevron-back" size={24} color={Colors.dark.text} />
+                    <Ionicons name="chevron-back" size={24} color={colors.text} />
                 </TouchableOpacity>
                 <View style={styles.dateCenter}>
                     <Ionicons name="calendar-outline" size={18} color={Colors.primary} />
@@ -309,7 +313,7 @@ export default function DiaryScreen() {
                     disabled={isToday}
                 >
                     <Ionicons name="chevron-forward" size={24}
-                        color={isToday ? Colors.dark.textTertiary : Colors.dark.text} />
+                        color={isToday ? colors.textTertiary : colors.text} />
                 </TouchableOpacity>
             </View>
 
@@ -328,7 +332,7 @@ export default function DiaryScreen() {
             >
                 {/* Summary card */}
                 <LinearGradient
-                    colors={[Colors.dark.surfaceLight, Colors.dark.card]}
+                    colors={[colors.surfaceLight, colors.card]}
                     style={styles.summaryCard}
                     start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
                 >
@@ -344,7 +348,7 @@ export default function DiaryScreen() {
                             <Text style={styles.summaryCircleLbl}>left</Text>
                         </View>
                         <View style={styles.summaryCol}>
-                            <Text style={[styles.summaryNum, { color: Colors.dark.textSecondary }]}>
+                            <Text style={[styles.summaryNum, { color: colors.textSecondary }]}>
                                 {calorieGoal}
                             </Text>
                             <Text style={styles.summaryLbl}>Goal</Text>
@@ -418,12 +422,12 @@ export default function DiaryScreen() {
                                         </View>
                                         <View style={styles.sectionRight}>
                                             <Text style={[styles.sectionCals,
-                                            { color: cals > 0 ? color : Colors.dark.textTertiary }]}>
+                                            { color: cals > 0 ? color : colors.textTertiary }]}>
                                                 {Math.round(cals)} kcal
                                             </Text>
                                             <Ionicons
                                                 name={isExpanded ? 'chevron-up' : 'chevron-down'}
-                                                size={18} color={Colors.dark.textTertiary}
+                                                size={18} color={colors.textTertiary}
                                             />
                                         </View>
                                     </TouchableOpacity>
@@ -434,7 +438,7 @@ export default function DiaryScreen() {
                                             {typeMeals.length === 0 ? (
                                                 <View style={styles.emptyEntry}>
                                                     <Ionicons name="restaurant-outline" size={16}
-                                                        color={Colors.dark.textTertiary} />
+                                                        color={colors.textTertiary} />
                                                     <Text style={styles.emptyEntryText}>
                                                         No items yet — add one below
                                                     </Text>
@@ -531,6 +535,8 @@ function EntryRow({
     onEdit: () => void;
     onDelete: () => void;
 }) {
+    const colors = useThemeColors();
+    const er = useAppStyles(createErStyles);
     return (
         <View style={er.row}>
             {/* Left: food info */}
@@ -571,24 +577,24 @@ function EntryRow({
     );
 }
 
-const er = StyleSheet.create({
+const createErStyles = (colors: any) => StyleSheet.create({
     row: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingVertical: 10,
         borderBottomWidth: 1,
-        borderBottomColor: Colors.dark.border,
+        borderBottomColor: colors.border,
         gap: 4,
     },
     info: { flex: 1 },
     name: {
         fontSize: 14,
-        color: Colors.dark.text,
+        color: colors.text,
         fontWeight: '500',
     },
     detail: {
         fontSize: 11,
-        color: Colors.dark.textTertiary,
+        color: colors.textTertiary,
         marginTop: 2,
     },
     calsWrap: {
@@ -597,12 +603,12 @@ const er = StyleSheet.create({
     },
     cals: {
         fontSize: 15,
-        color: Colors.dark.text,
+        color: colors.text,
         fontWeight: '700',
     },
     unit: {
         fontSize: 10,
-        color: Colors.dark.textTertiary,
+        color: colors.textTertiary,
     },
     btn: {
         width: 36,
@@ -610,7 +616,7 @@ const er = StyleSheet.create({
         borderRadius: 18,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: Colors.dark.surfaceLight,
+        backgroundColor: colors.surfaceLight,
     },
     deleteBtn: {
         backgroundColor: Colors.error + '18',
@@ -623,6 +629,8 @@ const er = StyleSheet.create({
 function MacroBar({ label, value, goal, color }: {
     label: string; value: number; goal: number; color: string;
 }) {
+  const colors = useThemeColors();
+  const mb = useAppStyles(createMbStyles);
     const pct = Math.min(value / goal, 1);
     return (
         <View style={mb.wrap}>
@@ -637,14 +645,14 @@ function MacroBar({ label, value, goal, color }: {
         </View>
     );
 }
-const mb = StyleSheet.create({
+const createMbStyles = (colors: any) => StyleSheet.create({
     wrap: { flex: 1 },
     labelRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 },
-    label: { fontSize: 11, color: Colors.dark.textSecondary, fontWeight: '500' },
+    label: { fontSize: 11, color: colors.textSecondary, fontWeight: '500' },
     val: { fontSize: 12, fontWeight: '700' },
-    track: { height: 5, borderRadius: 3, backgroundColor: Colors.dark.border, overflow: 'hidden' },
+    track: { height: 5, borderRadius: 3, backgroundColor: colors.border, overflow: 'hidden' },
     fill: { height: '100%', borderRadius: 3 },
-    goal: { fontSize: 10, color: Colors.dark.textTertiary, marginTop: 2 },
+    goal: { fontSize: 10, color: colors.textTertiary, marginTop: 2 },
 });
 
 // ════════════════════════════════════════════════════════════
@@ -668,6 +676,8 @@ function EditModal({
     mealType: MealType; setMealType: (v: MealType) => void;
     onSave: () => void; onClose: () => void;
 }) {
+    const colors = useThemeColors();
+    const em = useAppStyles(createEmStyles);
     const totalCalPreview = (parseFloat(cals) || 0) * (parseFloat(servings) || 1);
 
     return (
@@ -683,7 +693,7 @@ function EditModal({
                     {/* header */}
                     <View style={em.hdr}>
                         <TouchableOpacity onPress={onClose} style={em.hdrBtn}>
-                            <Ionicons name="close" size={20} color={Colors.dark.text} />
+                            <Ionicons name="close" size={20} color={colors.text} />
                         </TouchableOpacity>
                         <Text style={em.hdrTitle}>Edit Entry</Text>
                         <TouchableOpacity
@@ -720,7 +730,7 @@ function EditModal({
                             value={name}
                             onChangeText={setName}
                             placeholder="e.g. Grilled Chicken"
-                            placeholderTextColor={Colors.dark.textTertiary}
+                            placeholderTextColor={colors.textTertiary}
                         />
 
                         {/* Servings + Calories */}
@@ -733,7 +743,7 @@ function EditModal({
                                     onChangeText={setServings}
                                     keyboardType="decimal-pad"
                                     placeholder="1"
-                                    placeholderTextColor={Colors.dark.textTertiary}
+                                    placeholderTextColor={colors.textTertiary}
                                 />
                             </View>
                             <View style={{ flex: 1 }}>
@@ -744,7 +754,7 @@ function EditModal({
                                     onChangeText={setCals}
                                     keyboardType="decimal-pad"
                                     placeholder="0"
-                                    placeholderTextColor={Colors.dark.textTertiary}
+                                    placeholderTextColor={colors.textTertiary}
                                 />
                             </View>
                         </View>
@@ -756,19 +766,19 @@ function EditModal({
                                 <Text style={[em.lbl, { color: Colors.protein }]}>Protein (g)</Text>
                                 <TextInput style={em.input} value={protein} onChangeText={setProtein}
                                     keyboardType="decimal-pad" placeholder="0"
-                                    placeholderTextColor={Colors.dark.textTertiary} />
+                                    placeholderTextColor={colors.textTertiary} />
                             </View>
                             <View style={{ flex: 1 }}>
                                 <Text style={[em.lbl, { color: Colors.carbs }]}>Carbs (g)</Text>
                                 <TextInput style={em.input} value={carbs} onChangeText={setCarbs}
                                     keyboardType="decimal-pad" placeholder="0"
-                                    placeholderTextColor={Colors.dark.textTertiary} />
+                                    placeholderTextColor={colors.textTertiary} />
                             </View>
                             <View style={{ flex: 1 }}>
                                 <Text style={[em.lbl, { color: Colors.fat }]}>Fat (g)</Text>
                                 <TextInput style={em.input} value={fat} onChangeText={setFat}
                                     keyboardType="decimal-pad" placeholder="0"
-                                    placeholderTextColor={Colors.dark.textTertiary} />
+                                    placeholderTextColor={colors.textTertiary} />
                             </View>
                         </View>
 
@@ -824,14 +834,14 @@ function EditModal({
     );
 }
 
-const em = StyleSheet.create({
+const createEmStyles = (colors: any) => StyleSheet.create({
     overlay: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.65)',
         justifyContent: 'flex-end',
     },
     sheet: {
-        backgroundColor: Colors.dark.surface,
+        backgroundColor: colors.surface,
         borderTopLeftRadius: 28,
         borderTopRightRadius: 28,
         maxHeight: '93%',
@@ -840,7 +850,7 @@ const em = StyleSheet.create({
     handle: {
         width: 40, height: 4,
         borderRadius: 2,
-        backgroundColor: Colors.dark.border,
+        backgroundColor: colors.border,
         alignSelf: 'center',
         marginTop: 10, marginBottom: 2,
     },
@@ -851,17 +861,17 @@ const em = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 10,
         borderBottomWidth: 1,
-        borderBottomColor: Colors.dark.border,
+        borderBottomColor: colors.border,
     },
     hdrBtn: {
         width: 36, height: 36,
         borderRadius: 18,
-        backgroundColor: Colors.dark.surfaceLight,
+        backgroundColor: colors.surfaceLight,
         justifyContent: 'center', alignItems: 'center',
     },
     hdrTitle: {
         fontSize: 17,
-        color: Colors.dark.text,
+        color: colors.text,
         fontWeight: '700',
     },
     saveBtn: {
@@ -884,11 +894,11 @@ const em = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 10,
         borderBottomWidth: 1,
-        borderBottomColor: Colors.dark.border,
+        borderBottomColor: colors.border,
     },
     previewLbl: {
         fontSize: 12,
-        color: Colors.dark.textSecondary,
+        color: colors.textSecondary,
     },
     previewVal: {
         fontSize: 20,
@@ -898,26 +908,26 @@ const em = StyleSheet.create({
     body: { padding: 16, gap: 2 },
     lbl: {
         fontSize: 12,
-        color: Colors.dark.textSecondary,
+        color: colors.textSecondary,
         fontWeight: '500',
         marginBottom: 4,
         marginTop: 10,
     },
     sectionLbl: {
         fontSize: 14,
-        color: Colors.dark.text,
+        color: colors.text,
         fontWeight: '600',
         marginTop: 16,
         marginBottom: 8,
     },
     input: {
-        backgroundColor: Colors.dark.background,
+        backgroundColor: colors.background,
         borderRadius: 10,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
         paddingHorizontal: 12,
         paddingVertical: Platform.OS === 'ios' ? 12 : 9,
-        color: Colors.dark.text,
+        color: colors.text,
         fontSize: 14,
     },
     row2: { flexDirection: 'row', gap: 10 },
@@ -936,12 +946,12 @@ const em = StyleSheet.create({
         paddingVertical: 8,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
-        backgroundColor: Colors.dark.surfaceLight,
+        borderColor: colors.border,
+        backgroundColor: colors.surfaceLight,
     },
     chipTxt: {
         fontSize: 12,
-        color: Colors.dark.textSecondary,
+        color: colors.textSecondary,
         fontWeight: '500',
     },
     macroPreview: {
@@ -951,12 +961,12 @@ const em = StyleSheet.create({
     },
     macroPill: {
         flex: 1,
-        backgroundColor: Colors.dark.background,
+        backgroundColor: colors.background,
         borderRadius: 12,
         padding: 10,
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
     },
     macroPillVal: {
         fontSize: 16,
@@ -964,7 +974,7 @@ const em = StyleSheet.create({
     },
     macroPillLbl: {
         fontSize: 10,
-        color: Colors.dark.textTertiary,
+        color: colors.textTertiary,
         marginTop: 2,
     },
 });
@@ -972,8 +982,8 @@ const em = StyleSheet.create({
 // ════════════════════════════════════════════════════════════
 // Page styles
 // ════════════════════════════════════════════════════════════
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: Colors.dark.background },
+const createStyles = (colors: any) => StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
 
     header: {
         flexDirection: 'row',
@@ -985,16 +995,16 @@ const styles = StyleSheet.create({
     },
     headerTitle: {
         fontSize: Typography.sizes.heading,
-        color: Colors.dark.text,
+        color: colors.text,
         fontWeight: Typography.weights.bold,
     },
     headerRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     historyBtn: {
         width: 34, height: 34,
         borderRadius: 17,
-        backgroundColor: Colors.dark.surfaceLight,
+        backgroundColor: colors.surfaceLight,
         justifyContent: 'center', alignItems: 'center',
-        borderWidth: 1, borderColor: Colors.dark.border,
+        borderWidth: 1, borderColor: colors.border,
     },
     historyBtnOff: { opacity: 0.35 },
     headerCals: {
@@ -1010,10 +1020,10 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         marginHorizontal: Spacing.md,
         marginVertical: Spacing.sm,
-        backgroundColor: Colors.dark.surface,
+        backgroundColor: colors.surface,
         borderRadius: BorderRadius.md,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
     },
     dateBtn: { padding: 12 },
     dateCenter: {
@@ -1023,7 +1033,7 @@ const styles = StyleSheet.create({
     },
     dateText: {
         fontSize: Typography.sizes.bodyLarge,
-        color: Colors.dark.text,
+        color: colors.text,
         fontWeight: Typography.weights.semibold,
     },
 
@@ -1035,7 +1045,7 @@ const styles = StyleSheet.create({
         padding: Spacing.md,
         marginBottom: Spacing.md,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
         ...Shadows.medium,
     },
     summaryRow: {
@@ -1046,27 +1056,27 @@ const styles = StyleSheet.create({
     },
     summaryCol: { alignItems: 'center', flex: 1 },
     summaryNum: { fontSize: 22, fontWeight: '700' },
-    summaryLbl: { fontSize: 11, color: Colors.dark.textTertiary, marginTop: 2 },
+    summaryLbl: { fontSize: 11, color: colors.textTertiary, marginTop: 2 },
     summaryCircle: {
         alignItems: 'center',
-        backgroundColor: Colors.dark.background,
+        backgroundColor: colors.background,
         borderRadius: 50,
         width: 84, height: 84,
         justifyContent: 'center',
         borderWidth: 2, borderColor: Colors.primary,
     },
-    summaryCircleNum: { fontSize: 20, color: Colors.dark.text, fontWeight: '700' },
-    summaryCircleLbl: { fontSize: 10, color: Colors.dark.textTertiary },
+    summaryCircleNum: { fontSize: 20, color: colors.text, fontWeight: '700' },
+    summaryCircleLbl: { fontSize: 10, color: colors.textTertiary },
     progressTrack: {
         height: 7, borderRadius: 4,
-        backgroundColor: Colors.dark.border,
+        backgroundColor: colors.border,
         overflow: 'hidden',
         marginBottom: 4,
     },
     progressFill: { height: '100%', borderRadius: 4 },
     progressLbl: {
         fontSize: 11,
-        color: Colors.dark.textSecondary,
+        color: colors.textSecondary,
         textAlign: 'center',
         marginBottom: Spacing.sm,
     },
@@ -1074,28 +1084,28 @@ const styles = StyleSheet.create({
 
     // Loading
     loadingWrap: { alignItems: 'center', paddingVertical: 48, gap: 10 },
-    loadingText: { fontSize: 14, color: Colors.dark.textTertiary },
+    loadingText: { fontSize: 14, color: colors.textTertiary },
 
     // Empty day
     emptyDay: {
         alignItems: 'center',
-        backgroundColor: Colors.dark.surface,
+        backgroundColor: colors.surface,
         borderRadius: BorderRadius.md,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
         padding: Spacing.lg,
         marginBottom: Spacing.md,
         gap: 8,
     },
-    emptyDayTitle: { fontSize: 18, color: Colors.dark.text, fontWeight: '600' },
-    emptyDayText: { fontSize: 13, color: Colors.dark.textTertiary, textAlign: 'center', lineHeight: 20 },
+    emptyDayTitle: { fontSize: 18, color: colors.text, fontWeight: '600' },
+    emptyDayText: { fontSize: 13, color: colors.textTertiary, textAlign: 'center', lineHeight: 20 },
 
     // Meal section
     section: {
-        backgroundColor: Colors.dark.surface,
+        backgroundColor: colors.surface,
         borderRadius: BorderRadius.md,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
         marginBottom: 10,
         overflow: 'hidden',
     },
@@ -1107,8 +1117,8 @@ const styles = StyleSheet.create({
     },
     sectionLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     iconBg: { width: 42, height: 42, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-    sectionTitle: { fontSize: 16, color: Colors.dark.text, fontWeight: '600' },
-    sectionSub: { fontSize: 11, color: Colors.dark.textTertiary, marginTop: 2 },
+    sectionTitle: { fontSize: 16, color: colors.text, fontWeight: '600' },
+    sectionSub: { fontSize: 11, color: colors.textTertiary, marginTop: 2 },
     sectionRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     sectionCals: { fontSize: 16, fontWeight: '700' },
 
@@ -1116,7 +1126,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: Spacing.md,
         paddingBottom: 10,
         borderTopWidth: 1,
-        borderTopColor: Colors.dark.border,
+        borderTopColor: colors.border,
     },
     emptyEntry: {
         flexDirection: 'row',
@@ -1124,7 +1134,7 @@ const styles = StyleSheet.create({
         gap: 6,
         paddingVertical: 10,
     },
-    emptyEntryText: { fontSize: 13, color: Colors.dark.textTertiary },
+    emptyEntryText: { fontSize: 13, color: colors.textTertiary },
 
     // Add button
     addBtn: {
@@ -1149,15 +1159,15 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
-        backgroundColor: Colors.dark.card,
+        backgroundColor: colors.card,
         borderRadius: BorderRadius.md,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
         paddingHorizontal: 14,
         paddingVertical: 12,
         ...Shadows.large,
     },
-    toastText: { flex: 1, fontSize: 14, color: Colors.dark.text, fontWeight: '500' },
+    toastText: { flex: 1, fontSize: 14, color: colors.text, fontWeight: '500' },
     undoBtn: {
         paddingHorizontal: 12,
         paddingVertical: 5,

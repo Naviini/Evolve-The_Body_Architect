@@ -5,7 +5,7 @@
  * app preferences, and sign-out option.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     View,
     Text,
@@ -18,7 +18,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from '@/constants/theme';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { syncAll, getSyncStatus } from '@/src/lib/sync';
@@ -28,18 +28,33 @@ import {
     getBodyTypeResult,
     hydrateOnboardingProfileFromSupabase,
     getDailyCalorieGoalForUser,
+    getUserPreferences,
 } from '@/src/lib/database';
 import { detectBodyType } from '@/src/lib/bodyTypeEngine';
 import type { BodyTypeResult } from '@/src/types';
+import { useAppStyles } from '@/hooks/useAppStyles';
+import { useThemeColors } from '@/hooks/useThemeColors';
+import { useAppTheme } from '@/src/contexts/ThemeContext';
 
 export default function ProfileScreen() {
+    const colors = useThemeColors();
+    const styles = useAppStyles(createStyles);
     const { user, signOut } = useAuth();
     const router = useRouter();
     const [calorieGoal, setCalorieGoal] = useState('2000');
     const [isSyncing, setIsSyncing] = useState(false);
     const [isRefreshingCloud, setIsRefreshingCloud] = useState(false);
-    const [lastCloudRefresh, setLastCloudRefresh] = useState<string | null>(null);
     const [bodyTypeResult, setBodyTypeResult] = useState<BodyTypeResult | null>(null);
+    const [prefs, setPrefs] = useState<any>(null);
+    const [lastCloudRefresh, setLastCloudRefresh] = useState<string | null>(null);
+    const { isDark, toggleTheme } = useAppTheme();
+
+    useFocusEffect(
+        useCallback(() => {
+            const uid = user?.id ?? 'onboarding-temp';
+            getUserPreferences(uid).then(setPrefs).catch(() => { });
+        }, [user?.id])
+    );
 
     useEffect(() => {
         const uid = user?.id ?? 'onboarding-temp';
@@ -171,7 +186,7 @@ export default function ProfileScreen() {
                                 onChangeText={setCalorieGoal}
                                 keyboardType="numeric"
                                 style={styles.goalTextInput}
-                                placeholderTextColor={Colors.dark.textTertiary}
+                                placeholderTextColor={colors.textTertiary}
                             />
                             <Text style={styles.goalUnit}>kcal</Text>
                         </View>
@@ -214,7 +229,7 @@ export default function ProfileScreen() {
                                 </Text>
                             </View>
                         </View>
-                        <Ionicons name="chevron-forward" size={20} color={Colors.dark.textTertiary} />
+                        <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
                     </TouchableOpacity>
 
                     <TouchableOpacity style={styles.settingRow} onPress={handleRefreshFromCloud} disabled={isRefreshingCloud}>
@@ -235,7 +250,7 @@ export default function ProfileScreen() {
                                 </Text>
                             </View>
                         </View>
-                        <Ionicons name="chevron-forward" size={20} color={Colors.dark.textTertiary} />
+                        <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
                     </TouchableOpacity>
                 </View>
 
@@ -299,23 +314,54 @@ export default function ProfileScreen() {
                                 <Text style={styles.settingSub}>Update your body data &amp; goals</Text>
                             </View>
                         </View>
-                        <Ionicons name="chevron-forward" size={20} color={Colors.dark.textTertiary} />
+                        <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
                     </TouchableOpacity>
                 </View>
 
                 {/* Settings */}
                 <Text style={styles.sectionTitle}>Settings</Text>
                 <View style={styles.settingCard}>
-                    <SettingRow icon="notifications-outline" label="Notifications" color={Colors.primary} />
-                    <SettingRow icon="moon-outline" label="Dark Mode" color={Colors.primaryLight} badge="On" />
-                    <SettingRow icon="language-outline" label="Language" color={Colors.accent} badge="English" />
-                    <SettingRow icon="shield-checkmark-outline" label="Privacy" color={Colors.success} last />
+                    <SettingRow
+                        icon="notifications-outline"
+                        label="Notifications"
+                        color={Colors.primary}
+                        badge={prefs?.notifications_enabled ? "On" : "Off"}
+                        onPress={() => router.push('/settings/notifications')}
+                    />
+                    <SettingRow
+                        icon={isDark ? "moon" : "moon-outline"}
+                        label="Dark Mode"
+                        color={Colors.primaryLight}
+                        badge={isDark ? "On" : "Off"}
+                        onPress={toggleTheme}
+                    />
+                    <SettingRow
+                        icon="language-outline"
+                        label="Language"
+                        color={Colors.accent}
+                        badge={prefs?.language ? (prefs.language === 'en' ? 'English' : prefs.language.toUpperCase()) : 'English'}
+                        onPress={() => router.push('/settings/language')}
+                    />
+                    <SettingRow
+                        icon="options-outline"
+                        label="Units"
+                        color={Colors.warning}
+                        badge={prefs?.weight_unit ? `${prefs.weight_unit}, ${prefs.height_unit}` : 'kg, cm'}
+                        onPress={() => router.push('/settings/units')}
+                    />
+                    <SettingRow
+                        icon="shield-checkmark-outline"
+                        label="Privacy"
+                        color={Colors.success}
+                        onPress={() => router.push('/settings/privacy')}
+                        last
+                    />
                 </View>
 
                 {/* About */}
                 <Text style={styles.sectionTitle}>About</Text>
                 <View style={styles.settingCard}>
-                    <SettingRow icon="information-circle-outline" label="App Version" color={Colors.dark.textSecondary} badge="1.0.0" />
+                    <SettingRow icon="information-circle-outline" label="App Version" color={colors.textSecondary} badge="1.0.0" />
                     <SettingRow icon="star-outline" label="Rate the App" color={Colors.warning} />
                     <SettingRow icon="chatbubble-outline" label="Send Feedback" color={Colors.accent} last />
                 </View>
@@ -339,31 +385,35 @@ function SettingRow({
     color,
     badge,
     last,
+    onPress,
 }: {
     icon: string;
     label: string;
     color: string;
     badge?: string;
     last?: boolean;
+    onPress?: () => void;
 }) {
+    const colors = useThemeColors();
+    const styles = useAppStyles(createStyles);
     return (
-        <TouchableOpacity style={[styles.settingRow, !last && styles.settingBorder]}>
+        <TouchableOpacity style={[styles.settingRow, !last && styles.settingBorder]} onPress={onPress}>
             <View style={styles.settingLeft}>
                 <Ionicons name={icon as any} size={22} color={color} />
                 <Text style={styles.settingLabel}>{label}</Text>
             </View>
             <View style={styles.settingRight}>
                 {badge && <Text style={styles.settingBadge}>{badge}</Text>}
-                <Ionicons name="chevron-forward" size={20} color={Colors.dark.textTertiary} />
+                <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
             </View>
         </TouchableOpacity>
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: Colors.dark.background,
+        backgroundColor: colors.background,
     },
     scrollContent: {
         paddingTop: Platform.OS === 'ios' ? 60 : 40,
@@ -371,7 +421,7 @@ const styles = StyleSheet.create({
     },
     headerTitle: {
         fontSize: Typography.sizes.heading,
-        color: Colors.dark.text,
+        color: colors.text,
         fontWeight: Typography.weights.bold,
         marginBottom: Spacing.lg,
     },
@@ -406,7 +456,7 @@ const styles = StyleSheet.create({
     // Sections
     sectionTitle: {
         fontSize: Typography.sizes.bodyLarge,
-        color: Colors.dark.textSecondary,
+        color: colors.textSecondary,
         fontWeight: Typography.weights.semibold,
         marginBottom: Spacing.sm,
         marginTop: Spacing.sm,
@@ -414,10 +464,10 @@ const styles = StyleSheet.create({
 
     // Setting Card
     settingCard: {
-        backgroundColor: Colors.dark.surface,
+        backgroundColor: colors.surface,
         borderRadius: BorderRadius.md,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
         marginBottom: Spacing.md,
         overflow: 'hidden',
     },
@@ -429,7 +479,7 @@ const styles = StyleSheet.create({
     },
     settingBorder: {
         borderBottomWidth: 1,
-        borderBottomColor: Colors.dark.border,
+        borderBottomColor: colors.border,
     },
     settingLeft: {
         flexDirection: 'row',
@@ -443,17 +493,17 @@ const styles = StyleSheet.create({
     },
     settingLabel: {
         fontSize: Typography.sizes.bodyLarge,
-        color: Colors.dark.text,
+        color: colors.text,
         fontWeight: Typography.weights.medium,
     },
     settingSub: {
         fontSize: Typography.sizes.caption,
-        color: Colors.dark.textTertiary,
+        color: colors.textTertiary,
         marginTop: 2,
     },
     settingBadge: {
         fontSize: Typography.sizes.body,
-        color: Colors.dark.textTertiary,
+        color: colors.textTertiary,
     },
     healthIconBg: {
         width: 36,
@@ -494,14 +544,14 @@ const styles = StyleSheet.create({
     goalInput: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: Colors.dark.background,
+        backgroundColor: colors.background,
         borderRadius: BorderRadius.sm,
         paddingHorizontal: Spacing.sm,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
     },
     goalTextInput: {
-        color: Colors.dark.text,
+        color: colors.text,
         fontSize: Typography.sizes.bodyLarge,
         fontWeight: Typography.weights.bold,
         paddingVertical: 6,
@@ -510,7 +560,7 @@ const styles = StyleSheet.create({
     },
     goalUnit: {
         fontSize: Typography.sizes.body,
-        color: Colors.dark.textTertiary,
+        color: colors.textTertiary,
         marginLeft: 4,
     },
 
@@ -525,7 +575,7 @@ const styles = StyleSheet.create({
         paddingVertical: Spacing.sm,
         borderRadius: BorderRadius.sm,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
         alignItems: 'center',
     },
     presetButtonActive: {
@@ -534,7 +584,7 @@ const styles = StyleSheet.create({
     },
     presetText: {
         fontSize: Typography.sizes.body,
-        color: Colors.dark.textSecondary,
+        color: colors.textSecondary,
         fontWeight: Typography.weights.medium,
     },
     presetTextActive: {
@@ -563,7 +613,7 @@ const styles = StyleSheet.create({
     footer: {
         textAlign: 'center',
         fontSize: Typography.sizes.caption,
-        color: Colors.dark.textTertiary,
+        color: colors.textTertiary,
         marginTop: Spacing.lg,
     },
 });

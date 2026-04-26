@@ -251,12 +251,123 @@ export async function initDatabase(): Promise<void> {
       generated_at TEXT DEFAULT (datetime('now'))
     );
   `);
+
+    // User preferences table
+    await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS user_preferences (
+      user_id TEXT PRIMARY KEY,
+      weight_unit TEXT DEFAULT 'kg',
+      height_unit TEXT DEFAULT 'cm',
+      energy_unit TEXT DEFAULT 'kcal',
+      notifications_enabled INTEGER DEFAULT 1,
+      marketing_emails INTEGER DEFAULT 0,
+      privacy_data_sharing INTEGER DEFAULT 1,
+      language TEXT DEFAULT 'en',
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
 }
 
 function getDb(): SQLite.SQLiteDatabase {
     if (!db) throw new Error('Database not initialized. Call initDatabase() first.');
     return db;
 }
+
+// ============================================================
+// User Preferences
+// ============================================================
+
+export interface UserPreferences {
+    user_id: string;
+    weight_unit: 'kg' | 'lb';
+    height_unit: 'cm' | 'ft';
+    energy_unit: 'kcal' | 'kJ';
+    notifications_enabled: boolean;
+    marketing_emails: boolean;
+    privacy_data_sharing: boolean;
+    language: string;
+    updated_at: string;
+}
+
+export async function getUserPreferences(userId: string): Promise<UserPreferences> {
+    const database = getDb();
+    const row = await database.getFirstAsync<any>(
+        `SELECT * FROM user_preferences WHERE user_id = ?`,
+        [userId]
+    );
+
+    if (!row) {
+        // Return defaults
+        return {
+            user_id: userId,
+            weight_unit: 'kg',
+            height_unit: 'cm',
+            energy_unit: 'kcal',
+            notifications_enabled: true,
+            marketing_emails: false,
+            privacy_data_sharing: true,
+            language: 'en',
+            updated_at: new Date().toISOString(),
+        };
+    }
+
+    return {
+        ...row,
+        notifications_enabled: row.notifications_enabled === 1,
+        marketing_emails: row.marketing_emails === 1,
+        privacy_data_sharing: row.privacy_data_sharing === 1,
+    };
+}
+
+export async function saveUserPreferences(userId: string, prefs: Partial<UserPreferences>): Promise<void> {
+    const database = getDb();
+    const current = await getUserPreferences(userId);
+    const now = new Date().toISOString();
+
+    const merged = { ...current, ...prefs };
+
+    await database.runAsync(
+        `INSERT OR REPLACE INTO user_preferences (
+            user_id, weight_unit, height_unit, energy_unit,
+            notifications_enabled, marketing_emails, privacy_data_sharing,
+            language, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+            userId,
+            merged.weight_unit,
+            merged.height_unit,
+            merged.energy_unit,
+            merged.notifications_enabled ? 1 : 0,
+            merged.marketing_emails ? 1 : 0,
+            merged.privacy_data_sharing ? 1 : 0,
+            merged.language,
+            now
+        ]
+    );
+}
+
+// ============================================================
+// Privacy Helpers
+// ============================================================
+
+export async function deleteUserData(userId: string): Promise<void> {
+    const database = getDb();
+
+    // In a real app, this should also delete from Supabase via Edge Function
+    // For now we clear all local data for this user.
+    await database.withTransactionAsync(async () => {
+        await database.runAsync(`DELETE FROM meal_entries WHERE user_id = ?`, [userId]);
+        await database.runAsync(`DELETE FROM daily_logs WHERE user_id = ?`, [userId]);
+        await database.runAsync(`DELETE FROM scan_history WHERE user_id = ?`, [userId]);
+        await database.runAsync(`DELETE FROM workout_plans WHERE user_id = ?`, [userId]);
+        await database.runAsync(`DELETE FROM workout_sessions WHERE user_id = ?`, [userId]);
+        await database.runAsync(`DELETE FROM user_health_profiles WHERE user_id = ?`, [userId]);
+        await database.runAsync(`DELETE FROM body_photos WHERE user_id = ?`, [userId]);
+        await database.runAsync(`DELETE FROM body_simulations WHERE user_id = ?`, [userId]);
+        await database.runAsync(`DELETE FROM user_preferences WHERE user_id = ?`, [userId]);
+    });
+}
+// ============================================================
 
 // ============================================================
 // Food Items

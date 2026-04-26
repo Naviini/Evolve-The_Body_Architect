@@ -6,8 +6,12 @@ import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useAppStyles } from '@/hooks/useAppStyles';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 export function Collapsible({ children, title }: PropsWithChildren & { title: string }) {
+  const colors = useThemeColors();
+  const styles = useAppStyles(createStyles);
   const [isOpen, setIsOpen] = useState(false);
   const theme = useColorScheme() ?? 'light';
 
@@ -21,7 +25,7 @@ export function Collapsible({ children, title }: PropsWithChildren & { title: st
           name="chevron.right"
           size={18}
           weight="medium"
-          color={theme === 'light' ? Colors.light.textSecondary : Colors.dark.textSecondary}
+          color={theme === 'light' ? colors.textSecondary : colors.textSecondary}
           style={{ transform: [{ rotate: isOpen ? '90deg' : '0deg' }] }}
         />
 
@@ -32,7 +36,7 @@ export function Collapsible({ children, title }: PropsWithChildren & { title: st
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   heading: {
     flexDirection: 'row',
     alignItems: 'center',

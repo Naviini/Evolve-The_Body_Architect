@@ -37,6 +37,8 @@ import { getOnboardingProfile } from '@/src/lib/database';
 import { generateBodySimulation, inferDreamBodyStyle } from '@/src/lib/bodySimulationEngine';
 import BodySilhouette, { BodySilhouetteMini } from '@/components/BodySilhouette';
 import { MilestonePhase, OnboardingProfile } from '@/src/types';
+import { useAppStyles } from '@/hooks/useAppStyles';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -64,6 +66,8 @@ const PHASE_GRADIENTS: readonly [string, string][] = [
 // ════════════════════════════════════════════════════════════
 
 export default function BodySimulationScreen() {
+  const colors = useThemeColors();
+  const styles = useAppStyles(createStyles);
     const router = useRouter();
     const { user } = useAuth();
     const [loading, setLoading] = useState(true);
@@ -452,6 +456,8 @@ function StatCard({ label, value, unit, icon, color }: {
     label: string; value: string; unit: string;
     icon: string; color: string;
 }) {
+  const colors = useThemeColors();
+  const styles = useAppStyles(createStyles);
     return (
         <View style={styles.statCard}>
             <Ionicons name={icon as any} size={18} color={color} />
@@ -465,6 +471,8 @@ function StatCard({ label, value, unit, icon, color }: {
 function ChangeItem({ label, from, to, unit, color }: {
     label: string; from: number; to: number; unit: string; color: string;
 }) {
+  const colors = useThemeColors();
+  const styles = useAppStyles(createStyles);
     const diff = to - from;
     const sign = diff >= 0 ? '+' : '';
     const diffStr = `${sign}${Math.round(diff * 10) / 10}`;
@@ -484,18 +492,18 @@ function ChangeItem({ label, from, to, unit, color }: {
 // Styles
 // ════════════════════════════════════════════════════════════
 
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: Colors.dark.background },
+const createStyles = (colors: any) => StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
     center: { justifyContent: 'center', alignItems: 'center' },
-    loadingText: { color: Colors.dark.textSecondary, marginTop: 12, fontSize: 14 },
+    loadingText: { color: colors.textSecondary, marginTop: 12, fontSize: 14 },
 
     // ── Empty state
-    emptyTitle: { fontSize: 22, fontWeight: '700', color: Colors.dark.text, marginTop: 16, textAlign: 'center' },
-    emptyBody: { fontSize: 14, color: Colors.dark.textSecondary, textAlign: 'center', marginTop: 8, lineHeight: 20, paddingHorizontal: 20 },
+    emptyTitle: { fontSize: 22, fontWeight: '700', color: colors.text, marginTop: 16, textAlign: 'center' },
+    emptyBody: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginTop: 8, lineHeight: 20, paddingHorizontal: 20 },
     emptyBtn: { marginTop: 24, backgroundColor: Colors.primary, borderRadius: BorderRadius.md, paddingHorizontal: 28, paddingVertical: 12 },
     emptyBtnText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
     backLink: { marginTop: 16 },
-    backLinkText: { color: Colors.dark.textTertiary, fontSize: 14 },
+    backLinkText: { color: colors.textTertiary, fontSize: 14 },
 
     // ── Header
     header: {
@@ -531,11 +539,11 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         borderRadius: BorderRadius.round,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
-        backgroundColor: Colors.dark.surface,
+        borderColor: colors.border,
+        backgroundColor: colors.surface,
     },
     timelineDot: { width: 8, height: 8, borderRadius: 4 },
-    timelineLabel: { fontSize: 13, fontWeight: '600', color: Colors.dark.textSecondary },
+    timelineLabel: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
     timelineLabelActive: { color: '#FFF' },
     timelineConnector: { position: 'absolute', right: -8, width: 8, height: 2 },
 
@@ -545,10 +553,10 @@ const styles = StyleSheet.create({
         borderRadius: BorderRadius.md,
         padding: Spacing.md,
         marginBottom: Spacing.md,
-        backgroundColor: Colors.dark.surface,
+        backgroundColor: colors.surface,
     },
     motivationText: {
-        fontSize: 15, color: Colors.dark.text, fontStyle: 'italic',
+        fontSize: 15, color: colors.text, fontStyle: 'italic',
         lineHeight: 22, textAlign: 'center',
     },
 
@@ -557,69 +565,69 @@ const styles = StyleSheet.create({
     singleSilhouette: { alignItems: 'center' },
     compareRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     compareItem: { alignItems: 'center', flex: 1 },
-    compareLabel: { fontSize: 13, fontWeight: '700', color: Colors.dark.textSecondary, marginBottom: 8 },
-    compareWeight: { fontSize: 14, fontWeight: '700', color: Colors.dark.text, marginTop: 8 },
+    compareLabel: { fontSize: 13, fontWeight: '700', color: colors.textSecondary, marginBottom: 8 },
+    compareWeight: { fontSize: 14, fontWeight: '700', color: colors.text, marginTop: 8 },
     compareDivider: { padding: 8 },
 
     // ── Stats
     statsRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md },
     statCard: {
         flex: 1,
-        backgroundColor: Colors.dark.surface,
+        backgroundColor: colors.surface,
         borderRadius: BorderRadius.md,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
         padding: Spacing.md,
         alignItems: 'center',
         gap: 4,
     },
     statValue: { fontSize: 20, fontWeight: '800' },
-    statUnit: { fontSize: 11, color: Colors.dark.textTertiary },
-    statLabel: { fontSize: 11, color: Colors.dark.textSecondary, marginTop: 2 },
+    statUnit: { fontSize: 11, color: colors.textTertiary },
+    statLabel: { fontSize: 11, color: colors.textSecondary, marginTop: 2 },
 
     // ── Macro card
     macroCard: {
-        backgroundColor: Colors.dark.surface,
+        backgroundColor: colors.surface,
         borderRadius: BorderRadius.md,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
         padding: Spacing.md,
         marginBottom: Spacing.md,
     },
-    cardTitle: { fontSize: 16, fontWeight: '700', color: Colors.dark.text, marginBottom: Spacing.sm },
+    cardTitle: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: Spacing.sm },
     macroBarRow: { gap: Spacing.sm },
     macroItem: { gap: 4 },
     macroLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     macroDot: { width: 8, height: 8, borderRadius: 4 },
-    macroLabel: { fontSize: 13, color: Colors.dark.textSecondary, flex: 1 },
+    macroLabel: { fontSize: 13, color: colors.textSecondary, flex: 1 },
     macroPct: { fontSize: 13, fontWeight: '700' },
-    macroTrack: { height: 6, borderRadius: 3, backgroundColor: Colors.dark.border, overflow: 'hidden' },
+    macroTrack: { height: 6, borderRadius: 3, backgroundColor: colors.border, overflow: 'hidden' },
     macroFill: { height: '100%', borderRadius: 3 },
 
     // ── Focus cards
     focusCard: {
-        backgroundColor: Colors.dark.surface,
+        backgroundColor: colors.surface,
         borderRadius: BorderRadius.md,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
         borderLeftWidth: 4,
         padding: Spacing.md,
         marginBottom: Spacing.md,
     },
     focusHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-    focusTitle: { fontSize: 15, fontWeight: '700', color: Colors.dark.text },
-    focusBody: { fontSize: 14, color: Colors.dark.textSecondary, lineHeight: 20 },
+    focusTitle: { fontSize: 15, fontWeight: '700', color: colors.text },
+    focusBody: { fontSize: 14, color: colors.textSecondary, lineHeight: 20 },
 
     // ── Photo section
     photoSection: {
-        backgroundColor: Colors.dark.surface,
+        backgroundColor: colors.surface,
         borderRadius: BorderRadius.md,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
         padding: Spacing.md,
         marginBottom: Spacing.md,
     },
-    photoHint: { fontSize: 13, color: Colors.dark.textTertiary, marginBottom: Spacing.sm, lineHeight: 18 },
+    photoHint: { fontSize: 13, color: colors.textTertiary, marginBottom: Spacing.sm, lineHeight: 18 },
     photoButtons: { flexDirection: 'row', gap: Spacing.sm },
     photoBtn: {
         flex: 1,
@@ -642,17 +650,17 @@ const styles = StyleSheet.create({
 
     // ── Change summary
     changeSummary: {
-        backgroundColor: Colors.dark.surface,
+        backgroundColor: colors.surface,
         borderRadius: BorderRadius.md,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
         padding: Spacing.md,
         marginBottom: Spacing.md,
     },
-    changeSummaryTitle: { fontSize: 14, fontWeight: '700', color: Colors.dark.text, marginBottom: Spacing.sm },
+    changeSummaryTitle: { fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: Spacing.sm },
     changeRow: { flexDirection: 'row', gap: Spacing.sm },
     changeItem: { flex: 1, alignItems: 'center', gap: 4 },
-    changeLabel: { fontSize: 11, color: Colors.dark.textTertiary },
+    changeLabel: { fontSize: 11, color: colors.textTertiary },
     changeDiff: { fontSize: 16, fontWeight: '800' },
-    changeFromTo: { fontSize: 11, color: Colors.dark.textTertiary },
+    changeFromTo: { fontSize: 11, color: colors.textTertiary },
 });

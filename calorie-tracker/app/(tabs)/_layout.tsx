@@ -10,23 +10,24 @@ import React from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Shadows } from '@/constants/theme';
-import { useAppTheme } from '@/src/contexts/ThemeContext';
+import { useAppStyles } from '@/hooks/useAppStyles';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 export default function TabLayout() {
-  const { isDark } = useAppTheme();
-  const palette = isDark ? Colors.dark : Colors.light;
+  const colors = useThemeColors();
+  const styles = useAppStyles(createStyles);
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: palette.textTertiary,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textTertiary,
         tabBarStyle: [
           styles.tabBar,
           {
-            backgroundColor: palette.tabBar,
-            borderTopColor: palette.border,
+            backgroundColor: colors.tabBar,
+            borderTopColor: colors.border,
           },
         ],
         tabBarLabelStyle: styles.tabBarLabel,
@@ -116,7 +117,7 @@ export default function TabLayout() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   tabBar: {
     borderTopWidth: 1,
     minHeight: Platform.OS === 'ios' ? 88 : 70,

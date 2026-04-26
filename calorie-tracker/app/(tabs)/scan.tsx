@@ -29,8 +29,12 @@ import { recognizeFood, prepareImageForScan } from '@/src/services/scan.service'
 import { addMealEntry } from '@/src/lib/database';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { FoodRecognitionResponse, MealType } from '@/src/types';
+import { useAppStyles } from '@/hooks/useAppStyles';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 export default function ScanScreen() {
+  const colors = useThemeColors();
+  const styles = useAppStyles(createStyles);
     const { user } = useAuth();
     const router = useRouter();
     const cameraRef = useRef<CameraView>(null);
@@ -129,7 +133,7 @@ export default function ScanScreen() {
         if (!permission.granted) {
             return (
                 <View style={styles.permissionContainer}>
-                    <Ionicons name="camera-outline" size={64} color={Colors.dark.textTertiary} />
+                    <Ionicons name="camera-outline" size={64} color={colors.textTertiary} />
                     <Text style={styles.permissionTitle}>Camera Access Needed</Text>
                     <Text style={styles.permissionText}>
                         We need camera access to scan your food and estimate calories automatically.
@@ -175,7 +179,7 @@ export default function ScanScreen() {
                 </View>
             ) : Platform.OS === 'web' ? (
                 <View style={styles.webFallbackContainer}>
-                    <Ionicons name="images-outline" size={80} color={Colors.dark.textTertiary} />
+                    <Ionicons name="images-outline" size={80} color={colors.textTertiary} />
                     <Text style={styles.webFallbackTitle}>Upload Food Image</Text>
                     <Text style={styles.webFallbackText}>
                         Upload a photo of your meal to identify it and estimate calories automatically.
@@ -257,14 +261,14 @@ export default function ScanScreen() {
                 <View style={styles.modalOverlay}>
                     <View style={styles.resultCard}>
                         <LinearGradient
-                            colors={[Colors.dark.surfaceLight, Colors.dark.card]}
+                            colors={[colors.surfaceLight, colors.card]}
                             style={styles.resultCardGradient}
                         >
                             {/* Header */}
                             <View style={styles.resultHeader}>
                                 <Text style={styles.resultTitle}>Food Detected!</Text>
                                 <TouchableOpacity onPress={resetScan}>
-                                    <Ionicons name="close-circle" size={28} color={Colors.dark.textTertiary} />
+                                    <Ionicons name="close-circle" size={28} color={colors.textTertiary} />
                                 </TouchableOpacity>
                             </View>
 
@@ -385,30 +389,30 @@ export default function ScanScreen() {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: Colors.dark.background,
+        backgroundColor: colors.background,
     },
 
     // Permission
     permissionContainer: {
         flex: 1,
-        backgroundColor: Colors.dark.background,
+        backgroundColor: colors.background,
         justifyContent: 'center',
         alignItems: 'center',
         padding: Spacing.xl,
     },
     permissionTitle: {
         fontSize: Typography.sizes.title,
-        color: Colors.dark.text,
+        color: colors.text,
         fontWeight: Typography.weights.bold,
         marginTop: Spacing.lg,
         marginBottom: Spacing.sm,
     },
     permissionText: {
         fontSize: Typography.sizes.body,
-        color: Colors.dark.textSecondary,
+        color: colors.textSecondary,
         textAlign: 'center',
         marginBottom: Spacing.xl,
         lineHeight: 20,
@@ -437,14 +441,14 @@ const styles = StyleSheet.create({
     },
     webFallbackTitle: {
         fontSize: Typography.sizes.title,
-        color: Colors.dark.text,
+        color: colors.text,
         fontWeight: Typography.weights.bold,
         marginTop: Spacing.lg,
         marginBottom: Spacing.sm,
     },
     webFallbackText: {
         fontSize: Typography.sizes.body,
-        color: Colors.dark.textSecondary,
+        color: colors.textSecondary,
         textAlign: 'center',
         marginBottom: Spacing.xl,
         lineHeight: 22,
@@ -633,7 +637,7 @@ const styles = StyleSheet.create({
     },
     resultTitle: {
         fontSize: Typography.sizes.title,
-        color: Colors.dark.text,
+        color: colors.text,
         fontWeight: Typography.weights.bold,
     },
     confidenceBadge: {
@@ -654,12 +658,12 @@ const styles = StyleSheet.create({
     },
     foodName: {
         fontSize: Typography.sizes.heading,
-        color: Colors.dark.text,
+        color: colors.text,
         fontWeight: Typography.weights.bold,
     },
     servingInfo: {
         fontSize: Typography.sizes.body,
-        color: Colors.dark.textSecondary,
+        color: colors.textSecondary,
         marginTop: 4,
         marginBottom: Spacing.md,
     },
@@ -672,7 +676,7 @@ const styles = StyleSheet.create({
     },
     nutritionItem: {
         flex: 1,
-        backgroundColor: Colors.dark.background,
+        backgroundColor: colors.background,
         borderRadius: BorderRadius.md,
         padding: Spacing.sm,
         alignItems: 'center',
@@ -683,14 +687,14 @@ const styles = StyleSheet.create({
     },
     nutritionLabel: {
         fontSize: Typography.sizes.caption,
-        color: Colors.dark.textTertiary,
+        color: colors.textTertiary,
         marginTop: 2,
     },
 
     // Meal Type
     mealTypeLabel: {
         fontSize: Typography.sizes.body,
-        color: Colors.dark.textSecondary,
+        color: colors.textSecondary,
         marginBottom: Spacing.sm,
     },
     mealTypeRow: {
@@ -703,7 +707,7 @@ const styles = StyleSheet.create({
         paddingVertical: Spacing.sm,
         borderRadius: BorderRadius.sm,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
         alignItems: 'center',
     },
     mealTypeButtonActive: {
@@ -712,7 +716,7 @@ const styles = StyleSheet.create({
     },
     mealTypeButtonText: {
         fontSize: Typography.sizes.caption,
-        color: Colors.dark.textSecondary,
+        color: colors.textSecondary,
         fontWeight: Typography.weights.medium,
     },
     mealTypeButtonTextActive: {
@@ -726,7 +730,7 @@ const styles = StyleSheet.create({
     },
     alternativesTitle: {
         fontSize: Typography.sizes.body,
-        color: Colors.dark.textSecondary,
+        color: colors.textSecondary,
         marginBottom: Spacing.sm,
     },
     alternativeItem: {
@@ -734,11 +738,11 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingVertical: 6,
         borderBottomWidth: 1,
-        borderBottomColor: Colors.dark.border,
+        borderBottomColor: colors.border,
     },
     alternativeName: {
         fontSize: Typography.sizes.body,
-        color: Colors.dark.text,
+        color: colors.text,
     },
     alternativeCals: {
         fontSize: Typography.sizes.body,

@@ -19,6 +19,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from '@/constants/theme';
 import { getTutorial } from '@/src/lib/exerciseTutorials';
 import { ExerciseTutorial } from '@/src/types';
+import { useAppStyles } from '@/hooks/useAppStyles';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -30,6 +32,8 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 // ════════════════════════════════════════════════════════════
 
 export default function ExerciseTutorialScreen() {
+  const colors = useThemeColors();
+  const styles = useAppStyles(createStyles);
   const { exerciseId, exerciseName } = useLocalSearchParams<{
     exerciseId: string;
     exerciseName?: string;
@@ -78,7 +82,7 @@ export default function ExerciseTutorialScreen() {
     return (
       <View style={styles.container}>
         <TouchableOpacity style={styles.backBtnAbsolute} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={Colors.dark.text} />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <Text style={{ fontSize: 48 }}>🏋️</Text>
@@ -168,15 +172,15 @@ export default function ExerciseTutorialScreen() {
                 style={[styles.phaseNavBtn, activePhase === 0 && styles.phaseNavBtnDisabled]}
                 onPress={() => activePhase > 0 && animatePhase(activePhase - 1)}
               >
-                <Ionicons name="arrow-back" size={18} color={activePhase === 0 ? Colors.dark.border : Colors.primary} />
-                <Text style={[styles.phaseNavText, activePhase === 0 && { color: Colors.dark.border }]}>Prev</Text>
+                <Ionicons name="arrow-back" size={18} color={activePhase === 0 ? colors.border : Colors.primary} />
+                <Text style={[styles.phaseNavText, activePhase === 0 && { color: colors.border }]}>Prev</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.phaseNavBtn, activePhase === tutorial.phases.length - 1 && styles.phaseNavBtnDisabled]}
                 onPress={() => activePhase < tutorial.phases.length - 1 && animatePhase(activePhase + 1)}
               >
-                <Text style={[styles.phaseNavText, activePhase === tutorial.phases.length - 1 && { color: Colors.dark.border }]}>Next</Text>
-                <Ionicons name="arrow-forward" size={18} color={activePhase === tutorial.phases.length - 1 ? Colors.dark.border : Colors.primary} />
+                <Text style={[styles.phaseNavText, activePhase === tutorial.phases.length - 1 && { color: colors.border }]}>Next</Text>
+                <Ionicons name="arrow-forward" size={18} color={activePhase === tutorial.phases.length - 1 ? colors.border : Colors.primary} />
               </TouchableOpacity>
             </View>
           </LinearGradient>
@@ -303,8 +307,8 @@ export default function ExerciseTutorialScreen() {
 // Styles
 // ════════════════════════════════════════════════════════════
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.dark.background },
+const createStyles = (colors: any) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
 
   // Header
   header: {
@@ -327,10 +331,10 @@ const styles = StyleSheet.create({
 
   sectionTitle: {
     fontSize: Typography.sizes.bodyLarge, fontWeight: '700',
-    color: Colors.dark.text, marginBottom: 4, marginTop: Spacing.md,
+    color: colors.text, marginBottom: 4, marginTop: Spacing.md,
   },
   sectionSub: {
-    fontSize: 12, color: Colors.dark.textTertiary, marginBottom: Spacing.sm,
+    fontSize: 12, color: colors.textTertiary, marginBottom: Spacing.sm,
   },
 
   // Phase strip
@@ -338,12 +342,12 @@ const styles = StyleSheet.create({
   phaseChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 12, paddingVertical: 8,
-    backgroundColor: Colors.dark.surface, borderRadius: BorderRadius.round,
-    borderWidth: 1, borderColor: Colors.dark.border, marginRight: 8,
+    backgroundColor: colors.surface, borderRadius: BorderRadius.round,
+    borderWidth: 1, borderColor: colors.border, marginRight: 8,
   },
   phaseChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   phaseChipEmoji: { fontSize: 16 },
-  phaseChipLabel: { fontSize: 12, color: Colors.dark.textSecondary, fontWeight: '600' },
+  phaseChipLabel: { fontSize: 12, color: colors.textSecondary, fontWeight: '600' },
   phaseChipLabelActive: { color: '#FFF' },
 
   // Phase card
@@ -353,7 +357,7 @@ const styles = StyleSheet.create({
   },
   phaseCardGradient: {
     padding: Spacing.lg, borderRadius: BorderRadius.lg,
-    borderWidth: 1, borderColor: Colors.dark.border,
+    borderWidth: 1, borderColor: colors.border,
   },
   phaseCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   phaseCardEmoji: { fontSize: 36 },
@@ -362,8 +366,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 4,
   },
   phaseCardStepNum: { fontSize: 12, color: Colors.primary, fontWeight: '700' },
-  phaseCardLabel: { fontSize: Typography.sizes.subtitle, fontWeight: '700', color: Colors.dark.text, marginBottom: 8 },
-  phaseCardCue: { fontSize: 15, color: Colors.dark.textSecondary, lineHeight: 22 },
+  phaseCardLabel: { fontSize: Typography.sizes.subtitle, fontWeight: '700', color: colors.text, marginBottom: 8 },
+  phaseCardCue: { fontSize: 15, color: colors.textSecondary, lineHeight: 22 },
   phaseNav: { flexDirection: 'row', justifyContent: 'space-between', marginTop: Spacing.md },
   phaseNavBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 8 },
   phaseNavBtnDisabled: { opacity: 0.3 },
@@ -371,8 +375,8 @@ const styles = StyleSheet.create({
 
   // Breathing
   breathCard: {
-    backgroundColor: Colors.dark.surface, borderRadius: BorderRadius.lg,
-    borderWidth: 1, borderColor: Colors.dark.border,
+    backgroundColor: colors.surface, borderRadius: BorderRadius.lg,
+    borderWidth: 1, borderColor: colors.border,
     padding: Spacing.lg, alignItems: 'center', marginBottom: Spacing.md,
   },
   breathVisual: { height: 120, justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.md },
@@ -383,15 +387,15 @@ const styles = StyleSheet.create({
   },
   breathLabel: { fontSize: 24 },
   breathPhaseText: { fontSize: 11, color: '#FFF', fontWeight: '700', marginTop: 2 },
-  breathingCueText: { fontSize: 14, color: Colors.dark.textSecondary, textAlign: 'center', lineHeight: 20 },
+  breathingCueText: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 },
 
   // Cards
   card: {
-    backgroundColor: Colors.dark.surface, borderRadius: BorderRadius.md,
-    borderWidth: 1, borderColor: Colors.dark.border, marginBottom: Spacing.md,
+    backgroundColor: colors.surface, borderRadius: BorderRadius.md,
+    borderWidth: 1, borderColor: colors.border, marginBottom: Spacing.md,
     overflow: 'hidden',
   },
-  rowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.dark.border },
+  rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
 
   // Safety
   safetyRow: { flexDirection: 'row', gap: Spacing.sm, padding: Spacing.md, alignItems: 'flex-start' },
@@ -400,11 +404,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.success + '20', justifyContent: 'center', alignItems: 'center',
     marginTop: 1,
   },
-  safetyText: { flex: 1, fontSize: 14, color: Colors.dark.text, lineHeight: 20 },
+  safetyText: { flex: 1, fontSize: 14, color: colors.text, lineHeight: 20 },
 
   // Mistakes
   mistakeRow: { padding: Spacing.md },
-  mistakeText: { fontSize: 14, color: Colors.dark.text, lineHeight: 20 },
+  mistakeText: { fontSize: 14, color: colors.text, lineHeight: 20 },
 
   // Biology
   bioToggle: {
@@ -417,16 +421,16 @@ const styles = StyleSheet.create({
   },
   bioToggleLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   bioToggleEmoji: { fontSize: 28 },
-  bioToggleTitle: { fontSize: 15, fontWeight: '700', color: Colors.dark.text },
-  bioToggleSub: { fontSize: 12, color: Colors.dark.textTertiary, marginTop: 2 },
+  bioToggleTitle: { fontSize: 15, fontWeight: '700', color: colors.text },
+  bioToggleSub: { fontSize: 12, color: colors.textTertiary, marginTop: 2 },
   bioContent: {
-    backgroundColor: Colors.dark.surface, borderRadius: BorderRadius.md,
+    backgroundColor: colors.surface, borderRadius: BorderRadius.md,
     borderWidth: 1, borderColor: Colors.primary + '30',
     marginBottom: Spacing.md, overflow: 'hidden',
   },
   bioSection: { padding: Spacing.md },
   bioSectionTitle: { fontSize: 13, fontWeight: '700', color: Colors.primary, marginBottom: 6 },
-  bioSectionBody: { fontSize: 14, color: Colors.dark.textSecondary, lineHeight: 21 },
+  bioSectionBody: { fontSize: 14, color: colors.textSecondary, lineHeight: 21 },
 
   // CTA
   startCta: { borderRadius: BorderRadius.md, overflow: 'hidden', ...Shadows.glow, marginTop: Spacing.md },
@@ -437,8 +441,8 @@ const styles = StyleSheet.create({
   startCtaText: { fontSize: 17, fontWeight: '800', color: '#FFF' },
 
   // No tutorial
-  noTutTitle: { fontSize: 22, fontWeight: '700', color: Colors.dark.text, marginTop: 16, textAlign: 'center' },
-  noTutBody: { fontSize: 14, color: Colors.dark.textSecondary, textAlign: 'center', marginTop: 8, lineHeight: 22, paddingHorizontal: Spacing.xl },
+  noTutTitle: { fontSize: 22, fontWeight: '700', color: colors.text, marginTop: 16, textAlign: 'center' },
+  noTutBody: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginTop: 8, lineHeight: 22, paddingHorizontal: Spacing.xl },
   backCta: {
     marginTop: Spacing.lg, backgroundColor: Colors.primary,
     borderRadius: BorderRadius.md, paddingHorizontal: 28, paddingVertical: 12,

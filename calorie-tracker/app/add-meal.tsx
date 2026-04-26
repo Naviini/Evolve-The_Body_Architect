@@ -27,8 +27,12 @@ import { addMealEntry, searchFoodItems, insertFoodItem } from '@/src/lib/databas
 import { generateId } from '@/src/lib/database';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { MealType, FoodItem } from '@/src/types';
+import { useAppStyles } from '@/hooks/useAppStyles';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 export default function AddMealScreen() {
+  const colors = useThemeColors();
+  const styles = useAppStyles(createStyles);
     const { user } = useAuth();
     const router = useRouter();
     const params = useLocalSearchParams<{ mealType?: string; date?: string }>();
@@ -179,7 +183,7 @@ export default function AddMealScreen() {
             <View style={styles.header}>
                 {/* Close — go back without Done */}
                 <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
-                    <Ionicons name="close" size={24} color={Colors.dark.text} />
+                    <Ionicons name="close" size={24} color={colors.text} />
                 </TouchableOpacity>
 
                 <View style={styles.headerCenter}>
@@ -197,7 +201,7 @@ export default function AddMealScreen() {
                     style={[styles.doneButton, sessionCount === 0 && styles.doneButtonDisabled]}
                     disabled={sessionCount === 0}
                 >
-                    <Text style={[styles.doneButtonText, sessionCount === 0 && { color: Colors.dark.textTertiary }]}>
+                    <Text style={[styles.doneButtonText, sessionCount === 0 && { color: colors.textTertiary }]}>
                         Done
                     </Text>
                 </TouchableOpacity>
@@ -233,18 +237,18 @@ export default function AddMealScreen() {
             >
                 {/* Search Bar */}
                 <View style={styles.searchBar}>
-                    <Ionicons name="search" size={20} color={Colors.dark.textTertiary} />
+                    <Ionicons name="search" size={20} color={colors.textTertiary} />
                     <TextInput
                         style={styles.searchInput}
                         placeholder="Search foods..."
-                        placeholderTextColor={Colors.dark.textTertiary}
+                        placeholderTextColor={colors.textTertiary}
                         value={searchQuery}
                         onChangeText={handleSearch}
                         autoFocus
                     />
                     {searchQuery.length > 0 && (
                         <TouchableOpacity onPress={() => handleSearch('')}>
-                            <Ionicons name="close-circle" size={20} color={Colors.dark.textTertiary} />
+                            <Ionicons name="close-circle" size={20} color={colors.textTertiary} />
                         </TouchableOpacity>
                     )}
                 </View>
@@ -302,7 +306,7 @@ export default function AddMealScreen() {
                             <TextInput
                                 style={styles.input}
                                 placeholder="e.g. Grilled Chicken Breast"
-                                placeholderTextColor={Colors.dark.textTertiary}
+                                placeholderTextColor={colors.textTertiary}
                                 value={foodName}
                                 onChangeText={setFoodName}
                             />
@@ -314,7 +318,7 @@ export default function AddMealScreen() {
                                 <TextInput
                                     style={styles.input}
                                     placeholder="0"
-                                    placeholderTextColor={Colors.dark.textTertiary}
+                                    placeholderTextColor={colors.textTertiary}
                                     keyboardType="numeric"
                                     value={calories}
                                     onChangeText={setCalories}
@@ -325,7 +329,7 @@ export default function AddMealScreen() {
                                 <TextInput
                                     style={styles.input}
                                     placeholder="1"
-                                    placeholderTextColor={Colors.dark.textTertiary}
+                                    placeholderTextColor={colors.textTertiary}
                                     keyboardType="numeric"
                                     value={servings}
                                     onChangeText={setServings}
@@ -339,7 +343,7 @@ export default function AddMealScreen() {
                                 <TextInput
                                     style={styles.input}
                                     placeholder="0"
-                                    placeholderTextColor={Colors.dark.textTertiary}
+                                    placeholderTextColor={colors.textTertiary}
                                     keyboardType="numeric"
                                     value={protein}
                                     onChangeText={setProtein}
@@ -350,7 +354,7 @@ export default function AddMealScreen() {
                                 <TextInput
                                     style={styles.input}
                                     placeholder="0"
-                                    placeholderTextColor={Colors.dark.textTertiary}
+                                    placeholderTextColor={colors.textTertiary}
                                     keyboardType="numeric"
                                     value={carbs}
                                     onChangeText={setCarbs}
@@ -361,7 +365,7 @@ export default function AddMealScreen() {
                                 <TextInput
                                     style={styles.input}
                                     placeholder="0"
-                                    placeholderTextColor={Colors.dark.textTertiary}
+                                    placeholderTextColor={colors.textTertiary}
                                     keyboardType="numeric"
                                     value={fat}
                                     onChangeText={setFat}
@@ -377,7 +381,7 @@ export default function AddMealScreen() {
                             activeOpacity={0.8}
                         >
                             <LinearGradient
-                                colors={adding ? [Colors.dark.border, Colors.dark.border] : [Colors.primary, Colors.primaryDark]}
+                                colors={adding ? [colors.border, colors.border] : [Colors.primary, Colors.primaryDark]}
                                 style={styles.addButtonGradient}
                                 start={{ x: 0, y: 0 }}
                                 end={{ x: 1, y: 0 }}
@@ -473,10 +477,10 @@ export default function AddMealScreen() {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: Colors.dark.background,
+        backgroundColor: colors.background,
     },
     header: {
         flexDirection: 'row',
@@ -490,7 +494,7 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: Colors.dark.surfaceLight,
+        backgroundColor: colors.surfaceLight,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -501,7 +505,7 @@ const styles = StyleSheet.create({
     },
     headerTitle: {
         fontSize: Typography.sizes.title,
-        color: Colors.dark.text,
+        color: colors.text,
         fontWeight: Typography.weights.bold,
     },
     sessionBadge: {
@@ -526,9 +530,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     doneButtonDisabled: {
-        backgroundColor: Colors.dark.surfaceLight,
+        backgroundColor: colors.surfaceLight,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
     },
     doneButtonText: {
         fontSize: 14,
@@ -549,7 +553,7 @@ const styles = StyleSheet.create({
         paddingVertical: Spacing.sm,
         borderRadius: BorderRadius.sm,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
         alignItems: 'center',
     },
     mealTypeButtonActive: {
@@ -558,7 +562,7 @@ const styles = StyleSheet.create({
     },
     mealTypeText: {
         fontSize: Typography.sizes.caption,
-        color: Colors.dark.textSecondary,
+        color: colors.textSecondary,
         fontWeight: Typography.weights.medium,
     },
     mealTypeTextActive: {
@@ -574,27 +578,27 @@ const styles = StyleSheet.create({
     searchBar: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: Colors.dark.surface,
+        backgroundColor: colors.surface,
         borderRadius: BorderRadius.md,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
         paddingHorizontal: Spacing.md,
         marginBottom: Spacing.md,
         gap: Spacing.sm,
     },
     searchInput: {
         flex: 1,
-        color: Colors.dark.text,
+        color: colors.text,
         fontSize: Typography.sizes.bodyLarge,
         paddingVertical: Platform.OS === 'ios' ? 14 : 10,
     },
 
     // Results
     resultsList: {
-        backgroundColor: Colors.dark.surface,
+        backgroundColor: colors.surface,
         borderRadius: BorderRadius.md,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
         marginBottom: Spacing.md,
         overflow: 'hidden',
     },
@@ -604,19 +608,19 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: Spacing.md,
         borderBottomWidth: 1,
-        borderBottomColor: Colors.dark.border,
+        borderBottomColor: colors.border,
     },
     resultLeft: {
         flex: 1,
     },
     resultName: {
         fontSize: Typography.sizes.bodyLarge,
-        color: Colors.dark.text,
+        color: colors.text,
         fontWeight: Typography.weights.medium,
     },
     resultDetail: {
         fontSize: Typography.sizes.caption,
-        color: Colors.dark.textTertiary,
+        color: colors.textTertiary,
         marginTop: 2,
     },
     resultRight: {
@@ -630,7 +634,7 @@ const styles = StyleSheet.create({
     },
     resultUnit: {
         fontSize: 10,
-        color: Colors.dark.textTertiary,
+        color: colors.textTertiary,
     },
 
     // Divider
@@ -642,11 +646,11 @@ const styles = StyleSheet.create({
     dividerLine: {
         flex: 1,
         height: 1,
-        backgroundColor: Colors.dark.border,
+        backgroundColor: colors.border,
     },
     dividerText: {
         fontSize: Typography.sizes.caption,
-        color: Colors.dark.textTertiary,
+        color: colors.textTertiary,
         marginHorizontal: Spacing.sm,
     },
 
@@ -666,10 +670,10 @@ const styles = StyleSheet.create({
 
     // Custom Form
     customForm: {
-        backgroundColor: Colors.dark.surface,
+        backgroundColor: colors.surface,
         borderRadius: BorderRadius.md,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
         padding: Spacing.md,
         marginBottom: Spacing.lg,
     },
@@ -678,18 +682,18 @@ const styles = StyleSheet.create({
     },
     inputLabel: {
         fontSize: Typography.sizes.caption,
-        color: Colors.dark.textSecondary,
+        color: colors.textSecondary,
         fontWeight: Typography.weights.medium,
         marginBottom: 4,
     },
     input: {
-        backgroundColor: Colors.dark.background,
+        backgroundColor: colors.background,
         borderRadius: BorderRadius.sm,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
         paddingHorizontal: Spacing.sm,
         paddingVertical: Platform.OS === 'ios' ? 10 : 8,
-        color: Colors.dark.text,
+        color: colors.text,
         fontSize: Typography.sizes.body,
     },
     inputRow: {
@@ -720,7 +724,7 @@ const styles = StyleSheet.create({
     // Popular Foods
     sectionTitle: {
         fontSize: Typography.sizes.subtitle,
-        color: Colors.dark.text,
+        color: colors.text,
         fontWeight: Typography.weights.bold,
         marginTop: Spacing.sm,
         marginBottom: Spacing.md,
@@ -729,24 +733,24 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: Colors.dark.surface,
+        backgroundColor: colors.surface,
         borderRadius: BorderRadius.sm,
         padding: Spacing.md,
         marginBottom: Spacing.sm,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
     },
     popularLeft: {
         flex: 1,
     },
     popularName: {
         fontSize: Typography.sizes.body,
-        color: Colors.dark.text,
+        color: colors.text,
         fontWeight: Typography.weights.medium,
     },
     popularDetail: {
         fontSize: Typography.sizes.caption,
-        color: Colors.dark.textTertiary,
+        color: colors.textTertiary,
         marginTop: 2,
     },
     popularRight: {
@@ -760,7 +764,7 @@ const styles = StyleSheet.create({
     },
     popularUnit: {
         fontSize: 10,
-        color: Colors.dark.textTertiary,
+        color: colors.textTertiary,
     },
 
     // ── Toast ──
@@ -772,10 +776,10 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 10,
-        backgroundColor: Colors.dark.card,
+        backgroundColor: colors.card,
         borderRadius: BorderRadius.md,
         borderWidth: 1,
-        borderColor: Colors.dark.border,
+        borderColor: colors.border,
         paddingHorizontal: 16,
         paddingVertical: 14,
         shadowColor: '#000',
@@ -791,7 +795,7 @@ const styles = StyleSheet.create({
     toastText: {
         flex: 1,
         fontSize: Typography.sizes.body,
-        color: Colors.dark.text,
+        color: colors.text,
         fontWeight: Typography.weights.medium,
     },
 });

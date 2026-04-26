@@ -25,6 +25,8 @@ import {
 import { generateWeeklyPlan, getWeekStart } from '@/src/lib/workoutEngine';
 import { hashProfile, getLevelForXP, getAllAchievementsForUser, LEVELS } from '@/src/lib/rewardEngine';
 import { WorkoutPlan, WorkoutDay, WorkoutExercise, UserRewards } from '@/src/types';
+import { useAppStyles } from '@/hooks/useAppStyles';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 // ════════════════════════════════════════════════════════════
 // Constants
@@ -69,6 +71,8 @@ const DAILY_NUDGES = [
 // ════════════════════════════════════════════════════════════
 
 export default function WorkoutScreen() {
+  const colors = useThemeColors();
+  const styles = useAppStyles(createStyles);
   const { user } = useAuth();
   const router = useRouter();
 
@@ -288,7 +292,7 @@ export default function WorkoutScreen() {
                 {allAchievements.filter(a => !a.unlockedAt).slice(0, 2).map(badge => (
                   <View key={badge.id} style={[styles.badgeChip, styles.badgeChipLocked]}>
                     <Text style={[styles.badgeChipEmoji, { opacity: 0.3 }]}>{badge.emoji}</Text>
-                    <Text style={[styles.badgeChipName, { color: Colors.dark.textTertiary }]}>???</Text>
+                    <Text style={[styles.badgeChipName, { color: colors.textTertiary }]}>???</Text>
                   </View>
                 ))}
               </ScrollView>
@@ -412,7 +416,7 @@ export default function WorkoutScreen() {
                     <Text style={styles.nextAchName}>{a.name}</Text>
                     <Text style={styles.nextAchDesc}>{a.description}</Text>
                   </View>
-                  <Ionicons name="lock-closed-outline" size={16} color={Colors.dark.textTertiary} />
+                  <Ionicons name="lock-closed-outline" size={16} color={colors.textTertiary} />
                 </View>
               ))}
             </View>
@@ -453,8 +457,10 @@ export default function WorkoutScreen() {
 // ════════════════════════════════════════════════════════════
 
 function DayCard({ day, isToday }: { day: WorkoutDay; isToday: boolean }) {
+  const colors = useThemeColors();
+  const styles = useAppStyles(createStyles);
   const catColor = day.isRestDay
-    ? Colors.dark.textTertiary
+    ? colors.textTertiary
     : (CATEGORY_COLOR[day.exercises[0]?.category ?? 'strength'] ?? Colors.primary);
 
   return (
@@ -472,7 +478,7 @@ function DayCard({ day, isToday }: { day: WorkoutDay; isToday: boolean }) {
       {!day.isRestDay && (
         <View style={styles.dayCardStats}>
           <View style={styles.dayCardStat}>
-            <Ionicons name="time-outline" size={14} color={Colors.dark.textSecondary} />
+            <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
             <Text style={styles.dayCardStatText}>{day.estimatedDurationMin} min</Text>
           </View>
           <View style={styles.dayCardStat}>
@@ -502,6 +508,8 @@ function ExerciseCard({
   onToggle: () => void;
   onLearn: () => void;
 }) {
+  const colors = useThemeColors();
+  const styles = useAppStyles(createStyles);
   const badge = DIFF_BADGE[exercise.difficulty] ?? DIFF_BADGE.moderate;
   const catColor = CATEGORY_COLOR[exercise.category] ?? Colors.primary;
   const setInfo = exercise.sets
@@ -529,7 +537,7 @@ function ExerciseCard({
           </View>
           <Ionicons
             name={expanded ? 'chevron-up' : 'chevron-down'}
-            size={16} color={Colors.dark.textTertiary} style={{ marginTop: 6 }}
+            size={16} color={colors.textTertiary} style={{ marginTop: 6 }}
           />
         </View>
       </View>
@@ -577,6 +585,8 @@ function ExerciseCard({
 // ════════════════════════════════════════════════════════════
 
 function WeekStatCard({ icon, color, value, label }: { icon: string; color: string; value: string; label: string }) {
+  const colors = useThemeColors();
+  const styles = useAppStyles(createStyles);
   return (
     <View style={styles.weekStatCard}>
       <Ionicons name={icon as any} size={20} color={color} />
@@ -590,42 +600,42 @@ function WeekStatCard({ icon, color, value, label }: { icon: string; color: stri
 // Styles
 // ════════════════════════════════════════════════════════════
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.dark.background },
+const createStyles = (colors: any) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   scroll: {
     paddingTop: Platform.OS === 'ios' ? 60 : 44,
     paddingHorizontal: Spacing.md,
   },
-  loadingText: { color: Colors.dark.textSecondary, marginTop: Spacing.md, fontSize: 15 },
+  loadingText: { color: colors.textSecondary, marginTop: Spacing.md, fontSize: 15 },
 
   // Header
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
     marginBottom: Spacing.sm,
   },
-  headerSub: { fontSize: Typography.sizes.body, color: Colors.dark.textSecondary },
-  headerTitle: { fontSize: Typography.sizes.heading, color: Colors.dark.text, fontWeight: Typography.weights.bold },
+  headerSub: { fontSize: Typography.sizes.body, color: colors.textSecondary },
+  headerTitle: { fontSize: Typography.sizes.heading, color: colors.text, fontWeight: Typography.weights.bold },
   streakBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: Colors.dark.surface, borderRadius: BorderRadius.round,
+    backgroundColor: colors.surface, borderRadius: BorderRadius.round,
     paddingHorizontal: 12, paddingVertical: 6,
-    borderWidth: 1, borderColor: Colors.dark.border,
+    borderWidth: 1, borderColor: colors.border,
   },
   streakEmoji: { fontSize: 16 },
   streakText: { fontSize: 13, color: Colors.warning, fontWeight: '700' },
 
   // XP card
   xpCard: {
-    backgroundColor: Colors.dark.surface, borderRadius: BorderRadius.md,
+    backgroundColor: colors.surface, borderRadius: BorderRadius.md,
     borderWidth: 1, borderColor: Colors.primary + '40',
     padding: Spacing.md, marginBottom: Spacing.sm,
   },
   xpHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  levelName: { fontSize: 14, fontWeight: '700', color: Colors.dark.text },
+  levelName: { fontSize: 14, fontWeight: '700', color: colors.text },
   xpTotal: { fontSize: 13, color: Colors.primary, fontWeight: '700' },
-  xpTrack: { height: 8, backgroundColor: Colors.dark.border, borderRadius: 4, overflow: 'hidden' },
+  xpTrack: { height: 8, backgroundColor: colors.border, borderRadius: 4, overflow: 'hidden' },
   xpFill: { height: '100%', borderRadius: 4, backgroundColor: Colors.primary },
-  xpNext: { fontSize: 11, color: Colors.dark.textTertiary, marginTop: 5 },
+  xpNext: { fontSize: 11, color: colors.textTertiary, marginTop: 5 },
 
   // Refresh banner
   refreshBanner: {
@@ -634,7 +644,7 @@ const styles = StyleSheet.create({
     padding: Spacing.sm, marginBottom: Spacing.sm,
     borderWidth: 1, borderColor: Colors.warning + '50',
   },
-  refreshBannerText: { flex: 1, fontSize: 13, color: Colors.dark.text },
+  refreshBannerText: { flex: 1, fontSize: 13, color: colors.text },
   refreshBtn: {
     backgroundColor: Colors.warning + '30', borderRadius: BorderRadius.sm,
     paddingHorizontal: 10, paddingVertical: 4,
@@ -644,12 +654,12 @@ const styles = StyleSheet.create({
   // Daily nudge
   nudgeCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-    backgroundColor: Colors.dark.surface, borderRadius: BorderRadius.md,
+    backgroundColor: colors.surface, borderRadius: BorderRadius.md,
     padding: Spacing.sm, marginBottom: Spacing.sm,
-    borderWidth: 1, borderColor: Colors.dark.border,
+    borderWidth: 1, borderColor: colors.border,
   },
   nudgeEmoji: { fontSize: 20 },
-  nudgeText: { flex: 1, fontSize: 13, color: Colors.dark.textSecondary, lineHeight: 18, paddingTop: 2 },
+  nudgeText: { flex: 1, fontSize: 13, color: colors.textSecondary, lineHeight: 18, paddingTop: 2 },
 
   // Achievements strip
   badgesStrip: { marginBottom: Spacing.md },
@@ -658,7 +668,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.warning + '15', borderRadius: BorderRadius.md,
     borderWidth: 1, borderColor: Colors.warning + '40', marginRight: 8, minWidth: 64,
   },
-  badgeChipLocked: { backgroundColor: Colors.dark.surface, borderColor: Colors.dark.border },
+  badgeChipLocked: { backgroundColor: colors.surface, borderColor: colors.border },
   badgeChipEmoji: { fontSize: 22 },
   badgeChipName: { fontSize: 10, fontWeight: '700', color: Colors.warning, marginTop: 3, textAlign: 'center' },
 
@@ -669,26 +679,26 @@ const styles = StyleSheet.create({
     padding: Spacing.sm, borderWidth: 1, borderColor: Colors.primary + '40',
     marginBottom: Spacing.md,
   },
-  reasoningText: { flex: 1, fontSize: 13, color: Colors.dark.textSecondary, lineHeight: 18 },
+  reasoningText: { flex: 1, fontSize: 13, color: colors.textSecondary, lineHeight: 18 },
 
   // Day strip
   dayStrip: { marginBottom: Spacing.md },
   dayChip: {
     alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8,
     borderRadius: BorderRadius.md, marginRight: 8,
-    backgroundColor: Colors.dark.surface,
-    borderWidth: 1, borderColor: Colors.dark.border, minWidth: 52,
+    backgroundColor: colors.surface,
+    borderWidth: 1, borderColor: colors.border, minWidth: 52,
   },
   dayChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   dayChipToday: { borderColor: Colors.primary + '80' },
-  dayChipLabel: { fontSize: 12, color: Colors.dark.textSecondary, fontWeight: '600' },
+  dayChipLabel: { fontSize: 12, color: colors.textSecondary, fontWeight: '600' },
   dayChipLabelActive: { color: '#FFF' },
   dayChipEmoji: { fontSize: 16, marginTop: 2 },
   todayDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: Colors.primary, marginTop: 3 },
 
   // Day card
   dayCard: {
-    borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: Colors.dark.border,
+    borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: colors.border,
     marginBottom: Spacing.md, overflow: 'hidden', ...Shadows.medium,
   },
   dayCardAccent: { height: 4, width: '100%' },
@@ -697,7 +707,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md, paddingTop: Spacing.md, paddingBottom: Spacing.sm,
   },
   dayCardEmoji: { fontSize: 28 },
-  dayCardTheme: { flex: 1, fontSize: Typography.sizes.subtitle, fontWeight: '700', color: Colors.dark.text },
+  dayCardTheme: { flex: 1, fontSize: Typography.sizes.subtitle, fontWeight: '700', color: colors.text },
   todayTagPill: {
     backgroundColor: Colors.primary, borderRadius: BorderRadius.round,
     paddingHorizontal: 10, paddingVertical: 3,
@@ -705,27 +715,27 @@ const styles = StyleSheet.create({
   todayTagText: { fontSize: 10, fontWeight: '800', color: '#FFF' },
   dayCardStats: { flexDirection: 'row', gap: Spacing.lg, paddingHorizontal: Spacing.md, paddingBottom: Spacing.md },
   dayCardStat: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  dayCardStatText: { fontSize: 13, color: Colors.dark.textSecondary },
+  dayCardStatText: { fontSize: 13, color: colors.textSecondary },
 
   // Section
   sectionTitle: {
     fontSize: Typography.sizes.bodyLarge, fontWeight: '700',
-    color: Colors.dark.text, marginBottom: Spacing.sm, marginTop: Spacing.sm,
+    color: colors.text, marginBottom: Spacing.sm, marginTop: Spacing.sm,
   },
 
   // Exercise card
   exCard: {
-    backgroundColor: Colors.dark.surface, borderRadius: BorderRadius.md,
-    borderWidth: 1, borderColor: Colors.dark.border, marginBottom: Spacing.sm, padding: Spacing.md,
+    backgroundColor: colors.surface, borderRadius: BorderRadius.md,
+    borderWidth: 1, borderColor: colors.border, marginBottom: Spacing.sm, padding: Spacing.md,
   },
   exCardRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
   exIndex: { width: 30, height: 30, borderRadius: 15, justifyContent: 'center', alignItems: 'center' },
   exIndexText: { fontSize: 13, fontWeight: '800' },
   exMain: { flex: 1 },
-  exName: { fontSize: 15, fontWeight: '700', color: Colors.dark.text },
+  exName: { fontSize: 15, fontWeight: '700', color: colors.text },
   exMeta: { flexDirection: 'row', gap: 6, marginTop: 2 },
   exSetInfo: { fontSize: 13, color: Colors.primary, fontWeight: '600' },
-  exRestInfo: { fontSize: 13, color: Colors.dark.textTertiary },
+  exRestInfo: { fontSize: 13, color: colors.textTertiary },
   exRight: { alignItems: 'flex-end' },
   diffBadge: { borderRadius: BorderRadius.round, paddingHorizontal: 8, paddingVertical: 2 },
   diffBadgeText: { fontSize: 11, fontWeight: '700' },
@@ -733,15 +743,15 @@ const styles = StyleSheet.create({
   muscleTag: { borderRadius: BorderRadius.round, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 2 },
   muscleTagText: { fontSize: 10, fontWeight: '600' },
   equipTag: {
-    backgroundColor: Colors.dark.border + '80', borderRadius: BorderRadius.round,
+    backgroundColor: colors.border + '80', borderRadius: BorderRadius.round,
     paddingHorizontal: 8, paddingVertical: 2,
   },
-  equipTagText: { fontSize: 10, color: Colors.dark.textSecondary },
+  equipTagText: { fontSize: 10, color: colors.textSecondary },
   exExpanded: {
     marginTop: Spacing.sm, paddingTop: Spacing.sm,
-    borderTopWidth: 1, borderTopColor: Colors.dark.border,
+    borderTopWidth: 1, borderTopColor: colors.border,
   },
-  exDescription: { fontSize: 14, color: Colors.dark.textSecondary, lineHeight: 20 },
+  exDescription: { fontSize: 14, color: colors.textSecondary, lineHeight: 20 },
   modRow: { flexDirection: 'row', gap: 5, alignItems: 'flex-start', marginTop: 8 },
   modText: { flex: 1, fontSize: 13, color: Colors.accent },
   calRow: { flexDirection: 'row', gap: 5, alignItems: 'center', marginTop: 6 },
@@ -749,7 +759,7 @@ const styles = StyleSheet.create({
   learnBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     marginTop: Spacing.sm, paddingTop: Spacing.sm,
-    borderTopWidth: 1, borderTopColor: Colors.dark.border,
+    borderTopWidth: 1, borderTopColor: colors.border,
   },
   learnBtnText: { fontSize: 13, color: Colors.primary, fontWeight: '600' },
 
@@ -763,47 +773,47 @@ const styles = StyleSheet.create({
 
   // Rest day
   restCard: {
-    backgroundColor: Colors.dark.surface, borderRadius: BorderRadius.lg,
-    borderWidth: 1, borderColor: Colors.dark.border,
+    backgroundColor: colors.surface, borderRadius: BorderRadius.lg,
+    borderWidth: 1, borderColor: colors.border,
     padding: Spacing.xl, alignItems: 'center', marginBottom: Spacing.md,
   },
   restEmoji: { fontSize: 48, marginBottom: Spacing.sm },
-  restTitle: { fontSize: Typography.sizes.subtitle, fontWeight: '700', color: Colors.dark.text, marginBottom: 8 },
-  restBody: { fontSize: 14, color: Colors.dark.textSecondary, textAlign: 'center', lineHeight: 20 },
+  restTitle: { fontSize: Typography.sizes.subtitle, fontWeight: '700', color: colors.text, marginBottom: 8 },
+  restBody: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 },
   restOptional: { marginTop: Spacing.sm, fontSize: 13, color: Colors.primary, fontWeight: '600' },
 
   // Week stats
   weekStats: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md },
   weekStatCard: {
-    flex: 1, backgroundColor: Colors.dark.surface, borderRadius: BorderRadius.md,
-    borderWidth: 1, borderColor: Colors.dark.border, padding: Spacing.md, alignItems: 'center', gap: 4,
+    flex: 1, backgroundColor: colors.surface, borderRadius: BorderRadius.md,
+    borderWidth: 1, borderColor: colors.border, padding: Spacing.md, alignItems: 'center', gap: 4,
   },
   weekStatValue: { fontSize: Typography.sizes.subtitle, fontWeight: '800' },
-  weekStatLabel: { fontSize: 11, color: Colors.dark.textTertiary, textAlign: 'center' },
+  weekStatLabel: { fontSize: 11, color: colors.textTertiary, textAlign: 'center' },
 
   // Next achievements
   nextAchievementsCard: {
-    backgroundColor: Colors.dark.surface, borderRadius: BorderRadius.md,
-    borderWidth: 1, borderColor: Colors.dark.border,
+    backgroundColor: colors.surface, borderRadius: BorderRadius.md,
+    borderWidth: 1, borderColor: colors.border,
     marginBottom: Spacing.md, overflow: 'hidden',
   },
   nextAchRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.md },
-  rowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.dark.border },
+  rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
   lockedEmoji: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
   nextAchText: { flex: 1 },
-  nextAchName: { fontSize: 14, fontWeight: '700', color: Colors.dark.text },
-  nextAchDesc: { fontSize: 12, color: Colors.dark.textTertiary, marginTop: 2 },
+  nextAchName: { fontSize: 14, fontWeight: '700', color: colors.text },
+  nextAchDesc: { fontSize: 12, color: colors.textTertiary, marginTop: 2 },
 
   // History
   historyCard: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: Colors.dark.surface, borderRadius: BorderRadius.md,
-    borderWidth: 1, borderColor: Colors.dark.border, padding: Spacing.md, marginBottom: Spacing.md,
+    backgroundColor: colors.surface, borderRadius: BorderRadius.md,
+    borderWidth: 1, borderColor: colors.border, padding: Spacing.md, marginBottom: Spacing.md,
   },
-  historyText: { fontSize: 14, color: Colors.dark.textSecondary },
+  historyText: { fontSize: 14, color: colors.textSecondary },
 
   // Empty
   emptyState: { alignItems: 'center', paddingTop: Spacing.xxl },
-  emptyTitle: { fontSize: 20, fontWeight: '700', color: Colors.dark.text, marginTop: 12 },
-  emptyBody: { fontSize: 14, color: Colors.dark.textSecondary, textAlign: 'center', marginTop: 8, lineHeight: 20 },
+  emptyTitle: { fontSize: 20, fontWeight: '700', color: colors.text, marginTop: 12 },
+  emptyBody: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginTop: 8, lineHeight: 20 },
 });

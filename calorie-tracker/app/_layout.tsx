@@ -24,6 +24,8 @@ import { ThemeProvider } from '@/src/contexts/ThemeContext';
 import { initDatabase } from '@/src/lib/database';
 import { startAutoSync } from '@/src/lib/sync';
 import { Colors, Typography } from '@/constants/theme';
+import { useAppStyles } from '@/hooks/useAppStyles';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 const ONBOARDING_KEY = '@calorie_tracker_onboarding_done';
 
@@ -98,6 +100,8 @@ function InnerLayout({
   onboardingDone: boolean;
   setOnboardingDone: (v: boolean) => void;
 }) {
+  const colors = useThemeColors();
+  const styles = useAppStyles(createStyles);
   useProtectedRoute(onboardingDone, setOnboardingDone);
   const { loading } = useAuth();
 
@@ -116,7 +120,7 @@ function InnerLayout({
         <Stack
           screenOptions={{
             headerShown: false,
-            contentStyle: { backgroundColor: Colors.dark.background },
+            contentStyle: { backgroundColor: colors.background },
             animation: 'slide_from_right',
           }}
         >
@@ -185,7 +189,7 @@ export default function RootLayout() {
 
   if (!dbReady || onboardingDone === null) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#111827' }}>
         <ActivityIndicator size="large" color={Colors.primary} />
       </View>
     );
@@ -200,14 +204,14 @@ export default function RootLayout() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   rootBackground: {
     flex: 1,
-    backgroundColor: Platform.OS === 'web' ? '#0a0a0c' : Colors.dark.background,
+    backgroundColor: Platform.OS === 'web' ? '#0a0a0c' : colors.background,
   },
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.background,
+    backgroundColor: colors.background,
   },
   webContainer: {
     maxWidth: 480,
@@ -226,11 +230,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.dark.background,
+    backgroundColor: colors.background,
     gap: 12,
   },
   loadingText: {
-    color: Colors.dark.textSecondary,
+    color: colors.textSecondary,
     fontSize: Typography.sizes.body,
   },
 });
