@@ -92,6 +92,19 @@ const ONBOARDING_THEME = {
 
 const STEP_GRADIENT = ['#5E68FF', '#7C89FF'] as const;
 
+const SELECTABLE_HIGHLIGHT_GRADIENTS: ReadonlyArray<readonly [string, string]> = [
+    ['#2C9EEA', '#4DB7F2'],
+    ['#F0A54A', '#F7BE67'],
+    ['#6C7CFF', '#8A6EF0'],
+    ['#FF7291', '#FF8F71'],
+    ['#2FBF97', '#47C8B2'],
+    ['#4E88FF', '#5EA2FF'],
+];
+
+function getSelectableHighlightGradient(index: number): readonly [string, string] {
+    return SELECTABLE_HIGHLIGHT_GRADIENTS[index % SELECTABLE_HIGHLIGHT_GRADIENTS.length];
+}
+
 type WeightUnit = 'kg' | 'lb';
 type HeightUnit = 'cm' | 'm' | 'ft' | 'in';
 type LengthUnit = 'cm' | 'in';
@@ -885,6 +898,37 @@ function SectionLabel({ text }: { text: string }) {
     return <Text style={s.sectionLabel}>{text}</Text>;
 }
 
+function SelectableGradientOverlay({
+    active,
+    colors,
+    borderRadius,
+}: {
+    active: boolean;
+    colors: readonly [string, string];
+    borderRadius: number;
+}) {
+    const overlayOpacity = useRef(new Animated.Value(active ? 1 : 0)).current;
+
+    useEffect(() => {
+        Animated.timing(overlayOpacity, {
+            toValue: active ? 1 : 0,
+            duration: 220,
+            useNativeDriver: true,
+        }).start();
+    }, [active, overlayOpacity]);
+
+    return (
+        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { opacity: overlayOpacity }]}>
+            <LinearGradient
+                colors={colors}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ flex: 1, borderRadius }}
+            />
+        </Animated.View>
+    );
+}
+
 function PillPicker<T extends string>({
     options,
     selected,
@@ -910,26 +954,32 @@ function PillPicker<T extends string>({
 
     return (
         <View style={[s.pillRow, justified && s.pillRowJustified]}>
-            {options.map(opt => {
+            {options.map((opt, idx) => {
                 const active = selected === opt;
+                const activeGradient = getSelectableHighlightGradient(idx);
                 return (
                     <TouchableOpacity
                         key={opt}
                         style={[s.pill, justified && s.pillJustified, isTwoColumn && s.pillTwoColumn, active && s.pillActive]}
                         onPress={() => onSelect(opt)}
+                        activeOpacity={0.9}
                     >
-                        {icons?.[opt] && (
-                            emphasizeIcons ? (
-                                <View style={[s.pillIconBadge, active && s.pillIconBadgeActive]}>
-                                    <Text style={[s.pillIconBadgeText, { color: iconColors?.[opt] ?? ONBOARDING_THEME.accentStrong }]}>{icons[opt]}</Text>
-                                </View>
-                            ) : (
-                                <Text style={{ fontSize: 16 }}>{icons[opt]}</Text>
-                            )
-                        )}
-                        <Text style={[s.pillText, (justified || isTwoColumn) && s.pillTextCentered, active && s.pillTextActive]}>
-                            {labels?.[opt] ?? opt.charAt(0).toUpperCase() + opt.slice(1).replace(/_/g, ' ')}
-                        </Text>
+                        <SelectableGradientOverlay active={active} colors={activeGradient} borderRadius={24} />
+
+                        <View style={s.pillContent}>
+                            {icons?.[opt] && (
+                                emphasizeIcons ? (
+                                    <View style={[s.pillIconBadge, active && s.pillIconBadgeActive]}>
+                                        <Text style={[s.pillIconBadgeText, { color: active ? '#FFFFFF' : (iconColors?.[opt] ?? ONBOARDING_THEME.accentStrong) }]}>{icons[opt]}</Text>
+                                    </View>
+                                ) : (
+                                    <Text style={{ fontSize: 16 }}>{icons[opt]}</Text>
+                                )
+                            )}
+                            <Text style={[s.pillText, (justified || isTwoColumn) && s.pillTextCentered, active && s.pillTextActive]}>
+                                {labels?.[opt] ?? opt.charAt(0).toUpperCase() + opt.slice(1).replace(/_/g, ' ')}
+                            </Text>
+                        </View>
                     </TouchableOpacity>
                 );
             })}
@@ -954,20 +1004,26 @@ function MultiChipPicker({
 
     return (
         <View style={[s.pillRow, justified && s.pillRowJustified]}>
-            {options.map(opt => {
+            {options.map((opt, idx) => {
                 const active = selected.includes(opt);
+                const activeGradient = getSelectableHighlightGradient(idx);
                 return (
                     <TouchableOpacity
                         key={opt}
                         style={[s.pill, justified && s.pillJustified, isTwoColumn && s.pillTwoColumn, active && s.pillActive]}
                         onPress={() => onToggle(opt)}
+                        activeOpacity={0.9}
                     >
-                        <Ionicons
-                            name={active ? 'checkmark-circle' : 'add-circle-outline'}
-                            size={14}
-                            color={active ? ONBOARDING_THEME.accentStrong : ONBOARDING_THEME.textSoft}
-                        />
-                        <Text style={[s.pillText, (justified || isTwoColumn) && s.pillTextCentered, active && s.pillTextActive]}>{opt}</Text>
+                        <SelectableGradientOverlay active={active} colors={activeGradient} borderRadius={24} />
+
+                        <View style={s.pillContent}>
+                            <Ionicons
+                                name={active ? 'checkmark-circle' : 'add-circle-outline'}
+                                size={14}
+                                color={active ? '#FFFFFF' : ONBOARDING_THEME.textSoft}
+                            />
+                            <Text style={[s.pillText, (justified || isTwoColumn) && s.pillTextCentered, active && s.pillTextActive]}>{opt}</Text>
+                        </View>
                     </TouchableOpacity>
                 );
             })}
@@ -1668,17 +1724,23 @@ function StepLifestyle({ page, smokingStatus, setSmokingStatus, alcoholFreq, set
         <View>
             <SectionLabel text="Stress Level" />
             <View style={s.stressRow}>
-                {([1, 2, 3, 4, 5] as StressLevel[]).map(lvl => {
+                {([1, 2, 3, 4, 5] as StressLevel[]).map((lvl, idx) => {
                     const active = stressLevel === lvl;
                     const emojis = ['😊', '🙂', '😐', '😟', '😰'];
+                    const activeGradient = getSelectableHighlightGradient(idx + 1);
                     return (
                         <TouchableOpacity
                             key={lvl}
                             style={[s.stressItem, active && s.stressItemActive]}
                             onPress={() => setStressLevel(lvl)}
+                            activeOpacity={0.9}
                         >
-                            <Text style={{ fontSize: 24 }}>{emojis[lvl - 1]}</Text>
-                            <Text style={[s.stressLbl, active && { color: ONBOARDING_THEME.accentStrong }]}>{lvl}</Text>
+                            <SelectableGradientOverlay active={active} colors={activeGradient} borderRadius={BorderRadius.md} />
+
+                            <View style={s.stressItemContent}>
+                                <Text style={{ fontSize: 24 }}>{emojis[lvl - 1]}</Text>
+                                <Text style={[s.stressLbl, active && s.stressLblActive]}>{lvl}</Text>
+                            </View>
                         </TouchableOpacity>
                     );
                 })}
@@ -2268,15 +2330,26 @@ const s = StyleSheet.create({
         justifyContent: 'space-between',
     },
     pill: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 5,
+        position: 'relative',
+        overflow: 'hidden',
         paddingHorizontal: 16,
         paddingVertical: 11,
         borderRadius: 24,
         borderWidth: 1,
         borderColor: ONBOARDING_THEME.border,
         backgroundColor: ONBOARDING_THEME.surface,
+    },
+    pillContent: {
+        zIndex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 5,
+    },
+    pillActiveOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        borderRadius: 24,
+        opacity: 0.88,
     },
     pillJustified: {
         flexBasis: '31%',
@@ -2299,15 +2372,20 @@ const s = StyleSheet.create({
         borderColor: ONBOARDING_THEME.border,
     },
     pillIconBadgeActive: {
-        borderColor: ONBOARDING_THEME.accent,
+        borderColor: 'rgba(255,255,255,0.62)',
+        backgroundColor: 'rgba(10,14,32,0.22)',
     },
     pillIconBadgeText: {
         fontSize: 16,
         fontWeight: '700',
     },
     pillActive: {
-        borderColor: ONBOARDING_THEME.accent,
-        backgroundColor: ONBOARDING_THEME.accent + '20',
+        borderColor: 'transparent',
+        shadowColor: '#7DA6FF',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.2,
+        shadowRadius: 10,
+        elevation: 5,
     },
     pillText: {
         fontSize: 14,
@@ -2318,7 +2396,7 @@ const s = StyleSheet.create({
         textAlign: 'center',
     },
     pillTextActive: {
-        color: ONBOARDING_THEME.accentStrong,
+        color: '#FFFFFF',
         fontWeight: '700',
     },
 
@@ -2376,22 +2454,39 @@ const s = StyleSheet.create({
     },
     stressItem: {
         flex: 1,
-        alignItems: 'center',
+        position: 'relative',
+        overflow: 'hidden',
         padding: 10,
         borderRadius: BorderRadius.md,
         borderWidth: 1,
         borderColor: ONBOARDING_THEME.border,
         backgroundColor: ONBOARDING_THEME.surface,
     },
+    stressItemContent: {
+        zIndex: 1,
+        alignItems: 'center',
+    },
+    stressItemActiveOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        borderRadius: BorderRadius.md,
+        opacity: 0.88,
+    },
     stressItemActive: {
-        borderColor: ONBOARDING_THEME.accent,
-        backgroundColor: ONBOARDING_THEME.accent + '1F',
+        borderColor: 'transparent',
+        shadowColor: '#7DA6FF',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.18,
+        shadowRadius: 8,
+        elevation: 4,
     },
     stressLbl: {
         fontSize: 12,
         color: ONBOARDING_THEME.textSoft,
         marginTop: 4,
         fontWeight: '600',
+    },
+    stressLblActive: {
+        color: '#FFFFFF',
     },
 
     // Thoughts
