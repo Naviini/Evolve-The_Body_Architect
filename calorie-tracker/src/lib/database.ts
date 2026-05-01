@@ -94,6 +94,8 @@ export async function initDatabase(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_meal_entries_date ON meal_entries(logged_at);
     CREATE INDEX IF NOT EXISTS idx_meal_entries_sync ON meal_entries(sync_status);
     CREATE INDEX IF NOT EXISTS idx_daily_logs_date ON daily_logs(log_date);
+    CREATE INDEX IF NOT EXISTS idx_food_items_name ON food_items(name);
+    CREATE INDEX IF NOT EXISTS idx_food_items_verified ON food_items(is_verified, name);
   `);
 
     // Workout tables
@@ -474,6 +476,51 @@ export async function insertFoodItem(item: Partial<FoodItem>): Promise<void> {
             item.is_verified ? 1 : 0,
         ]
     );
+}
+
+/**
+ * Bulk-upsert a batch of food items (used by the catalog sync pipeline).
+ * Runs all inserts inside a single transaction for performance.
+ */
+export async function insertFoodItemsBatch(items: Partial<FoodItem>[]): Promise<void> {
+    if (items.length === 0) return;
+    const database = getDb();
+    await database.withTransactionAsync(async () => {
+        for (const item of items) {
+            await database.runAsync(
+                `INSERT OR REPLACE INTO food_items
+                 (id, name, brand, serving_size, serving_unit, calories, protein_g, carbs_g, fat_g, fiber_g, image_url, barcode, is_verified)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    item.id || generateId(),
+                    item.name || '',
+                    item.brand || null,
+                    item.serving_size || 100,
+                    item.serving_unit || 'g',
+                    item.calories || 0,
+                    item.protein_g || 0,
+                    item.carbs_g || 0,
+                    item.fat_g || 0,
+                    item.fiber_g || 0,
+                    item.image_url || null,
+                    item.barcode || null,
+                    item.is_verified ? 1 : 0,
+                ]
+            );
+        }
+    });
+}
+
+/**
+ * Returns the total number of food items stored in the local catalog.
+ * Used to decide whether a catalog sync is needed.
+ */
+export async function getFoodCatalogCount(): Promise<number> {
+    const database = getDb();
+    const row = await database.getFirstAsync<{ cnt: number }>(
+        `SELECT COUNT(*) AS cnt FROM food_items`
+    );
+    return row?.cnt ?? 0;
 }
 
 // ============================================================

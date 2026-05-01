@@ -1,11 +1,12 @@
 /**
  * Add Meal Screen — Manual Food Entry Modal
  *
- * Allows users to manually search for and add food items,
- * or create custom entries with full nutrition info.
+ * Allows users to search 5 000+ foods (South-Asian / Indian / Sri Lankan
+ * catalog synced from Supabase) or create custom entries.
+ * Search is offline-first: queries local SQLite after the first sync.
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
     View,
     Text,
@@ -14,7 +15,6 @@ import {
     TouchableOpacity,
     TextInput,
     Platform,
-    Alert,
     KeyboardAvoidingView,
     Animated,
     ActivityIndicator,
@@ -29,6 +29,7 @@ import { useAuth } from '@/src/contexts/AuthContext';
 import { MealType, FoodItem } from '@/src/types';
 import { useAppStyles } from '@/hooks/useAppStyles';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { syncFoodCatalog, getCatalogStatus, CatalogStatus } from '@/src/lib/foodCatalogSync';
 
 export default function AddMealScreen() {
   const colors = useThemeColors();
@@ -39,12 +40,17 @@ export default function AddMealScreen() {
 
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<FoodItem[]>([]);
+    const [searching, setSearching] = useState(false);
     const [selectedMealType, setSelectedMealType] = useState<MealType>(
         (params.mealType as MealType) || 'lunch'
     );
     const [showCustomForm, setShowCustomForm] = useState(false);
     const [adding, setAdding] = useState(false);
-    const [sessionCount, setSessionCount] = useState(0); // foods added this session
+    const [sessionCount, setSessionCount] = useState(0);
+
+    // ── Catalog sync state ────────────────────────────────────
+    const [catalogStatus, setCatalogStatus] = useState<CatalogStatus | null>(null);
+    const [syncProgress, setSyncProgress] = useState<{ done: number; total: number } | null>(null);
 
     // Custom food form
     const [foodName, setFoodName] = useState('');
@@ -58,6 +64,33 @@ export default function AddMealScreen() {
     const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
     const toastAnim = useRef(new Animated.Value(0)).current;
 
+    // ── Debounce ref ──────────────────────────────────────────
+    const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // ── Kick off catalog sync on mount ────────────────────────
+    useEffect(() => {
+        let cancelled = false;
+
+        async function init() {
+            const status = await getCatalogStatus();
+            if (!cancelled) setCatalogStatus(status);
+
+            if (status.needsSync) {
+                const result = await syncFoodCatalog(false, (done, total) => {
+                    if (!cancelled) setSyncProgress({ done, total });
+                });
+                if (!cancelled) {
+                    setSyncProgress(null);
+                    const updated = await getCatalogStatus();
+                    setCatalogStatus(updated);
+                }
+            }
+        }
+
+        init();
+        return () => { cancelled = true; };
+    }, []);
+
     const showToast = (msg: string, ok: boolean) => {
         setToast({ msg, ok });
         toastAnim.stopAnimation();
@@ -69,13 +102,11 @@ export default function AddMealScreen() {
         ]).start(() => setToast(null));
     };
 
-    // Reset search so user can immediately pick another food
     const resetSearch = () => {
         setSearchQuery('');
         setSearchResults([]);
     };
 
-    // Reset custom form after submitting
     const resetCustomForm = () => {
         setFoodName('');
         setCalories('');
@@ -86,15 +117,39 @@ export default function AddMealScreen() {
         setShowCustomForm(false);
     };
 
-    const handleSearch = async (query: string) => {
+    // ── Debounced search (300 ms) ─────────────────────────────
+    const handleSearch = useCallback((query: string) => {
         setSearchQuery(query);
-        if (query.length >= 2) {
+        if (searchTimer.current) clearTimeout(searchTimer.current);
+
+        if (query.length < 2) {
+            setSearchResults([]);
+            setSearching(false);
+            return;
+        }
+
+        setSearching(true);
+        searchTimer.current = setTimeout(async () => {
             const results = await searchFoodItems(query);
             setSearchResults(results);
-        } else {
-            setSearchResults([]);
+            setSearching(false);
+        }, 300);
+    }, []);
+
+    // ── Catalog status bar helpers ────────────────────────────
+    const catalogLabel = (() => {
+        if (syncProgress) {
+            const pct = syncProgress.total > 0
+                ? Math.round((syncProgress.done / syncProgress.total) * 100)
+                : 0;
+            return `Syncing catalog… ${syncProgress.done.toLocaleString()} / ${syncProgress.total.toLocaleString()} (${pct}%)`;
         }
-    };
+        if (catalogStatus?.isSyncing) return 'Syncing food catalog…';
+        if (catalogStatus && catalogStatus.itemCount > 0) {
+            return `${catalogStatus.itemCount.toLocaleString()}+ foods available`;
+        }
+        return 'Loading food catalog…';
+    })();
 
 
     const handleSelectFood = async (food: FoodItem) => {
@@ -235,23 +290,54 @@ export default function AddMealScreen() {
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
             >
+                {/* Catalog sync status */}
+                <View style={styles.catalogBar}>
+                    {(syncProgress || catalogStatus?.isSyncing) ? (
+                        <ActivityIndicator size="small" color={Colors.primary} style={{ marginRight: 6 }} />
+                    ) : (
+                        <Ionicons
+                            name={catalogStatus && catalogStatus.itemCount > 0 ? 'checkmark-circle' : 'cloud-download-outline'}
+                            size={14}
+                            color={catalogStatus && catalogStatus.itemCount > 0 ? Colors.success : Colors.primary}
+                            style={{ marginRight: 4 }}
+                        />
+                    )}
+                    <Text style={styles.catalogBarText}>{catalogLabel}</Text>
+                </View>
+
                 {/* Search Bar */}
                 <View style={styles.searchBar}>
                     <Ionicons name="search" size={20} color={colors.textTertiary} />
                     <TextInput
                         style={styles.searchInput}
-                        placeholder="Search foods..."
+                        placeholder={
+                            catalogStatus && catalogStatus.itemCount > 0
+                                ? `Search ${catalogStatus.itemCount.toLocaleString()}+ foods…`
+                                : 'Search foods…'
+                        }
                         placeholderTextColor={colors.textTertiary}
                         value={searchQuery}
                         onChangeText={handleSearch}
                         autoFocus
                     />
-                    {searchQuery.length > 0 && (
-                        <TouchableOpacity onPress={() => handleSearch('')}>
-                            <Ionicons name="close-circle" size={20} color={colors.textTertiary} />
-                        </TouchableOpacity>
-                    )}
+                    {searching
+                        ? <ActivityIndicator size="small" color={colors.textTertiary} />
+                        : searchQuery.length > 0 && (
+                            <TouchableOpacity onPress={() => handleSearch('')}>
+                                <Ionicons name="close-circle" size={20} color={colors.textTertiary} />
+                            </TouchableOpacity>
+                        )
+                    }
                 </View>
+
+                {/* No results hint */}
+                {searchQuery.length >= 2 && !searching && searchResults.length === 0 && (
+                    <View style={styles.emptySearch}>
+                        <Text style={styles.emptySearchText}>
+                            No results for "{searchQuery}" — try a shorter word or add a custom entry below.
+                        </Text>
+                    </View>
+                )}
 
                 {/* Search Results */}
                 {searchResults.length > 0 && (
@@ -397,16 +483,22 @@ export default function AddMealScreen() {
                 )}
 
                 {/* Popular Foods */}
+                {searchQuery.length === 0 && (
                 <Text style={styles.sectionTitle}>Popular Foods</Text>
-                {[
-                    { name: 'Chicken Breast', cal: 165, p: 31, c: 0, f: 3.6, unit: '100g' },
-                    { name: 'Brown Rice', cal: 218, p: 4.5, c: 45, f: 1.8, unit: '1 cup' },
-                    { name: 'Banana', cal: 105, p: 1.3, c: 27, f: 0.4, unit: '1 medium' },
-                    { name: 'Egg (large)', cal: 72, p: 6.3, c: 0.4, f: 4.8, unit: '1 egg' },
-                    { name: 'Greek Yogurt', cal: 100, p: 17, c: 6, f: 0.7, unit: '170g' },
-                    { name: 'Avocado', cal: 240, p: 3, c: 12, f: 22, unit: '1 whole' },
-                    { name: 'Salmon Fillet', cal: 208, p: 20, c: 0, f: 13, unit: '100g' },
-                    { name: 'Oatmeal', cal: 154, p: 5, c: 27, f: 2.6, unit: '1 cup' },
+                )}
+                {searchQuery.length === 0 && [
+                    { name: 'White Rice (cooked)',   cal: 206, p: 4.3, c: 45,  f: 0.4, unit: '1 cup' },
+                    { name: 'Chicken Curry',          cal: 210, p: 18,  c: 6,   f: 12,  unit: '200g' },
+                    { name: 'Roti / Chapati',         cal: 104, p: 3.1, c: 18,  f: 2.5, unit: '1 piece' },
+                    { name: 'Dal (cooked lentils)',   cal: 230, p: 18,  c: 40,  f: 1,   unit: '1 cup' },
+                    { name: 'Egg (large)',             cal: 72,  p: 6.3, c: 0.4, f: 4.8, unit: '1 egg' },
+                    { name: 'Banana',                 cal: 105, p: 1.3, c: 27,  f: 0.4, unit: '1 medium' },
+                    { name: 'Sambar',                 cal: 80,  p: 4,   c: 13,  f: 1.2, unit: '200ml' },
+                    { name: 'Idli',                   cal: 58,  p: 2,   c: 12,  f: 0.4, unit: '1 piece' },
+                    { name: 'Dosa (plain)',            cal: 133, p: 2.7, c: 25,  f: 2.5, unit: '1 piece' },
+                    { name: 'Paratha (plain)',         cal: 257, p: 5.6, c: 36,  f: 10,  unit: '1 piece' },
+                    { name: 'Biryani (chicken)',       cal: 290, p: 16,  c: 38,  f: 8,   unit: '200g' },
+                    { name: 'Coconut Milk',            cal: 230, p: 2.3, c: 6,   f: 24,  unit: '240ml' },
                 ].map((food, i) => (
                     <TouchableOpacity
                         key={i}
@@ -572,6 +664,31 @@ const createStyles = (colors: any) => StyleSheet.create({
 
     scrollContent: {
         paddingHorizontal: Spacing.md,
+    },
+
+    // Catalog status bar
+    catalogBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 6,
+        marginBottom: 4,
+    },
+    catalogBarText: {
+        fontSize: 12,
+        color: colors.textTertiary,
+        flex: 1,
+    },
+
+    // Empty search hint
+    emptySearch: {
+        paddingHorizontal: Spacing.sm,
+        paddingBottom: Spacing.sm,
+    },
+    emptySearchText: {
+        fontSize: Typography.sizes.caption,
+        color: colors.textTertiary,
+        textAlign: 'center',
+        fontStyle: 'italic',
     },
 
     // Search Bar

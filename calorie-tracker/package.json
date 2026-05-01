@@ -8,7 +8,9 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "seed:foods": "node --env-file=.env scripts/seed-food-catalog.mjs",
+    "seed:srilankan": "node --env-file=.env scripts/seed-srilankan-foods.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
