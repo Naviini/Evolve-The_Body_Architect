@@ -9,8 +9,8 @@
  */
 
 import NetInfo from '@react-native-community/netinfo';
-import { isSupabaseConfigured, supabase } from './supabase';
-import { getPendingMealEntries, markAsSynced, upsertMealEntryFromSupabase } from './database';
+import { supabase } from './supabase';
+import { getPendingMealEntries, markAsSynced, addMealEntry, getMealEntryById, updateDailyLog } from './database';
 
 let isSyncing = false;
 let lastSyncTimestamp: string | null = null;
@@ -78,11 +78,12 @@ async function pushChanges(): Promise<{ count: number; errors: string[] }> {
 
                     if (error) throw error;
                 } else {
-                    // Upsert
+                    // Upsert — food_item_id is set to null for custom foods
+                    // (custom items only exist locally; FK would fail otherwise)
                     const { error } = await supabase.from('meal_entries').upsert({
                         id: meal.id,
                         user_id: meal.user_id,
-                        food_item_id: meal.food_item_id,
+                        food_item_id: null,
                         food_name: meal.food_name,
                         meal_type: meal.meal_type,
                         servings: meal.servings,
@@ -142,14 +143,40 @@ async function pullChanges(): Promise<{ count: number; errors: string[] }> {
             return { count, errors };
         }
 
-        const rows = data ?? [];
-        for (const row of rows) {
+        // Merge remote rows into local SQLite (last-write-wins)
+        for (const remote of data ?? []) {
             try {
-                await upsertMealEntryFromSupabase(row);
+                const existing = await getMealEntryById(remote.id);
+                const remoteTs = Date.parse(remote.updated_at ?? '');
+                const localTs = Date.parse(existing?.updated_at ?? '');
+
+                // Skip if local copy is newer
+                if (existing && Number.isFinite(localTs) && localTs >= remoteTs) continue;
+
+                await addMealEntry({
+                    id: remote.id,
+                    user_id: remote.user_id,
+                    food_item_id: remote.food_item_id ?? null,
+                    food_name: remote.food_name ?? 'Unknown Food',
+                    meal_type: remote.meal_type,
+                    servings: remote.servings,
+                    calories: remote.calories,
+                    protein_g: remote.protein_g ?? 0,
+                    carbs_g: remote.carbs_g ?? 0,
+                    fat_g: remote.fat_g ?? 0,
+                    logged_at: remote.logged_at,
+                    notes: remote.notes ?? null,
+                    image_url: remote.image_url ?? null,
+                });
+
+                // If soft-deleted remotely, remove locally
+                if (remote.is_deleted) {
+                    await updateDailyLog(remote.user_id, remote.logged_at);
+                }
+
+                await markAsSynced('meal_entries', remote.id);
                 count++;
-            } catch (e: any) {
-                errors.push(`Merge error (meal_entries:${row?.id ?? 'unknown'}): ${e?.message ?? e}`);
-            }
+            } catch { /* skip individual row errors */ }
         }
     } catch (err: any) {
         errors.push(`Pull error: ${err.message}`);
