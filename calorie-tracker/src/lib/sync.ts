@@ -9,7 +9,7 @@
  */
 
 import NetInfo from '@react-native-community/netinfo';
-import { supabase } from './supabase';
+import { supabase, isSupabaseConfigured } from './supabase';
 import { getPendingMealEntries, markAsSynced, addMealEntry, getMealEntryById, updateDailyLog } from './database';
 
 let isSyncing = false;
