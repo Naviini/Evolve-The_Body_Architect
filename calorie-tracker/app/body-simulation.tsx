@@ -33,7 +33,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from '@/constants/theme';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { getOnboardingProfile } from '@/src/lib/database';
+import { getUserHealthProfileForProcessing } from '@/src/lib/database';
 import { generateBodySimulation, inferDreamBodyStyle } from '@/src/lib/bodySimulationEngine';
 import BodySilhouette, { BodySilhouetteMini } from '@/components/BodySilhouette';
 import { MilestonePhase, OnboardingProfile } from '@/src/types';
@@ -84,7 +84,7 @@ export default function BodySimulationScreen() {
     // ── Load data ───────────────────────────────────────────
     useEffect(() => {
         const uid = user?.id ?? 'onboarding-temp';
-        getOnboardingProfile(uid)
+        getUserHealthProfileForProcessing(uid)
             .then(p => {
                 if (p) {
                     setProfile(p);

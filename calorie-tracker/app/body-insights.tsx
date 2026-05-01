@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { getOnboardingProfile, saveBodyTypeResult, getBodyTypeResult } from '@/src/lib/database';
+import { getUserHealthProfileForProcessing, saveBodyTypeResult, getBodyTypeResult } from '@/src/lib/database';
 import { detectBodyType } from '@/src/lib/bodyTypeEngine';
 import { BodyTypeResult, OnboardingProfile } from '@/src/types';
 import { useAppStyles } from '@/hooks/useAppStyles';
@@ -100,7 +100,7 @@ export default function BodyInsightsScreen() {
         }).catch(() => { });
 
         // 2. Recalculate fresh, update state + DB
-        getOnboardingProfile(uid).then(p => {
+        getUserHealthProfileForProcessing(uid).then(p => {
             if (p) {
                 setProfile(p);
                 const fresh = detectBodyType(p);

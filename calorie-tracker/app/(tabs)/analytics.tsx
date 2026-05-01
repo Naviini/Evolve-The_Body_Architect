@@ -18,11 +18,13 @@ import {
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from '@/constants/theme';
 import { getWeeklyLogs, getMonthlyLogs } from '@/src/lib/database';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useAppStyles } from '@/hooks/useAppStyles';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import StoreDrawer from '@/components/store/StoreDrawer';
 
 const { width: windowWidth } = Dimensions.get('window');
 const SCREEN_WIDTH = Platform.OS === 'web' ? Math.min(windowWidth, 480) : windowWidth;
@@ -34,7 +36,9 @@ type TimeRange = 'week' | 'month';
 export default function AnalyticsScreen() {
   const colors = useThemeColors();
   const styles = useAppStyles(createStyles);
+  const router = useRouter();
     const { user } = useAuth();
+    const [menuOpen, setMenuOpen] = useState(false);
     const [timeRange, setTimeRange] = useState<TimeRange>('week');
     const [logs, setLogs] = useState<any[]>([]);
     const [stats, setStats] = useState({
@@ -92,22 +96,27 @@ export default function AnalyticsScreen() {
                 {/* Header */}
                 <View style={styles.header}>
                     <Text style={styles.headerTitle}>Analytics</Text>
-                    <View style={styles.timeToggle}>
-                        <TouchableOpacity
-                            style={[styles.timeButton, timeRange === 'week' && styles.timeButtonActive]}
-                            onPress={() => setTimeRange('week')}
-                        >
-                            <Text style={[styles.timeText, timeRange === 'week' && styles.timeTextActive]}>
-                                Week
-                            </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={[styles.timeButton, timeRange === 'month' && styles.timeButtonActive]}
-                            onPress={() => setTimeRange('month')}
-                        >
-                            <Text style={[styles.timeText, timeRange === 'month' && styles.timeTextActive]}>
-                                Month
-                            </Text>
+                    <View style={styles.headerActions}>
+                        <View style={styles.timeToggle}>
+                            <TouchableOpacity
+                                style={[styles.timeButton, timeRange === 'week' && styles.timeButtonActive]}
+                                onPress={() => setTimeRange('week')}
+                            >
+                                <Text style={[styles.timeText, timeRange === 'week' && styles.timeTextActive]}>
+                                    Week
+                                </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.timeButton, timeRange === 'month' && styles.timeButtonActive]}
+                                onPress={() => setTimeRange('month')}
+                            >
+                                <Text style={[styles.timeText, timeRange === 'month' && styles.timeTextActive]}>
+                                    Month
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                        <TouchableOpacity style={styles.menuButton} onPress={() => setMenuOpen(true)}>
+                            <Ionicons name="menu" size={20} color={colors.text} />
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -249,6 +258,19 @@ export default function AnalyticsScreen() {
 
                 <View style={{ height: 100 }} />
             </ScrollView>
+
+            <StoreDrawer
+                open={menuOpen}
+                statusText="Quick navigation"
+                onClose={() => setMenuOpen(false)}
+                onAccount={() => { setMenuOpen(false); router.push('/(tabs)/profile'); }}
+                onWishlist={() => { setMenuOpen(false); router.push({ pathname: '/store', params: { screen: 'wishlist' } }); }}
+                onCheckout={() => { setMenuOpen(false); router.push({ pathname: '/store', params: { screen: 'checkout' } }); }}
+                onOrderStatus={() => { setMenuOpen(false); router.push({ pathname: '/store', params: { screen: 'status' } }); }}
+                onOrderHistory={() => { setMenuOpen(false); router.push({ pathname: '/store', params: { screen: 'orders' } }); }}
+                onClearSearch={() => setMenuOpen(false)}
+                onResetFilters={() => setMenuOpen(false)}
+            />
         </View>
     );
 }
@@ -299,6 +321,11 @@ const createStyles = (colors: any) => StyleSheet.create({
         alignItems: 'center',
         marginBottom: Spacing.lg,
     },
+    headerActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
     headerTitle: {
         fontSize: Typography.sizes.heading,
         color: colors.text,
@@ -310,6 +337,16 @@ const createStyles = (colors: any) => StyleSheet.create({
         borderRadius: BorderRadius.sm,
         borderWidth: 1,
         borderColor: colors.border,
+    },
+    menuButton: {
+        width: 38,
+        height: 38,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: colors.border,
+        backgroundColor: colors.surface,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     timeButton: {
         paddingVertical: 6,

@@ -13,7 +13,7 @@
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase } from '@/src/lib/supabase';
-import { hydrateOnboardingProfileFromSupabase, migrateTempOnboardingProfileToUser } from '@/src/lib/database';
+import { getDailyDietPlanForUser, hydrateOnboardingProfileFromSupabase, migrateTempOnboardingProfileToUser } from '@/src/lib/database';
 import { Session, User } from '@supabase/supabase-js';
 
 interface AuthContextType {
@@ -47,6 +47,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const syncOnboardingProfile = async (userId: string) => {
         await migrateTempOnboardingProfileToUser(userId);
         await hydrateOnboardingProfileFromSupabase(userId);
+        // Trigger personalized daily diet generation after onboarding/sign-in.
+        await getDailyDietPlanForUser(userId).catch(() => null);
     };
 
     useEffect(() => {

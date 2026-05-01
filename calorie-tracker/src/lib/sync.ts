@@ -22,6 +22,10 @@ let lastSyncTimestamp: string | null = null;
 export async function syncAll(): Promise<{ pushed: number; pulled: number; errors: string[] }> {
     if (isSyncing) return { pushed: 0, pulled: 0, errors: ['Sync already in progress'] };
 
+    if (!isSupabaseConfigured()) {
+        return { pushed: 0, pulled: 0, errors: ['Supabase is not configured (check EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY).'] };
+    }
+
     const netState = await NetInfo.fetch();
     if (!netState.isConnected) {
         return { pushed: 0, pulled: 0, errors: ['No internet connection'] };
@@ -189,6 +193,9 @@ let unsubscribe: (() => void) | null = null;
 
 export function startAutoSync(): void {
     if (unsubscribe) return;
+
+    // Best-effort initial sync when app starts.
+    syncAll().catch(() => {});
 
     unsubscribe = NetInfo.addEventListener((state) => {
         if (state.isConnected) {

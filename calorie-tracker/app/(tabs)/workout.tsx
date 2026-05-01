@@ -16,11 +16,12 @@ import {
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import StoreDrawer from '@/components/store/StoreDrawer';
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from '@/constants/theme';
 import { useAuth } from '@/src/contexts/AuthContext';
 import {
-  getOnboardingProfile, getDailyLog, getWorkoutPlan, saveWorkoutPlan,
-  getWorkoutHistory, getWorkoutStreak, getUserRewards, saveProfileHash,
+  getUserHealthProfileForProcessing, getDailyLog, getWorkoutPlan, saveWorkoutPlan,
+  getWorkoutHistory, getWorkoutStreak, getUserRewards, saveProfileHash, getDailyCalorieGoalForUser,
 } from '@/src/lib/database';
 import { generateWeeklyPlan, getWeekStart } from '@/src/lib/workoutEngine';
 import { hashProfile, getLevelForXP, getAllAchievementsForUser, LEVELS } from '@/src/lib/rewardEngine';
@@ -85,6 +86,7 @@ export default function WorkoutScreen() {
   const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
   const [rewards, setRewards] = useState<UserRewards | null>(null);
   const [showRefreshBanner, setShowRefreshBanner] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [nudgeIdx] = useState(() => new Date().getDate() % DAILY_NUDGES.length);
 
   // Animations
@@ -115,10 +117,11 @@ export default function WorkoutScreen() {
       // 1. Load cached plan or generate fresh
       let cached = await getWorkoutPlan(uid, weekStart);
       if (!cached) {
-        const profile = await getOnboardingProfile(uid);
+        const profile = await getUserHealthProfileForProcessing(uid);
         const todayLog = await getDailyLog(uid, today);
         const eatenCals = todayLog?.total_calories ?? 0;
-        const deficit = (2000 - eatenCals) * 7;
+        const goal = await getDailyCalorieGoalForUser(uid).catch(() => 2000);
+        const deficit = (goal - eatenCals) * 7;
         if (profile) {
           const fresh = generateWeeklyPlan(profile, deficit);
           await saveWorkoutPlan(uid, fresh).catch(() => {});
@@ -130,7 +133,7 @@ export default function WorkoutScreen() {
       setPlan(cached);
 
       // 2. Profile change detection
-      const profile = await getOnboardingProfile(uid).catch(() => null);
+      const profile = await getUserHealthProfileForProcessing(uid).catch(() => null);
       if (profile) {
         const currentHash = hashProfile(profile);
         const rewardsRow = await getUserRewards(uid).catch(() => null);
@@ -185,7 +188,7 @@ export default function WorkoutScreen() {
   const onRefresh = async () => {
     setRefreshing(true);
     const uid = user?.id ?? 'demo-user';
-    const profile = await getOnboardingProfile(uid).catch(() => null);
+    const profile = await getUserHealthProfileForProcessing(uid).catch(() => null);
     if (profile) {
       const fresh = generateWeeklyPlan(profile, 0);
       await saveWorkoutPlan(uid, fresh).catch(() => {});
@@ -231,12 +234,17 @@ export default function WorkoutScreen() {
               <Text style={styles.headerSub}>Your Plan This Week</Text>
               <Text style={styles.headerTitle}>Workout 🏋️</Text>
             </View>
-            {streak > 0 && (
-              <View style={styles.streakBadge}>
-                <Text style={styles.streakEmoji}>🔥</Text>
-                <Text style={styles.streakText}>{streak} day{streak !== 1 ? 's' : ''}</Text>
-              </View>
-            )}
+            <View style={styles.headerRight}>
+              {streak > 0 && (
+                <View style={styles.streakBadge}>
+                  <Text style={styles.streakEmoji}>🔥</Text>
+                  <Text style={styles.streakText}>{streak} day{streak !== 1 ? 's' : ''}</Text>
+                </View>
+              )}
+              <TouchableOpacity style={styles.menuButton} onPress={() => setMenuOpen(true)}>
+                <Ionicons name="menu" size={20} color={colors.text} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* ── XP Progress Bar ──────────────────────────────── */}
@@ -448,6 +456,19 @@ export default function WorkoutScreen() {
 
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      <StoreDrawer
+        open={menuOpen}
+        statusText="Quick navigation"
+        onClose={() => setMenuOpen(false)}
+        onAccount={() => { setMenuOpen(false); router.push('/(tabs)/profile'); }}
+        onWishlist={() => { setMenuOpen(false); router.push({ pathname: '/store', params: { screen: 'wishlist' } }); }}
+        onCheckout={() => { setMenuOpen(false); router.push({ pathname: '/store', params: { screen: 'checkout' } }); }}
+        onOrderStatus={() => { setMenuOpen(false); router.push({ pathname: '/store', params: { screen: 'status' } }); }}
+        onOrderHistory={() => { setMenuOpen(false); router.push({ pathname: '/store', params: { screen: 'orders' } }); }}
+        onClearSearch={() => setMenuOpen(false)}
+        onResetFilters={() => setMenuOpen(false)}
+      />
     </View>
   );
 }
@@ -613,6 +634,11 @@ const createStyles = (colors: any) => StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
     marginBottom: Spacing.sm,
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   headerSub: { fontSize: Typography.sizes.body, color: colors.textSecondary },
   headerTitle: { fontSize: Typography.sizes.heading, color: colors.text, fontWeight: Typography.weights.bold },
   streakBadge: {
@@ -623,6 +649,16 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   streakEmoji: { fontSize: 16 },
   streakText: { fontSize: 13, color: Colors.warning, fontWeight: '700' },
+  menuButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   // XP card
   xpCard: {

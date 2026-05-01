@@ -10,6 +10,8 @@ import * as SQLite from 'expo-sqlite';
 import { MealEntry, FoodItem, MealType, OnboardingProfile, WorkoutPlan, WorkoutSession, UserRewards, BodyPhotoRecord, BodySimulationResult, MilestonePhase } from '@/src/types';
 import { supabase } from './supabase';
 import { calculatePersonalizedCalorieRecommendation } from './calorieEngine';
+import { DailyDietPlan, generateDailyDietPlan } from './dietPlanEngine';
+import type { StoreProduct } from '../../components/store/products';
 
 let db: SQLite.SQLiteDatabase | null = null;
 
@@ -162,6 +164,7 @@ export async function initDatabase(): Promise<void> {
       water_intake_glasses INTEGER,
       food_allergies TEXT DEFAULT '[]',
       cuisine_preferences TEXT DEFAULT '[]',
+      local_cuisine_ratio REAL DEFAULT 70,
       blood_sugar_level TEXT,
       cholesterol_level TEXT,
       health_conditions TEXT DEFAULT '[]',
@@ -216,6 +219,7 @@ export async function initDatabase(): Promise<void> {
         `ALTER TABLE user_health_profiles ADD COLUMN body_type_confidence TEXT`,
         `ALTER TABLE user_health_profiles ADD COLUMN body_type_insights TEXT DEFAULT '[]'`,
         `ALTER TABLE user_health_profiles ADD COLUMN body_type_updated_at TEXT`,
+        `ALTER TABLE user_health_profiles ADD COLUMN local_cuisine_ratio REAL DEFAULT 70`,
         // Body simulation columns
         `ALTER TABLE user_health_profiles ADD COLUMN dream_body_style TEXT`,
         `ALTER TABLE user_health_profiles ADD COLUMN dream_body_description TEXT`,
@@ -265,6 +269,73 @@ export async function initDatabase(): Promise<void> {
       language TEXT DEFAULT 'en',
       updated_at TEXT DEFAULT (datetime('now'))
     );
+  `);
+
+    // Store tables (products, cart, orders)
+    await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS store_products (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      category TEXT NOT NULL,
+      price REAL NOT NULL,
+      previous_price REAL,
+      description TEXT,
+      image TEXT,
+      tags_json TEXT DEFAULT '[]',
+      rating REAL,
+      is_new INTEGER DEFAULT 0,
+      on_sale INTEGER DEFAULT 0,
+      nutrition_json TEXT,
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS store_cart_items (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      product_id TEXT NOT NULL,
+      quantity INTEGER NOT NULL DEFAULT 1,
+      product_snapshot_json TEXT NOT NULL,
+      updated_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(user_id, product_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS store_orders (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      subtotal REAL NOT NULL DEFAULT 0,
+      shipping_fee REAL NOT NULL DEFAULT 0,
+      discount REAL NOT NULL DEFAULT 0,
+      total REAL NOT NULL DEFAULT 0,
+      promo_code TEXT,
+      status TEXT NOT NULL DEFAULT 'paid',
+      shipping_address TEXT,
+      placed_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS store_order_items (
+      id TEXT PRIMARY KEY,
+      order_id TEXT NOT NULL,
+      product_id TEXT NOT NULL,
+      product_name TEXT NOT NULL,
+      quantity INTEGER NOT NULL DEFAULT 1,
+      unit_price REAL NOT NULL,
+      line_total REAL NOT NULL,
+      product_snapshot_json TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS store_wishlist_items (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      product_id TEXT NOT NULL,
+      product_snapshot_json TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(user_id, product_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_store_cart_user ON store_cart_items(user_id);
+    CREATE INDEX IF NOT EXISTS idx_store_orders_user ON store_orders(user_id, placed_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_store_order_items_order ON store_order_items(order_id);
+    CREATE INDEX IF NOT EXISTS idx_store_wishlist_user ON store_wishlist_items(user_id, created_at DESC);
   `);
 }
 
@@ -418,6 +489,15 @@ export async function getMealEntriesByDate(userId: string, date: string): Promis
     return results.map(mapMealEntry);
 }
 
+async function triggerBackgroundMealSync(): Promise<void> {
+    try {
+        const { syncAll } = await import('./sync');
+        syncAll().catch(() => {});
+    } catch {
+        // Keep local-first behavior even if sync module is unavailable.
+    }
+}
+
 export async function addMealEntry(entry: Partial<MealEntry>): Promise<string> {
     const database = getDb();
     const id = entry.id || generateId();
@@ -448,6 +528,7 @@ export async function addMealEntry(entry: Partial<MealEntry>): Promise<string> {
 
     // Update daily log
     await updateDailyLog(entry.user_id || '', entry.logged_at || new Date().toISOString().split('T')[0]);
+    await triggerBackgroundMealSync();
 
     return id;
 }
@@ -470,6 +551,7 @@ export async function deleteMealEntry(id: string, userId: string): Promise<void>
     if (entry) {
         await updateDailyLog(userId, entry.logged_at);
     }
+    await triggerBackgroundMealSync();
 }
 
 export async function updateMealEntry(
@@ -519,6 +601,7 @@ export async function updateMealEntry(
     if (entry) {
         await updateDailyLog(userId, entry.logged_at);
     }
+    await triggerBackgroundMealSync();
 }
 
 export async function restoreMealEntry(id: string, userId: string): Promise<void> {
@@ -537,6 +620,7 @@ export async function restoreMealEntry(id: string, userId: string): Promise<void
     if (entry) {
         await updateDailyLog(userId, entry.logged_at);
     }
+    await triggerBackgroundMealSync();
 }
 
 export async function getMealEntryById(id: string): Promise<any | null> {
@@ -546,6 +630,56 @@ export async function getMealEntryById(id: string): Promise<any | null> {
         [id]
     );
     return row ? mapMealEntry(row) : null;
+}
+
+/**
+ * Merge/Upsert a remote Supabase meal entry into local SQLite.
+ * Used by the sync pull step (remote → local).
+ */
+export async function upsertMealEntryFromSupabase(remote: any): Promise<void> {
+    const database = getDb();
+    if (!remote?.id) return;
+
+    const id = remote.id as string;
+    const userId = (remote.user_id as string) || '';
+    const loggedAt = (remote.logged_at as string) || new Date().toISOString().split('T')[0];
+    const createdAt = (remote.created_at as string) || new Date().toISOString();
+    const updatedAt = (remote.updated_at as string) || new Date().toISOString();
+    const isDeleted = remote.is_deleted ? 1 : 0;
+
+    await database.runAsync(
+        `INSERT OR REPLACE INTO meal_entries (
+            id, user_id, food_item_id, food_name, meal_type,
+            servings, calories, protein_g, carbs_g, fat_g,
+            logged_at, notes, image_url,
+            created_at, updated_at, is_deleted,
+            sync_status, local_updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)`,
+        [
+            id,
+            userId,
+            remote.food_item_id ?? null,
+            remote.food_name ?? 'Unknown Food',
+            remote.meal_type ?? 'snack',
+            remote.servings ?? 1,
+            remote.calories ?? 0,
+            remote.protein_g ?? 0,
+            remote.carbs_g ?? 0,
+            remote.fat_g ?? 0,
+            loggedAt,
+            remote.notes ?? null,
+            remote.image_url ?? null,
+            createdAt,
+            updatedAt,
+            isDeleted,
+            updatedAt,
+        ]
+    );
+
+    // Re-aggregate daily log locally so UI stays consistent.
+    if (userId) {
+        await updateDailyLog(userId, loggedAt);
+    }
 }
 
 // ============================================================
@@ -726,6 +860,26 @@ export async function hydrateOnboardingProfileFromSupabase(userId: string): Prom
     }
 }
 
+/**
+ * Canonical accessor for the user's health profile (used by engines).
+ * Ensures we hydrate from Supabase (when authenticated) so downstream
+ * generators use the freshest profile values.
+ */
+export async function getUserHealthProfileForProcessing(
+    userId: string
+): Promise<OnboardingProfile | null> {
+    if (!userId) return null;
+
+    // Best-effort remote hydration. This is safe even when offline or not authed.
+    try {
+        await hydrateOnboardingProfileFromSupabase(userId);
+    } catch {
+        // ignore
+    }
+
+    return getOnboardingProfile(userId);
+}
+
 async function upsertLocalOnboardingProfile(
     userId: string,
     data: Partial<OnboardingProfile>,
@@ -754,7 +908,7 @@ async function upsertLocalOnboardingProfile(
             nationality_or_race, activity_level,
             work_type, wake_time, sleep_time, commute_type, exercise_frequency,
             diet_type, meals_per_day, snacking_habit, water_intake_glasses,
-            food_allergies, cuisine_preferences,
+            food_allergies, cuisine_preferences, local_cuisine_ratio,
             blood_sugar_level, cholesterol_level, health_conditions,
             medications, family_history,
             smoking_status, alcohol_frequency, sleep_hours, stress_level,
@@ -776,7 +930,7 @@ async function upsertLocalOnboardingProfile(
             ?, ?, ?, ?, ?,
             ?, ?, ?, ?,
             ?, ?,
-            ?, ?, ?,
+            ?, ?, ?, ?,
             ?, ?,
             ?, ?, ?, ?,
             ?, ?, ?, ?,
@@ -811,6 +965,7 @@ async function upsertLocalOnboardingProfile(
             pick('water_intake_glasses'),
             serialize(pick('food_allergies', [])),
             JSON.stringify(normalizeCuisinePreferences(pick('cuisine_preferences', []))),
+            pick('local_cuisine_ratio', 70),
             pick('blood_sugar_level'),
             pick('cholesterol_level'),
             serialize(pick('health_conditions', [])),
@@ -1072,7 +1227,7 @@ async function syncOnboardingToSupabase(
 export async function getDailyCalorieGoalForUser(userId: string): Promise<number> {
     if (!userId || userId === 'demo-user') return 2000;
 
-    const localProfile = await getOnboardingProfile(userId);
+    const localProfile = await getUserHealthProfileForProcessing(userId).catch(() => null);
     if (localProfile) {
         return calculatePersonalizedCalorieRecommendation(localProfile).dailyCalories;
     }
@@ -1094,6 +1249,30 @@ export async function getDailyCalorieGoalForUser(userId: string): Promise<number
     }
 
     return 2000;
+}
+
+/**
+ * Generate (on-demand) personalized daily diet plan from the latest
+ * user health profile and today's actual intake/workout context.
+ */
+export async function getDailyDietPlanForUser(
+    userId: string,
+    date: string = new Date().toISOString().split('T')[0]
+): Promise<DailyDietPlan | null> {
+    if (!userId) return null;
+    const profile = await getUserHealthProfileForProcessing(userId).catch(() => null);
+    if (!profile) return null;
+
+    const daily = await getDailyLog(userId, date).catch(() => null);
+    const context = {
+        todayCalories: daily?.total_calories ?? 0,
+        todayProteinG: daily?.total_protein_g ?? 0,
+        todayCarbsG: daily?.total_carbs_g ?? 0,
+        todayFatG: daily?.total_fat_g ?? 0,
+        recentWorkouts: normalizeStringArray(daily?.recent_workouts),
+    };
+
+    return generateDailyDietPlan(profile, date, context);
 }
 
 export async function getOnboardingProfile(
@@ -1609,4 +1788,321 @@ export async function getBodySimulation(userId: string): Promise<{
     } catch {
         return null;
     }
+}
+
+// ============================================================
+// Store Backend (Products, Cart, Orders)
+// ============================================================
+
+export interface StoreCartItemRecord {
+    id: string;
+    userId: string;
+    productId: string;
+    quantity: number;
+    product: StoreProduct;
+    updatedAt: string;
+}
+
+export interface StoreOrderItemRecord {
+    id: string;
+    productId: string;
+    productName: string;
+    quantity: number;
+    unitPrice: number;
+    lineTotal: number;
+    product: StoreProduct;
+}
+
+export interface StoreOrderRecord {
+    id: string;
+    userId: string;
+    subtotal: number;
+    shippingFee: number;
+    discount: number;
+    total: number;
+    promoCode?: string;
+    status: 'paid' | 'pending' | 'processing';
+    shippingAddress?: string;
+    placedAt: string;
+    items: StoreOrderItemRecord[];
+}
+
+export interface StoreWishlistItemRecord {
+    id: string;
+    userId: string;
+    productId: string;
+    product: StoreProduct;
+    createdAt: string;
+}
+
+function mapStoreProductRow(row: any): StoreProduct {
+    return {
+        id: row.id,
+        name: row.name,
+        category: row.category,
+        price: Number(row.price) || 0,
+        previousPrice: row.previous_price == null ? undefined : Number(row.previous_price),
+        description: row.description ?? undefined,
+        image: row.image ?? undefined,
+        tags: row.tags_json ? JSON.parse(row.tags_json) : [],
+        rating: row.rating == null ? undefined : Number(row.rating),
+        isNew: row.is_new === 1,
+        onSale: row.on_sale === 1,
+        nutrition: row.nutrition_json ? JSON.parse(row.nutrition_json) : undefined,
+    };
+}
+
+export async function seedStoreProductsIfEmpty(seedProducts: StoreProduct[]): Promise<void> {
+    const database = getDb();
+    const row = await database.getFirstAsync<{ count: number }>(
+        `SELECT COUNT(*) as count FROM store_products`
+    );
+    const count = row?.count ?? 0;
+    if (count > 0) return;
+
+    await database.withTransactionAsync(async () => {
+        for (const product of seedProducts) {
+            await database.runAsync(
+                `INSERT INTO store_products (
+                    id, name, category, price, previous_price, description, image,
+                    tags_json, rating, is_new, on_sale, nutrition_json, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+                [
+                    product.id,
+                    product.name,
+                    product.category,
+                    product.price,
+                    product.previousPrice ?? null,
+                    product.description ?? null,
+                    product.image ?? null,
+                    JSON.stringify(product.tags || []),
+                    product.rating ?? null,
+                    product.isNew ? 1 : 0,
+                    product.onSale ? 1 : 0,
+                    product.nutrition ? JSON.stringify(product.nutrition) : null,
+                ]
+            );
+        }
+    });
+}
+
+export async function getStoreProducts(): Promise<StoreProduct[]> {
+    const database = getDb();
+    const rows = await database.getAllAsync<any>(
+        `SELECT * FROM store_products ORDER BY name ASC`
+    );
+    return rows.map(mapStoreProductRow);
+}
+
+export async function getStoreProductById(id: string): Promise<StoreProduct | null> {
+    const database = getDb();
+    const row = await database.getFirstAsync<any>(
+        `SELECT * FROM store_products WHERE id = ?`,
+        [id]
+    );
+    return row ? mapStoreProductRow(row) : null;
+}
+
+export async function getStoreCartItems(userId: string): Promise<StoreCartItemRecord[]> {
+    const database = getDb();
+    const rows = await database.getAllAsync<any>(
+        `SELECT * FROM store_cart_items WHERE user_id = ? ORDER BY updated_at DESC`,
+        [userId]
+    );
+    return rows.map(row => ({
+        id: row.id,
+        userId: row.user_id,
+        productId: row.product_id,
+        quantity: row.quantity,
+        product: JSON.parse(row.product_snapshot_json) as StoreProduct,
+        updatedAt: row.updated_at,
+    }));
+}
+
+export async function upsertStoreCartItem(
+    userId: string,
+    product: StoreProduct,
+    quantity: number
+): Promise<void> {
+    const database = getDb();
+    const existing = await database.getFirstAsync<any>(
+        `SELECT id, quantity FROM store_cart_items WHERE user_id = ? AND product_id = ?`,
+        [userId, product.id]
+    );
+
+    if (existing) {
+        await database.runAsync(
+            `UPDATE store_cart_items
+             SET quantity = ?, product_snapshot_json = ?, updated_at = datetime('now')
+             WHERE id = ?`,
+            [existing.quantity + quantity, JSON.stringify(product), existing.id]
+        );
+        return;
+    }
+
+    await database.runAsync(
+        `INSERT INTO store_cart_items (id, user_id, product_id, quantity, product_snapshot_json, updated_at)
+         VALUES (?, ?, ?, ?, ?, datetime('now'))`,
+        [generateId(), userId, product.id, quantity, JSON.stringify(product)]
+    );
+}
+
+export async function removeStoreCartItem(userId: string, productId: string): Promise<void> {
+    const database = getDb();
+    await database.runAsync(
+        `DELETE FROM store_cart_items WHERE user_id = ? AND product_id = ?`,
+        [userId, productId]
+    );
+}
+
+export async function clearStoreCart(userId: string): Promise<void> {
+    const database = getDb();
+    await database.runAsync(`DELETE FROM store_cart_items WHERE user_id = ?`, [userId]);
+}
+
+export async function createStoreOrder(
+    userId: string,
+    payload: {
+        items: Array<{ product: StoreProduct; quantity: number }>;
+        subtotal: number;
+        shippingFee: number;
+        discount: number;
+        total: number;
+        promoCode?: string;
+        status?: 'paid' | 'pending' | 'processing';
+        shippingAddress?: string;
+    }
+): Promise<string> {
+    const database = getDb();
+    const orderId = generateId();
+    const status = payload.status ?? 'paid';
+
+    await database.withTransactionAsync(async () => {
+        await database.runAsync(
+            `INSERT INTO store_orders (
+                id, user_id, subtotal, shipping_fee, discount, total, promo_code, status, shipping_address, placed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+            [
+                orderId,
+                userId,
+                payload.subtotal,
+                payload.shippingFee,
+                payload.discount,
+                payload.total,
+                payload.promoCode ?? null,
+                status,
+                payload.shippingAddress ?? null,
+            ]
+        );
+
+        for (const item of payload.items) {
+            const lineTotal = item.product.price * item.quantity;
+            await database.runAsync(
+                `INSERT INTO store_order_items (
+                    id, order_id, product_id, product_name, quantity, unit_price, line_total, product_snapshot_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    generateId(),
+                    orderId,
+                    item.product.id,
+                    item.product.name,
+                    item.quantity,
+                    item.product.price,
+                    lineTotal,
+                    JSON.stringify(item.product),
+                ]
+            );
+        }
+
+        await clearStoreCart(userId);
+    });
+
+    return orderId;
+}
+
+export async function getStoreOrders(userId: string): Promise<StoreOrderRecord[]> {
+    const database = getDb();
+    const orders = await database.getAllAsync<any>(
+        `SELECT * FROM store_orders WHERE user_id = ? ORDER BY placed_at DESC`,
+        [userId]
+    );
+
+    const result: StoreOrderRecord[] = [];
+    for (const order of orders) {
+        const items = await database.getAllAsync<any>(
+            `SELECT * FROM store_order_items WHERE order_id = ?`,
+            [order.id]
+        );
+
+        result.push({
+            id: order.id,
+            userId: order.user_id,
+            subtotal: Number(order.subtotal) || 0,
+            shippingFee: Number(order.shipping_fee) || 0,
+            discount: Number(order.discount) || 0,
+            total: Number(order.total) || 0,
+            promoCode: order.promo_code ?? undefined,
+            status: (order.status as 'paid' | 'pending' | 'processing') || 'paid',
+            shippingAddress: order.shipping_address ?? undefined,
+            placedAt: order.placed_at,
+            items: items.map(item => ({
+                id: item.id,
+                productId: item.product_id,
+                productName: item.product_name,
+                quantity: item.quantity,
+                unitPrice: Number(item.unit_price) || 0,
+                lineTotal: Number(item.line_total) || 0,
+                product: JSON.parse(item.product_snapshot_json) as StoreProduct,
+            })),
+        });
+    }
+
+    return result;
+}
+
+export async function updateStoreOrderStatus(
+    orderId: string,
+    status: 'paid' | 'pending' | 'processing'
+): Promise<void> {
+    const database = getDb();
+    await database.runAsync(
+        `UPDATE store_orders SET status = ? WHERE id = ?`,
+        [status, orderId]
+    );
+}
+
+export async function getStoreWishlistItems(userId: string): Promise<StoreWishlistItemRecord[]> {
+    const database = getDb();
+    const rows = await database.getAllAsync<any>(
+        `SELECT * FROM store_wishlist_items WHERE user_id = ? ORDER BY created_at DESC`,
+        [userId]
+    );
+
+    return rows.map(row => ({
+        id: row.id,
+        userId: row.user_id,
+        productId: row.product_id,
+        product: JSON.parse(row.product_snapshot_json) as StoreProduct,
+        createdAt: row.created_at,
+    }));
+}
+
+export async function upsertStoreWishlistItem(userId: string, product: StoreProduct): Promise<void> {
+    const database = getDb();
+    await database.runAsync(
+        `INSERT OR REPLACE INTO store_wishlist_items (id, user_id, product_id, product_snapshot_json, created_at)
+         VALUES (
+           COALESCE((SELECT id FROM store_wishlist_items WHERE user_id = ? AND product_id = ?), ?),
+           ?, ?, ?, datetime('now')
+         )`,
+        [userId, product.id, generateId(), userId, product.id, JSON.stringify(product)]
+    );
+}
+
+export async function removeStoreWishlistItem(userId: string, productId: string): Promise<void> {
+    const database = getDb();
+    await database.runAsync(
+        `DELETE FROM store_wishlist_items WHERE user_id = ? AND product_id = ?`,
+        [userId, productId]
+    );
 }
