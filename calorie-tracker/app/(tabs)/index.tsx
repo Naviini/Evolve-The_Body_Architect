@@ -22,19 +22,22 @@ import {
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import StoreDrawer from '@/components/store/StoreDrawer';
 import { Colors, Spacing, BorderRadius, Typography, Shadows, MealIcons } from '@/constants/theme';
 import {
   getMealEntriesByDate,
   getDailyLog,
   getWorkoutPlan,
   saveWorkoutPlan,
-  getOnboardingProfile,
+  getUserHealthProfileForProcessing,
   getDailyCalorieGoalForUser,
+  getDailyDietPlanForUser,
 } from '@/src/lib/database';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { MealEntry, MealType, WorkoutDay, MilestonePhase } from '@/src/types';
 import { generateWeeklyPlan, getWeekStart } from '@/src/lib/workoutEngine';
 import { generateBodySimulation, inferDreamBodyStyle } from '@/src/lib/bodySimulationEngine';
+import type { DailyDietPlan } from '@/src/lib/dietPlanEngine';
 import { BodySilhouetteMini } from '@/components/BodySilhouette';
 import { useAppStyles } from '@/hooks/useAppStyles';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -56,6 +59,8 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [todayWorkout, setTodayWorkout] = useState<WorkoutDay | null>(null);
   const [simPhases, setSimPhases] = useState<MilestonePhase[]>([]);
+  const [dietPlan, setDietPlan] = useState<DailyDietPlan | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -90,7 +95,7 @@ export default function HomeScreen() {
         const weekStart = getWeekStart(new Date());
         let plan = await getWorkoutPlan(userId, weekStart);
         if (!plan) {
-          const profile = await getOnboardingProfile(userId);
+          const profile = await getUserHealthProfileForProcessing(userId);
           if (profile) {
             plan = generateWeeklyPlan(profile, 0);
             await saveWorkoutPlan(userId, plan).catch(() => {});
@@ -104,13 +109,21 @@ export default function HomeScreen() {
 
       // Load body simulation preview
       try {
-        const simProfile = await getOnboardingProfile(userId);
+        const simProfile = await getUserHealthProfileForProcessing(userId);
         if (simProfile) {
           const dreamStyle = inferDreamBodyStyle(simProfile.dream_daily_routine);
           const phases = generateBodySimulation({ profile: simProfile, dreamBodyStyle: dreamStyle });
           setSimPhases(phases);
         }
       } catch { }
+
+      // Load daily diet plan preview
+      try {
+        const plan = await getDailyDietPlanForUser(userId, today);
+        setDietPlan(plan);
+      } catch {
+        setDietPlan(null);
+      }
     } catch (e) {
       console.error('Failed to load home data:', e);
     }
@@ -165,9 +178,14 @@ export default function HomeScreen() {
               {user?.user_metadata?.display_name || 'Foodie'}
             </Text>
           </View>
-          <TouchableOpacity style={styles.notifButton}>
-            <Ionicons name="notifications-outline" size={24} color={colors.text} />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity style={styles.notifButton}>
+              <Ionicons name="notifications-outline" size={24} color={colors.text} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.notifButton} onPress={() => setMenuOpen(true)}>
+              <Ionicons name="menu" size={22} color={colors.text} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Calorie Ring Card */}
@@ -242,6 +260,41 @@ export default function HomeScreen() {
             unit="g"
           />
         </View>
+
+        {/* Personalized Daily Diet Plan */}
+        {dietPlan && (
+          <>
+            <Text style={styles.sectionTitle}>Today's Personalized Diet Plan</Text>
+            <TouchableOpacity
+              onPress={() => router.push('/diet-plan' as any)}
+              activeOpacity={0.8}
+              style={styles.dietPlanPreviewCard}
+            >
+              <LinearGradient
+                colors={['#1A2A45', '#162034']}
+                style={styles.dietPlanPreviewGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <View style={styles.dietPlanPreviewHeader}>
+                  <View style={styles.dietPlanPreviewLeft}>
+                    <Text style={styles.dietPlanPreviewEmoji}>🥗</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.dietPlanTarget}>{dietPlan.calorieTarget} kcal target</Text>
+                      <Text style={styles.dietPlanMacro}>
+                        P {dietPlan.macros.protein_g}g | C {dietPlan.macros.carbs_g}g | F {dietPlan.macros.fat_g}g
+                      </Text>
+                    </View>
+                  </View>
+                  <Ionicons name="chevron-forward-circle" size={26} color={Colors.primary} />
+                </View>
+                <Text style={styles.dietPlanPreviewSub}>
+                  {dietPlan.meals.length} meals planned for today - Tap to view full plan
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </>
+        )}
 
         {/* Today's Workout Preview */}
         {todayWorkout && (
@@ -410,6 +463,19 @@ export default function HomeScreen() {
           <Ionicons name="add" size={28} color="#FFF" />
         </LinearGradient>
       </TouchableOpacity>
+
+      <StoreDrawer
+        open={menuOpen}
+        statusText="Quick navigation"
+        onClose={() => setMenuOpen(false)}
+        onAccount={() => { setMenuOpen(false); router.push('/(tabs)/profile'); }}
+        onWishlist={() => { setMenuOpen(false); router.push({ pathname: '/store', params: { screen: 'wishlist' } }); }}
+        onCheckout={() => { setMenuOpen(false); router.push({ pathname: '/store', params: { screen: 'checkout' } }); }}
+        onOrderStatus={() => { setMenuOpen(false); router.push({ pathname: '/store', params: { screen: 'status' } }); }}
+        onOrderHistory={() => { setMenuOpen(false); router.push({ pathname: '/store', params: { screen: 'orders' } }); }}
+        onClearSearch={() => setMenuOpen(false)}
+        onResetFilters={() => setMenuOpen(false)}
+      />
     </View>
   );
 }
@@ -479,6 +545,11 @@ const createStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: Spacing.lg,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   greeting: {
     fontSize: Typography.sizes.body,
@@ -631,6 +702,88 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 10,
     color: colors.textTertiary,
     marginTop: 4,
+  },
+  dietPlanPreviewCard: {
+    borderRadius: BorderRadius.md,
+    overflow: 'hidden',
+    marginBottom: Spacing.lg,
+  },
+  dietPlanPreviewGradient: {
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  dietPlanPreviewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+  },
+  dietPlanPreviewLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    flex: 1,
+  },
+  dietPlanPreviewEmoji: {
+    fontSize: 24,
+  },
+  dietPlanTarget: {
+    fontSize: Typography.sizes.bodyLarge,
+    fontWeight: Typography.weights.bold,
+    color: colors.text,
+  },
+  dietPlanMacro: {
+    fontSize: Typography.sizes.caption,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  dietPlanPreviewSub: {
+    marginTop: Spacing.sm,
+    fontSize: Typography.sizes.caption,
+    color: colors.textSecondary,
+  },
+  dietPlanMealRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: 8,
+    marginTop: 8,
+    gap: 8,
+  },
+  dietPlanMealType: {
+    minWidth: 64,
+    fontSize: Typography.sizes.caption,
+    color: Colors.primary,
+    fontWeight: Typography.weights.bold,
+  },
+  dietPlanMealBody: {
+    flex: 1,
+  },
+  dietPlanMealTitle: {
+    fontSize: Typography.sizes.body,
+    color: colors.text,
+    fontWeight: Typography.weights.semibold,
+  },
+  dietPlanMealDesc: {
+    fontSize: Typography.sizes.caption,
+    color: colors.textSecondary,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  dietPlanMealCal: {
+    fontSize: Typography.sizes.caption,
+    color: colors.textSecondary,
+    fontWeight: Typography.weights.semibold,
+    minWidth: 34,
+    textAlign: 'right',
+  },
+  dietPlanNotes: {
+    marginTop: Spacing.sm,
+    fontSize: Typography.sizes.caption,
+    color: colors.textSecondary,
   },
 
   // Section

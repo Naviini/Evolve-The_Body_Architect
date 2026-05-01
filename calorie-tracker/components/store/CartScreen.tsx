@@ -2,13 +2,24 @@ import React from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
 import { useCart } from './CartContext';
 
-export default function CartScreen({ onCheckout }: { onCheckout?: () => void }) {
+export default function CartScreen({
+  onCheckout,
+  onBack,
+}: {
+  onCheckout?: () => void;
+  onBack?: () => void;
+}) {
   const { cart, removeFromCart, clearCart } = useCart();
   const total = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>Your Cart</Text>
+      <View style={styles.headerRow}>
+        <TouchableOpacity onPress={onBack}>
+          <Text style={styles.back}>Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.header}>Your Cart</Text>
+      </View>
       {cart.length === 0 ? (
         <Text style={styles.empty}>Your cart is empty.</Text>
       ) : (
@@ -18,7 +29,7 @@ export default function CartScreen({ onCheckout }: { onCheckout?: () => void }) 
           renderItem={({ item }) => (
             <View style={styles.item}>
               <Text style={styles.name}>{item.product.name} x{item.quantity}</Text>
-              <Text style={styles.price}>${(item.product.price * item.quantity).toFixed(2)}</Text>
+              <Text style={styles.price}>Rs. {(item.product.price * item.quantity).toLocaleString()}</Text>
               <TouchableOpacity onPress={() => removeFromCart(item.product.id)}>
                 <Text style={styles.remove}>Remove</Text>
               </TouchableOpacity>
@@ -26,7 +37,7 @@ export default function CartScreen({ onCheckout }: { onCheckout?: () => void }) 
           )}
         />
       )}
-      <Text style={styles.total}>Total: ${total.toFixed(2)}</Text>
+      <Text style={styles.total}>Total: Rs. {total.toLocaleString()}</Text>
       <TouchableOpacity style={styles.checkoutBtn} onPress={onCheckout} disabled={cart.length === 0}>
         <Text style={styles.checkoutText}>Checkout</Text>
       </TouchableOpacity>
@@ -39,6 +50,8 @@ export default function CartScreen({ onCheckout }: { onCheckout?: () => void }) 
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff', padding: 16 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
+  back: { color: '#6c63ff', fontSize: 16, fontWeight: '700', marginRight: 12 },
   header: { fontSize: 28, fontWeight: 'bold', marginBottom: 16 },
   empty: { fontSize: 16, color: '#888', marginVertical: 32 },
   item: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, justifyContent: 'space-between' },

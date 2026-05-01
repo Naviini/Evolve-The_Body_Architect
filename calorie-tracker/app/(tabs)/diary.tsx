@@ -25,6 +25,7 @@ import {
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import StoreDrawer from '@/components/store/StoreDrawer';
 import {
     Colors,
     Spacing,
@@ -40,11 +41,13 @@ import {
     restoreMealEntry,
     updateMealEntry,
     getDailyCalorieGoalForUser,
+    getDailyDietPlanForUser,
 } from '@/src/lib/database';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { MealEntry, MealType } from '@/src/types';
 import { useAppStyles } from '@/hooks/useAppStyles';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import type { DailyDietPlan } from '@/src/lib/dietPlanEngine';
 
 // ── constants ────────────────────────────────────────────────
 const MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
@@ -65,9 +68,12 @@ export default function DiaryScreen() {
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [meals, setMeals] = useState<MealEntry[]>([]);
     const [calorieGoal, setCalorieGoal] = useState(2000);
+    const [dietPlan, setDietPlan] = useState<DailyDietPlan | null>(null);
+    const [macroGoals, setMacroGoals] = useState({ protein: 150, carbs: 250, fat: 65 });
     const [expandedMeal, setExpandedMeal] = useState<MealType | null>('breakfast');
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [menuOpen, setMenuOpen] = useState(false);
 
     // undo / redo
     const [past, setPast] = useState<HistoryAction[]>([]);
@@ -118,6 +124,15 @@ export default function DiaryScreen() {
             ]);
             setMeals(data);
             setCalorieGoal(goal);
+            const plan = await getDailyDietPlanForUser(userId, dateStr);
+            setDietPlan(plan);
+            if (plan?.macros) {
+                setMacroGoals({
+                    protein: plan.macros.protein_g,
+                    carbs: plan.macros.carbs_g,
+                    fat: plan.macros.fat_g,
+                });
+            }
         } catch (e) {
             console.error('loadMeals error:', e);
         } finally {
@@ -261,9 +276,9 @@ export default function DiaryScreen() {
     const totalProtein = meals.reduce((s, m) => s + m.protein_g * m.servings, 0);
     const totalCarbs = meals.reduce((s, m) => s + m.carbs_g * m.servings, 0);
     const totalFat = meals.reduce((s, m) => s + m.fat_g * m.servings, 0);
-    const proteinGoal = Math.round((calorieGoal * 0.30) / 4);
-    const carbsGoal = Math.round((calorieGoal * 0.40) / 4);
-    const fatGoal = Math.round((calorieGoal * 0.30) / 9);
+    const proteinGoal = macroGoals.protein;
+    const carbsGoal = macroGoals.carbs;
+    const fatGoal = macroGoals.fat;
     const typeCals = (t: MealType) => getMealsByType(t).reduce((s, m) => s + m.calories * m.servings, 0);
     const calorieProgress = Math.min(totalCals / calorieGoal, 1);
     const remaining = Math.max(calorieGoal - totalCals, 0);
@@ -278,6 +293,12 @@ export default function DiaryScreen() {
             <View style={styles.header}>
                 <Text style={styles.headerTitle}>Food Diary</Text>
                 <View style={styles.headerRight}>
+                    <TouchableOpacity
+                        style={styles.historyBtn}
+                        onPress={() => setMenuOpen(true)}
+                    >
+                        <Ionicons name="menu" size={18} color={colors.text} />
+                    </TouchableOpacity>
                     <TouchableOpacity
                         style={[styles.historyBtn, past.length === 0 && styles.historyBtnOff]}
                         onPress={handleUndo}
@@ -373,6 +394,9 @@ export default function DiaryScreen() {
                         <MacroBar label="Carbs" value={totalCarbs} goal={carbsGoal} color={Colors.carbs} />
                         <MacroBar label="Fat" value={totalFat} goal={fatGoal} color={Colors.fat} />
                     </View>
+                    {dietPlan?.notes?.length ? (
+                        <Text style={styles.dietHint}>{dietPlan.notes[0]}</Text>
+                    ) : null}
                 </LinearGradient>
 
                 {/* Loading */}
@@ -521,6 +545,19 @@ export default function DiaryScreen() {
                     onClose={() => setEditEntry(null)}
                 />
             )}
+
+            <StoreDrawer
+                open={menuOpen}
+                statusText="Quick navigation"
+                onClose={() => setMenuOpen(false)}
+                onAccount={() => { setMenuOpen(false); router.push('/(tabs)/profile'); }}
+                onWishlist={() => { setMenuOpen(false); router.push({ pathname: '/store', params: { screen: 'wishlist' } }); }}
+                onCheckout={() => { setMenuOpen(false); router.push({ pathname: '/store', params: { screen: 'checkout' } }); }}
+                onOrderStatus={() => { setMenuOpen(false); router.push({ pathname: '/store', params: { screen: 'status' } }); }}
+                onOrderHistory={() => { setMenuOpen(false); router.push({ pathname: '/store', params: { screen: 'orders' } }); }}
+                onClearSearch={() => setMenuOpen(false)}
+                onResetFilters={() => setMenuOpen(false)}
+            />
         </View>
     );
 }
@@ -1081,6 +1118,12 @@ const createStyles = (colors: any) => StyleSheet.create({
         marginBottom: Spacing.sm,
     },
     macroRow: { flexDirection: 'row', gap: Spacing.sm },
+    dietHint: {
+        marginTop: Spacing.sm,
+        fontSize: Typography.sizes.caption,
+        color: colors.textSecondary,
+        lineHeight: 16,
+    },
 
     // Loading
     loadingWrap: { alignItems: 'center', paddingVertical: 48, gap: 10 },

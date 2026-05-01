@@ -31,13 +31,17 @@ import { useAuth } from '@/src/contexts/AuthContext';
 import { FoodRecognitionResponse, MealType } from '@/src/types';
 import { useAppStyles } from '@/hooks/useAppStyles';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import StoreDrawer from '@/components/store/StoreDrawer';
 
 export default function ScanScreen() {
   const colors = useThemeColors();
   const styles = useAppStyles(createStyles);
+  const insets = useSafeAreaInsets();
     const { user } = useAuth();
     const router = useRouter();
     const cameraRef = useRef<CameraView>(null);
+    const [menuOpen, setMenuOpen] = useState(false);
     const [permission, requestPermission] = useCameraPermissions();
     const [capturedImage, setCapturedImage] = useState<string | null>(null);
     const [isScanning, setIsScanning] = useState(false);
@@ -153,6 +157,12 @@ export default function ScanScreen() {
 
     return (
         <View style={styles.container}>
+            <TouchableOpacity
+                style={[styles.menuButton, { top: insets.top + 8 }]}
+                onPress={() => setMenuOpen(true)}
+            >
+                <Ionicons name="menu" size={20} color={colors.text} />
+            </TouchableOpacity>
             {/* Camera or captured image */}
             {capturedImage ? (
                 <View style={styles.previewContainer}>
@@ -385,6 +395,19 @@ export default function ScanScreen() {
                     </View>
                 </View>
             </Modal>
+
+            <StoreDrawer
+                open={menuOpen}
+                statusText="Quick navigation"
+                onClose={() => setMenuOpen(false)}
+                onAccount={() => { setMenuOpen(false); router.push('/(tabs)/profile'); }}
+                onWishlist={() => { setMenuOpen(false); router.push({ pathname: '/store', params: { screen: 'wishlist' } }); }}
+                onCheckout={() => { setMenuOpen(false); router.push({ pathname: '/store', params: { screen: 'checkout' } }); }}
+                onOrderStatus={() => { setMenuOpen(false); router.push({ pathname: '/store', params: { screen: 'status' } }); }}
+                onOrderHistory={() => { setMenuOpen(false); router.push({ pathname: '/store', params: { screen: 'orders' } }); }}
+                onClearSearch={() => setMenuOpen(false)}
+                onResetFilters={() => setMenuOpen(false)}
+            />
         </View>
     );
 }
@@ -393,6 +416,20 @@ const createStyles = (colors: any) => StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: colors.background,
+    },
+    menuButton: {
+        position: 'absolute',
+        right: Spacing.md,
+        zIndex: 20,
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: colors.border,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: colors.surface,
+        ...Shadows.small,
     },
 
     // Permission

@@ -291,6 +291,7 @@ export default function ProfileSetupScreen() {
     const [waterGlasses, setWaterGlasses] = useState('8');
     const [foodAllergies, setFoodAllergies] = useState<string[]>([]);
     const [cuisinePrefs, setCuisinePrefs] = useState<string[]>([]);
+    const [localCuisineRatio, setLocalCuisineRatio] = useState('70');
 
     // Step 4: Health
     const [bloodSugar, setBloodSugar] = useState<HealthLevel | null>(null);
@@ -455,6 +456,9 @@ export default function ProfileSetupScreen() {
             if (profile.water_intake_glasses) setWaterGlasses(String(profile.water_intake_glasses));
             if (profile.food_allergies?.length) setFoodAllergies(profile.food_allergies);
             if (profile.cuisine_preferences?.length) setCuisinePrefs(profile.cuisine_preferences);
+            if (typeof profile.local_cuisine_ratio === 'number') {
+                setLocalCuisineRatio(String(Math.round(profile.local_cuisine_ratio)));
+            }
             // Step 4
             if (profile.blood_sugar_level) setBloodSugar(profile.blood_sugar_level as HealthLevel);
             if (profile.cholesterol_level) setCholesterol(profile.cholesterol_level as HealthLevel);
@@ -548,6 +552,11 @@ export default function ProfileSetupScreen() {
                 water_intake_glasses: parseInt(waterGlasses) || null,
                 food_allergies: foodAllergies,
                 cuisine_preferences: cuisinePrefs,
+                local_cuisine_ratio: (() => {
+                    const n = parseInt(localCuisineRatio, 10);
+                    if (!Number.isFinite(n)) return 70;
+                    return Math.max(0, Math.min(100, n));
+                })(),
                 blood_sugar_level: bloodSugar,
                 cholesterol_level: cholesterol,
                 health_conditions: conditions,
@@ -750,6 +759,7 @@ export default function ProfileSetupScreen() {
                             waterGlasses={waterGlasses} setWaterGlasses={setWaterGlasses}
                             foodAllergies={foodAllergies} setFoodAllergies={setFoodAllergies}
                             cuisinePrefs={cuisinePrefs} setCuisinePrefs={setCuisinePrefs}
+                            localCuisineRatio={localCuisineRatio} setLocalCuisineRatio={setLocalCuisineRatio}
                         />
                     )}
                     {(currentPage === 'health_a' || currentPage === 'health_b') && (
@@ -815,7 +825,7 @@ export default function ProfileSetupScreen() {
                                 bioGender, genderIdentity, age, heightCm, weightKg, nationality,
                                 activityLevel, workType, wakeTime, sleepTime, commuteType,
                                 exerciseFreq, dietType, mealsPerDay, snackHabit, waterGlasses,
-                                foodAllergies, cuisinePrefs, bloodSugar, cholesterol, conditions,
+                                foodAllergies, cuisinePrefs, localCuisineRatio, bloodSugar, cholesterol, conditions,
                                 medications, familyHistory, smokingStatus, alcoholFreq, sleepHours,
                                 stressLevel, maritalStatus, pregnancyStatus, numChildren,
                                 childrenNotes, personalNotes, dreamWeight, dreamFitness,
@@ -1573,7 +1583,8 @@ function StepRoutine({ workType, setWorkType, wakeTime, setWakeTime,
 // ════════════════════════════════════════════════════════════
 function StepDiet({ page, dietType, setDietType, mealsPerDay, setMealsPerDay,
     snackHabit, setSnackHabit, waterGlasses, setWaterGlasses,
-    foodAllergies, setFoodAllergies, cuisinePrefs, setCuisinePrefs }: any) {
+    foodAllergies, setFoodAllergies, cuisinePrefs, setCuisinePrefs,
+    localCuisineRatio, setLocalCuisineRatio }: any) {
     if (page === 2) {
         return (
             <View>
@@ -1590,6 +1601,20 @@ function StepDiet({ page, dietType, setDietType, mealsPerDay, setMealsPerDay,
                     selected={cuisinePrefs}
                     onToggle={(v) => setCuisinePrefs(toggleItem(cuisinePrefs, v))}
                     justified={true}
+                />
+
+                <SectionLabel text="Local vs global cuisine mix for daily plans" />
+                <PillPicker
+                    options={['40', '55', '70', '85'] as const}
+                    selected={localCuisineRatio}
+                    onSelect={setLocalCuisineRatio}
+                    labels={{
+                        '40': '40% Local / 60% Global',
+                        '55': '55% Local / 45% Global',
+                        '70': '70% Local / 30% Global',
+                        '85': '85% Local / 15% Global',
+                    }}
+                    columns={2}
                 />
             </View>
         );
@@ -2017,6 +2042,12 @@ function StepReview({ data, onEdit }: { data: any; onEdit: (s: number) => void }
                 { label: 'Water', value: data.waterGlasses ? `${data.waterGlasses} glasses` : '' },
                 { label: 'Allergies', value: fmtArr(data.foodAllergies) },
                 { label: 'Cuisines', value: fmtArr(data.cuisinePrefs) },
+                {
+                    label: 'Cuisine Mix',
+                    value: data.localCuisineRatio
+                        ? `${data.localCuisineRatio}% local / ${100 - parseInt(data.localCuisineRatio, 10)}% global`
+                        : '',
+                },
             ]} />
 
             <ReviewCard title="Health" icon="🏥" stepIdx={3} onEdit={onEdit} items={[

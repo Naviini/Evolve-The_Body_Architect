@@ -205,6 +205,7 @@ export interface OnboardingProfile {
   water_intake_glasses: number | null;
   food_allergies: string[];       // JSON array stored as TEXT
   cuisine_preferences: string[];  // JSON array stored as TEXT
+  local_cuisine_ratio: number | null; // preferred % of local cuisine in daily plans
 
   // Step 4: Health
   blood_sugar_level: HealthLevel | null;

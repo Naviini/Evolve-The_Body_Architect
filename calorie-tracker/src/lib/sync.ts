@@ -9,8 +9,8 @@
  */
 
 import NetInfo from '@react-native-community/netinfo';
-import { supabase } from './supabase';
-import { getPendingMealEntries, markAsSynced } from './database';
+import { isSupabaseConfigured, supabase } from './supabase';
+import { getPendingMealEntries, markAsSynced, upsertMealEntryFromSupabase } from './database';
 
 let isSyncing = false;
 let lastSyncTimestamp: string | null = null;
@@ -21,6 +21,10 @@ let lastSyncTimestamp: string | null = null;
 
 export async function syncAll(): Promise<{ pushed: number; pulled: number; errors: string[] }> {
     if (isSyncing) return { pushed: 0, pulled: 0, errors: ['Sync already in progress'] };
+
+    if (!isSupabaseConfigured()) {
+        return { pushed: 0, pulled: 0, errors: ['Supabase is not configured (check EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY).'] };
+    }
 
     const netState = await NetInfo.fetch();
     if (!netState.isConnected) {
@@ -79,6 +83,7 @@ async function pushChanges(): Promise<{ count: number; errors: string[] }> {
                         id: meal.id,
                         user_id: meal.user_id,
                         food_item_id: meal.food_item_id,
+                        food_name: meal.food_name,
                         meal_type: meal.meal_type,
                         servings: meal.servings,
                         calories: meal.calories,
@@ -137,9 +142,15 @@ async function pullChanges(): Promise<{ count: number; errors: string[] }> {
             return { count, errors };
         }
 
-        // TODO: merge pulled data into local SQLite
-        // For now, we just count what was available
-        count = data?.length || 0;
+        const rows = data ?? [];
+        for (const row of rows) {
+            try {
+                await upsertMealEntryFromSupabase(row);
+                count++;
+            } catch (e: any) {
+                errors.push(`Merge error (meal_entries:${row?.id ?? 'unknown'}): ${e?.message ?? e}`);
+            }
+        }
     } catch (err: any) {
         errors.push(`Pull error: ${err.message}`);
     }
@@ -155,6 +166,9 @@ let unsubscribe: (() => void) | null = null;
 
 export function startAutoSync(): void {
     if (unsubscribe) return;
+
+    // Best-effort initial sync when app starts.
+    syncAll().catch(() => {});
 
     unsubscribe = NetInfo.addEventListener((state) => {
         if (state.isConnected) {

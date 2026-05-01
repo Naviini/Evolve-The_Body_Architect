@@ -21,6 +21,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from '@/constants/theme';
 import { useAuth } from '@/src/contexts/AuthContext';
+import StoreDrawer from '@/components/store/StoreDrawer';
 import { syncAll, getSyncStatus } from '@/src/lib/sync';
 import {
     getOnboardingProfile,
@@ -47,6 +48,7 @@ export default function ProfileScreen() {
     const [bodyTypeResult, setBodyTypeResult] = useState<BodyTypeResult | null>(null);
     const [prefs, setPrefs] = useState<any>(null);
     const [lastCloudRefresh, setLastCloudRefresh] = useState<string | null>(null);
+    const [menuOpen, setMenuOpen] = useState(false);
     const { isDark, toggleTheme } = useAppTheme();
 
     useFocusEffect(
@@ -152,7 +154,12 @@ export default function ProfileScreen() {
                 showsVerticalScrollIndicator={false}
             >
                 {/* Header */}
-                <Text style={styles.headerTitle}>Profile</Text>
+                <View style={styles.headerRow}>
+                    <Text style={styles.headerTitle}>Profile</Text>
+                    <TouchableOpacity style={styles.menuButton} onPress={() => setMenuOpen(true)}>
+                        <Ionicons name="menu" size={20} color={colors.text} />
+                    </TouchableOpacity>
+                </View>
 
                 {/* User Card */}
                 <LinearGradient
@@ -375,6 +382,19 @@ export default function ProfileScreen() {
                 <Text style={styles.footer}>Calorie Tracker v1.0.0</Text>
                 <View style={{ height: 100 }} />
             </ScrollView>
+
+            <StoreDrawer
+                open={menuOpen}
+                statusText="Quick navigation"
+                onClose={() => setMenuOpen(false)}
+                onAccount={() => setMenuOpen(false)}
+                onWishlist={() => { setMenuOpen(false); router.push({ pathname: '/store', params: { screen: 'wishlist' } }); }}
+                onCheckout={() => { setMenuOpen(false); router.push({ pathname: '/store', params: { screen: 'checkout' } }); }}
+                onOrderStatus={() => { setMenuOpen(false); router.push({ pathname: '/store', params: { screen: 'status' } }); }}
+                onOrderHistory={() => { setMenuOpen(false); router.push({ pathname: '/store', params: { screen: 'orders' } }); }}
+                onClearSearch={() => setMenuOpen(false)}
+                onResetFilters={() => setMenuOpen(false)}
+            />
         </View>
     );
 }
@@ -423,7 +443,22 @@ const createStyles = (colors: any) => StyleSheet.create({
         fontSize: Typography.sizes.heading,
         color: colors.text,
         fontWeight: Typography.weights.bold,
+    },
+    headerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
         marginBottom: Spacing.lg,
+    },
+    menuButton: {
+        width: 38,
+        height: 38,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: colors.border,
+        backgroundColor: colors.surface,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
 
     // User Card
