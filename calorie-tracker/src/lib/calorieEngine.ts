@@ -1,5 +1,19 @@
 import { OnboardingProfile } from '@/src/types';
 
+/** Safely coerce a value that may be a JSON string or an array into a string[]. */
+function safeArray(value: any): string[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 export interface CalorieRecommendation {
   dailyCalories: number;
   bmr: number;
@@ -86,7 +100,7 @@ function getGoalAdjustment(profile: Partial<OnboardingProfile>, reasons: string[
     reasons.push('Pregnancy status increases calorie recommendation.');
   }
 
-  if ((profile.health_conditions ?? []).some((c) => /thyroid|hypothyroid/i.test(c))) {
+  if (safeArray(profile.health_conditions).some((c) => /thyroid|hypothyroid/i.test(c))) {
     adjustment -= 0.05;
     reasons.push('Metabolic health condition detected, applying conservative adjustment.');
   }
@@ -119,7 +133,7 @@ export function calculatePersonalizedCalorieRecommendation(
 ): CalorieRecommendation {
   const reasons: string[] = [];
 
-  const cuisinePrefs = profile.cuisine_preferences ?? [];
+  const cuisinePrefs = safeArray(profile.cuisine_preferences);
   const hasFlexibleCuisinePreference = cuisinePrefs.some((pref) => /^(other|others|no preference|no preferences)$/i.test(String(pref).trim()));
   if (hasFlexibleCuisinePreference) {
     reasons.push('Flexible cuisine preference detected: recommendations may include additional cuisines while respecting diet type and allergies.');
