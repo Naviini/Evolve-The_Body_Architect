@@ -10,7 +10,18 @@
 
 import NetInfo from '@react-native-community/netinfo';
 import { supabase, isSupabaseConfigured } from './supabase';
-import { getPendingMealEntries, markAsSynced, addMealEntry, getMealEntryById, updateDailyLog } from './database';
+import {
+    getPendingMealEntries,
+    markAsSynced,
+    addMealEntry,
+    getMealEntryById,
+    updateDailyLog,
+    getAllWorkoutPlans,
+    saveWorkoutPlan,
+    getPendingDailyLogs,
+    upsertDailyLogDirect,
+} from './database';
+import type { WorkoutPlan } from '@/src/types';
 
 let isSyncing = false;
 let lastSyncTimestamp: string | null = null;
@@ -64,13 +75,13 @@ async function pushChanges(): Promise<{ count: number; errors: string[] }> {
     const errors: string[] = [];
     let count = 0;
 
+    // Push pending meal entries
     try {
         const pendingMeals = await getPendingMealEntries();
 
         for (const meal of pendingMeals) {
             try {
                 if (meal.is_deleted) {
-                    // Soft delete in Supabase
                     const { error } = await supabase
                         .from('meal_entries')
                         .update({ is_deleted: true, updated_at: meal.updated_at })
@@ -78,7 +89,7 @@ async function pushChanges(): Promise<{ count: number; errors: string[] }> {
 
                     if (error) throw error;
                 } else {
-                    // Upsert — food_item_id is set to null for custom foods
+                    // food_item_id is set to null for custom foods
                     // (custom items only exist locally; FK would fail otherwise)
                     const { error } = await supabase.from('meal_entries').upsert({
                         id: meal.id,
@@ -109,7 +120,66 @@ async function pushChanges(): Promise<{ count: number; errors: string[] }> {
             }
         }
     } catch (err: any) {
-        errors.push(`Push error: ${err.message}`);
+        errors.push(`Push meals error: ${err.message}`);
+    }
+
+    // Push pending daily logs (outbox pattern — same as meal_entries)
+    try {
+        const pendingLogs = await getPendingDailyLogs();
+
+        for (const log of pendingLogs) {
+            try {
+                const { error } = await supabase.from('daily_logs').upsert({
+                    id: log.id,
+                    user_id: log.user_id,
+                    log_date: log.log_date,
+                    total_calories: log.total_calories,
+                    total_protein_g: log.total_protein_g,
+                    total_carbs_g: log.total_carbs_g,
+                    total_fat_g: log.total_fat_g,
+                    water_ml: log.water_ml,
+                    updated_at: log.updated_at,
+                }, { onConflict: 'user_id,log_date' });
+
+                if (error) throw error;
+                await markAsSynced('daily_logs', log.id);
+                count++;
+            } catch (err: any) {
+                errors.push(`Failed to push daily log ${log.log_date}: ${err.message}`);
+            }
+        }
+    } catch (err: any) {
+        errors.push(`Push daily logs error: ${err.message}`);
+    }
+
+    // Push local workout plans (backfills any that were never synced)
+    try {
+        const { data: session } = await supabase.auth.getSession();
+        const userId = session?.session?.user?.id;
+
+        if (userId) {
+            const localPlans = await getAllWorkoutPlans(userId);
+
+            for (const plan of localPlans) {
+                try {
+                    const { error } = await supabase.from('workout_plans').upsert({
+                        id: plan.id,
+                        user_id: plan.user_id,
+                        week_start_date: plan.week_start_date,
+                        plan_json: plan.plan_json,
+                        reasoning: plan.reasoning ?? null,
+                        generated_at: plan.generated_at,
+                    }, { onConflict: 'user_id,week_start_date' });
+
+                    if (error) throw error;
+                    count++;
+                } catch (err: any) {
+                    errors.push(`Failed to push workout plan ${plan.week_start_date}: ${err.message}`);
+                }
+            }
+        }
+    } catch (err: any) {
+        errors.push(`Push workout plans error: ${err.message}`);
     }
 
     return { count, errors };
@@ -177,6 +247,73 @@ async function pullChanges(): Promise<{ count: number; errors: string[] }> {
                 await markAsSynced('meal_entries', remote.id);
                 count++;
             } catch { /* skip individual row errors */ }
+        }
+
+        // Pull remote workout plans
+        let plansQuery = supabase
+            .from('workout_plans')
+            .select('*')
+            .eq('user_id', session.session.user.id);
+
+        if (lastSyncTimestamp) {
+            plansQuery = plansQuery.gt('generated_at', lastSyncTimestamp);
+        }
+
+        const { data: remotePlans, error: plansError } = await plansQuery;
+
+        if (plansError) {
+            errors.push(`Pull workout plans error: ${plansError.message}`);
+        } else {
+            for (const remote of remotePlans ?? []) {
+                try {
+                    let plan: WorkoutPlan;
+                    try {
+                        plan = JSON.parse(remote.plan_json) as WorkoutPlan;
+                    } catch {
+                        continue;
+                    }
+                    plan.id = remote.id;
+                    plan.weekStartDate = remote.week_start_date;
+                    plan.generatedAt = remote.generated_at;
+                    plan.reasoning = remote.reasoning ?? plan.reasoning;
+
+                    await saveWorkoutPlan(remote.user_id, plan);
+                    count++;
+                } catch { /* skip individual row errors */ }
+            }
+        }
+
+        // Pull remote daily logs (last-write-wins via updated_at)
+        let logsQuery = supabase
+            .from('daily_logs')
+            .select('*')
+            .eq('user_id', session.session.user.id);
+
+        if (lastSyncTimestamp) {
+            logsQuery = logsQuery.gt('updated_at', lastSyncTimestamp);
+        }
+
+        const { data: remoteLogs, error: logsError } = await logsQuery;
+
+        if (logsError) {
+            errors.push(`Pull daily logs error: ${logsError.message}`);
+        } else {
+            for (const remote of remoteLogs ?? []) {
+                try {
+                    await upsertDailyLogDirect({
+                        id: remote.id,
+                        user_id: remote.user_id,
+                        log_date: remote.log_date,
+                        total_calories: remote.total_calories ?? 0,
+                        total_protein_g: remote.total_protein_g ?? 0,
+                        total_carbs_g: remote.total_carbs_g ?? 0,
+                        total_fat_g: remote.total_fat_g ?? 0,
+                        water_ml: remote.water_ml ?? 0,
+                        updated_at: remote.updated_at ?? new Date().toISOString(),
+                    });
+                    count++;
+                } catch { /* skip individual row errors */ }
+            }
         }
     } catch (err: any) {
         errors.push(`Pull error: ${err.message}`);
