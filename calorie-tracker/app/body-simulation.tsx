@@ -14,7 +14,7 @@
  *   - Optional photo upload
  */
 
-import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
     View,
     Text,
@@ -26,19 +26,24 @@ import {
     ActivityIndicator,
     Dimensions,
     Alert,
+    Image,
+    Modal,
+    FlatList,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
-import { Colors, Spacing, BorderRadius, Typography, Shadows } from '@/constants/theme';
+import { Colors, Spacing, BorderRadius } from '@/constants/theme';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { getUserHealthProfileForProcessing } from '@/src/lib/database';
+import { getUserHealthProfileForProcessing, saveBodyPhoto, getBodyPhotos, purgeStaleBlobPhotos } from '@/src/lib/database';
 import { generateBodySimulation, inferDreamBodyStyle } from '@/src/lib/bodySimulationEngine';
-import BodySilhouette, { BodySilhouetteMini } from '@/components/BodySilhouette';
-import { MilestonePhase, OnboardingProfile } from '@/src/types';
+import BodySilhouette from '@/components/BodySilhouette';
+import BodyModel3D from '@/components/BodyModel3D';
+import { MilestonePhase, OnboardingProfile, BodyPhotoRecord } from '@/src/types';
 import { useAppStyles } from '@/hooks/useAppStyles';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { analyzeBodyPhoto, BodyPhotoAnalysis } from '@/src/lib/bodyPhotoAnalysis';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -75,7 +80,12 @@ export default function BodySimulationScreen() {
     const [selectedPhase, setSelectedPhase] = useState(0);
     const [compareMode, setCompareMode] = useState(false);
     const [profile, setProfile] = useState<OnboardingProfile | null>(null);
-    const [bodyPhoto, setBodyPhoto] = useState<string | null>(null);
+    const [photosByPhase, setPhotosByPhase] = useState<Record<number, BodyPhotoRecord[]>>({});
+    const [photoUploading, setPhotoUploading] = useState(false);
+    const [fullScreenPhoto, setFullScreenPhoto] = useState<string | null>(null);
+    const [aiAnalysis, setAiAnalysis] = useState<BodyPhotoAnalysis | null>(null);
+    const [analyzingPhoto, setAnalyzingPhoto] = useState(false);
+    const [viewMode, setViewMode] = useState<'2d' | '3d'>('3d');
     const slideAnim = useRef(new Animated.Value(0)).current;
     const timelineRef = useRef<ScrollView>(null);
 
@@ -84,8 +94,12 @@ export default function BodySimulationScreen() {
     // ── Load data ───────────────────────────────────────────
     useEffect(() => {
         const uid = user?.id ?? 'onboarding-temp';
-        getUserHealthProfileForProcessing(uid)
-            .then(p => {
+        // Remove any stale blob: URIs left over from previous browser sessions
+        purgeStaleBlobPhotos(uid).catch(() => {});
+        Promise.all([
+            getUserHealthProfileForProcessing(uid),
+            getBodyPhotos(uid),
+        ]).then(([p, photos]) => {
                 if (p) {
                     setProfile(p);
                     const dreamStyle = inferDreamBodyStyle(p.dream_daily_routine);
@@ -96,6 +110,15 @@ export default function BodySimulationScreen() {
                     });
                     setPhases(result);
                 }
+                // Group all valid (non-blob) photos by phase
+                const grouped = photos
+                    .filter(photo => !photo.localUri.startsWith('blob:'))
+                    .reduce<Record<number, BodyPhotoRecord[]>>((acc, photo) => {
+                        if (!acc[photo.phase]) acc[photo.phase] = [];
+                        acc[photo.phase].push(photo);
+                        return acc;
+                    }, {});
+                setPhotosByPhase(grouped);
                 setLoading(false);
             })
             .catch(() => setLoading(false));
@@ -112,7 +135,52 @@ export default function BodySimulationScreen() {
         }).start();
     }, [slideAnim]);
 
-    // ── Photo picker ────────────────────────────────────────
+    // ── Photo helpers ────────────────────────────────────────
+    const persistPhoto = useCallback(async (localUri: string) => {
+        const uid = user?.id ?? 'onboarding-temp';
+        setPhotoUploading(true);
+        try {
+            const savedId = await saveBodyPhoto({
+                id: undefined as unknown as string,
+                userId: uid,
+                localUri,
+                dateTaken: new Date().toISOString().split('T')[0],
+                phase: selectedPhase,
+                notes: null,
+            });
+
+            const newRecord: BodyPhotoRecord = {
+                id: savedId,
+                userId: uid,
+                localUri,
+                dateTaken: new Date().toISOString().split('T')[0],
+                phase: selectedPhase,
+                notes: null,
+                createdAt: new Date().toISOString(),
+            };
+
+            // Prepend the new photo to its phase bucket
+            setPhotosByPhase(prev => ({
+                ...prev,
+                [selectedPhase]: [newRecord, ...(prev[selectedPhase] ?? [])],
+            }));
+
+            // Kick off AI analysis in the background
+            setAnalyzingPhoto(true);
+            setAiAnalysis(null);
+            analyzeBodyPhoto(localUri)
+                .then(result => setAiAnalysis(result))
+                .catch(() => null)
+                .finally(() => setAnalyzingPhoto(false));
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
+            console.error('Failed to save body photo:', msg);
+            Alert.alert('Save failed', 'Your photo was kept on this device but could not be uploaded. It will retry when you are online.');
+        } finally {
+            setPhotoUploading(false);
+        }
+    }, [user?.id, selectedPhase]);
+
     const handlePickPhoto = async () => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
@@ -126,7 +194,7 @@ export default function BodySimulationScreen() {
             aspect: [3, 4],
         });
         if (!result.canceled && result.assets?.[0]) {
-            setBodyPhoto(result.assets[0].uri);
+            await persistPhoto(result.assets[0].uri);
         }
     };
 
@@ -142,7 +210,7 @@ export default function BodySimulationScreen() {
             aspect: [3, 4],
         });
         if (!result.canceled && result.assets?.[0]) {
-            setBodyPhoto(result.assets[0].uri);
+            await persistPhoto(result.assets[0].uri);
         }
     };
 
@@ -201,16 +269,30 @@ export default function BodySimulationScreen() {
                         {currentPhaseData?.label ?? 'Journey'}
                     </Text>
                 </View>
-                <TouchableOpacity
-                    onPress={() => setCompareMode(!compareMode)}
-                    style={[styles.compareToggle, compareMode && styles.compareToggleActive]}
-                >
-                    <Ionicons
-                        name={compareMode ? 'git-compare' : 'git-compare-outline'}
-                        size={20}
-                        color={compareMode ? accentColor : '#FFF'}
-                    />
-                </TouchableOpacity>
+                <View style={styles.headerButtons}>
+                    {/* 2D/3D Toggle */}
+                    <TouchableOpacity
+                        onPress={() => setViewMode(viewMode === '2d' ? '3d' : '2d')}
+                        style={[styles.compareToggle, viewMode === '3d' && styles.compareToggleActive]}
+                    >
+                        <Ionicons
+                            name={viewMode === '3d' ? 'cube' : 'cube-outline'}
+                            size={20}
+                            color={viewMode === '3d' ? accentColor : '#FFF'}
+                        />
+                    </TouchableOpacity>
+                    {/* Compare Toggle */}
+                    <TouchableOpacity
+                        onPress={() => setCompareMode(!compareMode)}
+                        style={[styles.compareToggle, compareMode && styles.compareToggleActive]}
+                    >
+                        <Ionicons
+                            name={compareMode ? 'git-compare' : 'git-compare-outline'}
+                            size={20}
+                            color={compareMode ? accentColor : '#FFF'}
+                        />
+                    </TouchableOpacity>
+                </View>
             </LinearGradient>
 
             <ScrollView
@@ -260,19 +342,29 @@ export default function BodySimulationScreen() {
                     </Text>
                 </View>
 
-                {/* ── Body Silhouette ─────────────────────────── */}
+                {/* ── Body Visualization (2D/3D) ────────────────── */}
                 <View style={styles.silhouetteSection}>
                     {compareMode && phase0Data ? (
                         <View style={styles.compareRow}>
                             <View style={styles.compareItem}>
                                 <Text style={styles.compareLabel}>Current</Text>
-                                <BodySilhouette
-                                    params={phase0Data.bodyParams}
-                                    gender={gender}
-                                    size={220}
-                                    accentColor={PHASE_COLORS[0]}
-                                    showGlow={false}
-                                />
+                                {viewMode === '3d' ? (
+                                    <BodyModel3D
+                                        params={phase0Data.bodyParams}
+                                        gender={gender}
+                                        size={200}
+                                        accentColor={PHASE_COLORS[0]}
+                                        autoRotate
+                                    />
+                                ) : (
+                                    <BodySilhouette
+                                        params={phase0Data.bodyParams}
+                                        gender={gender}
+                                        size={200}
+                                        accentColor={PHASE_COLORS[0]}
+                                        showGlow={false}
+                                    />
+                                )}
                                 <Text style={styles.compareWeight}>{phase0Data.estimatedWeightKg} kg</Text>
                             </View>
                             <View style={styles.compareDivider}>
@@ -282,12 +374,22 @@ export default function BodySimulationScreen() {
                                 <Text style={[styles.compareLabel, { color: accentColor }]}>
                                     {currentPhaseData?.label}
                                 </Text>
-                                <BodySilhouette
-                                    params={currentPhaseData?.bodyParams ?? phase0Data.bodyParams}
-                                    gender={gender}
-                                    size={220}
-                                    accentColor={accentColor}
-                                />
+                                {viewMode === '3d' ? (
+                                    <BodyModel3D
+                                        params={currentPhaseData?.bodyParams ?? phase0Data.bodyParams}
+                                        gender={gender}
+                                        size={200}
+                                        accentColor={accentColor}
+                                        autoRotate
+                                    />
+                                ) : (
+                                    <BodySilhouette
+                                        params={currentPhaseData?.bodyParams ?? phase0Data.bodyParams}
+                                        gender={gender}
+                                        size={200}
+                                        accentColor={accentColor}
+                                    />
+                                )}
                                 <Text style={[styles.compareWeight, { color: accentColor }]}>
                                     {currentPhaseData?.estimatedWeightKg} kg
                                 </Text>
@@ -295,16 +397,29 @@ export default function BodySimulationScreen() {
                         </View>
                     ) : (
                         <View style={styles.singleSilhouette}>
-                            <BodySilhouette
-                                params={currentPhaseData?.bodyParams ?? phase0Data?.bodyParams ?? {
-                                    shoulderWidth: 0.5, chestWidth: 0.45, waistWidth: 0.35,
-                                    hipWidth: 0.4, armSize: 0.35, legSize: 0.4,
-                                    muscleTone: 0.3, bodyFatOverlay: 0.3,
-                                }}
-                                gender={gender}
-                                size={320}
-                                accentColor={accentColor}
-                            />
+                            {viewMode === '3d' ? (
+                                <BodyModel3D
+                                    params={currentPhaseData?.bodyParams ?? phase0Data?.bodyParams ?? {
+                                        shoulderWidth: 0.5, chestWidth: 0.45, waistWidth: 0.35,
+                                        hipWidth: 0.4, armSize: 0.35, legSize: 0.4,
+                                        muscleTone: 0.3, bodyFatOverlay: 0.3,
+                                    }}
+                                    gender={gender}
+                                    size={340}
+                                    accentColor={accentColor}
+                                />
+                            ) : (
+                                <BodySilhouette
+                                    params={currentPhaseData?.bodyParams ?? phase0Data?.bodyParams ?? {
+                                        shoulderWidth: 0.5, chestWidth: 0.45, waistWidth: 0.35,
+                                        hipWidth: 0.4, armSize: 0.35, legSize: 0.4,
+                                        muscleTone: 0.3, bodyFatOverlay: 0.3,
+                                    }}
+                                    gender={gender}
+                                    size={320}
+                                    accentColor={accentColor}
+                                />
+                            )}
                         </View>
                     )}
                 </View>
@@ -377,38 +492,99 @@ export default function BodySimulationScreen() {
                     <Text style={styles.focusBody}>{currentPhaseData?.workoutFocus}</Text>
                 </View>
 
-                {/* ── Photo Upload ────────────────────────────── */}
+                {/* ── Photo Timeline ───────────────────────────── */}
                 <View style={styles.photoSection}>
-                    <Text style={styles.cardTitle}>📸 Your Body Photo</Text>
+                    <Text style={styles.cardTitle}>📸 Photo Timeline</Text>
                     <Text style={styles.photoHint}>
-                        Optionally upload a photo of your current body to personalise your journey.
+                        Add phase-tagged photos to track your transformation. Tap a photo to view it full-screen.
                     </Text>
-                    {bodyPhoto ? (
-                        <View style={styles.photoPreview}>
-                            <View style={styles.photoPlaceholder}>
-                                <Ionicons name="checkmark-circle" size={40} color={Colors.success} />
-                                <Text style={styles.photoUploadedText}>Photo uploaded!</Text>
-                            </View>
-                            <TouchableOpacity
-                                onPress={() => setBodyPhoto(null)}
-                                style={styles.photoRemoveBtn}
-                            >
-                                <Text style={styles.photoRemoveText}>Remove</Text>
-                            </TouchableOpacity>
-                        </View>
-                    ) : (
-                        <View style={styles.photoButtons}>
-                            <TouchableOpacity style={styles.photoBtn} onPress={handleTakePhoto}>
-                                <Ionicons name="camera-outline" size={22} color={Colors.primary} />
-                                <Text style={styles.photoBtnText}>Take Photo</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.photoBtn} onPress={handlePickPhoto}>
-                                <Ionicons name="images-outline" size={22} color={Colors.primary} />
-                                <Text style={styles.photoBtnText}>Gallery</Text>
-                            </TouchableOpacity>
+
+                    {/* Thumbnails for current phase */}
+                    {(photosByPhase[selectedPhase] ?? []).length > 0 && (
+                        <FlatList
+                            horizontal
+                            data={photosByPhase[selectedPhase]}
+                            keyExtractor={item => item.id}
+                            showsHorizontalScrollIndicator={false}
+                            style={styles.photoStrip}
+                            contentContainerStyle={styles.photoStripContent}
+                            renderItem={({ item }) => (
+                                <TouchableOpacity
+                                    onPress={() => setFullScreenPhoto(item.localUri)}
+                                    style={styles.photoThumb}
+                                    activeOpacity={0.8}
+                                >
+                                    <Image
+                                        source={{ uri: item.localUri }}
+                                        style={styles.photoThumbImage}
+                                        resizeMode="cover"
+                                    />
+                                    <Text style={styles.photoThumbDate}>
+                                        {item.dateTaken.slice(5).replace('-', '/')}
+                                    </Text>
+                                </TouchableOpacity>
+                            )}
+                        />
+                    )}
+
+                    {/* Add photo buttons */}
+                    <View style={styles.photoButtons}>
+                        <TouchableOpacity style={styles.photoBtn} onPress={handleTakePhoto} disabled={photoUploading}>
+                            <Ionicons name="camera-outline" size={22} color={Colors.primary} />
+                            <Text style={styles.photoBtnText}>Camera</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.photoBtn} onPress={handlePickPhoto} disabled={photoUploading}>
+                            <Ionicons name="images-outline" size={22} color={Colors.primary} />
+                            <Text style={styles.photoBtnText}>Gallery</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {photoUploading && (
+                        <View style={styles.photoStatusRow}>
+                            <ActivityIndicator size="small" color={Colors.primary} />
+                            <Text style={styles.photoStatusText}>Uploading photo…</Text>
                         </View>
                     )}
+
+                    {analyzingPhoto && (
+                        <View style={styles.photoStatusRow}>
+                            <ActivityIndicator size="small" color="#8B5CF6" />
+                            <Text style={styles.aiAnalyzingText}>Analyzing your photo with AI…</Text>
+                        </View>
+                    )}
+
+                    {aiAnalysis && !analyzingPhoto && (
+                        <AIAnalysisCard analysis={aiAnalysis} />
+                    )}
                 </View>
+
+                {/* ── Full-screen photo Modal ──────────────────── */}
+                <Modal
+                    visible={fullScreenPhoto !== null}
+                    transparent
+                    animationType="fade"
+                    onRequestClose={() => setFullScreenPhoto(null)}
+                >
+                    <TouchableOpacity
+                        style={styles.modalOverlay}
+                        activeOpacity={1}
+                        onPress={() => setFullScreenPhoto(null)}
+                    >
+                        {fullScreenPhoto && (
+                            <Image
+                                source={{ uri: fullScreenPhoto }}
+                                style={styles.modalImage}
+                                resizeMode="contain"
+                            />
+                        )}
+                        <TouchableOpacity
+                            style={styles.modalClose}
+                            onPress={() => setFullScreenPhoto(null)}
+                        >
+                            <Ionicons name="close" size={28} color="#FFF" />
+                        </TouchableOpacity>
+                    </TouchableOpacity>
+                </Modal>
 
                 {/* ── Weight Change Summary ───────────────────── */}
                 {phase0Data && currentPhaseData && selectedPhase > 0 && (
@@ -456,7 +632,6 @@ function StatCard({ label, value, unit, icon, color }: {
     label: string; value: string; unit: string;
     icon: string; color: string;
 }) {
-  const colors = useThemeColors();
   const styles = useAppStyles(createStyles);
     return (
         <View style={styles.statCard}>
@@ -471,7 +646,6 @@ function StatCard({ label, value, unit, icon, color }: {
 function ChangeItem({ label, from, to, unit, color }: {
     label: string; from: number; to: number; unit: string; color: string;
 }) {
-  const colors = useThemeColors();
   const styles = useAppStyles(createStyles);
     const diff = to - from;
     const sign = diff >= 0 ? '+' : '';
@@ -484,6 +658,73 @@ function ChangeItem({ label, from, to, unit, color }: {
             <Text style={styles.changeFromTo}>
                 {Math.round(from * 10) / 10} → {Math.round(to * 10) / 10}
             </Text>
+        </View>
+    );
+}
+
+function AIAnalysisCard({ analysis }: { analysis: BodyPhotoAnalysis }) {
+    const styles = useAppStyles(createStyles);
+
+    const confidenceColor =
+        analysis.confidence === 'high' ? '#10B981' :
+        analysis.confidence === 'medium' ? '#3B82F6' :
+        '#F59E0B';
+
+    return (
+        <View style={styles.aiCard}>
+            <View style={styles.aiCardHeader}>
+                <Ionicons name={'flash-outline' as any} size={18} color="#8B5CF6" />
+                <Text style={styles.aiCardTitle}>AI Body Analysis</Text>
+                <View style={[styles.confidenceBadge, { backgroundColor: confidenceColor + '25' }]}>
+                    <Text style={[styles.confidenceBadgeText, { color: confidenceColor }]}>
+                        {analysis.confidence} confidence
+                    </Text>
+                </View>
+            </View>
+
+            {/* Key metrics row */}
+            <View style={styles.aiStatsRow}>
+                {analysis.estimatedBFPercent != null && (
+                    <View style={styles.aiStat}>
+                        <Text style={styles.aiStatValue}>{analysis.estimatedBFPercent}%</Text>
+                        <Text style={styles.aiStatLabel}>Est. Body Fat</Text>
+                    </View>
+                )}
+                {analysis.bodyTypeEstimate != null && (
+                    <View style={styles.aiStat}>
+                        <Text style={styles.aiStatValue} numberOfLines={1}>{analysis.bodyTypeEstimate}</Text>
+                        <Text style={styles.aiStatLabel}>Body Type</Text>
+                    </View>
+                )}
+                {analysis.muscleDefinition != null && (
+                    <View style={styles.aiStat}>
+                        <Text style={styles.aiStatValue}>{analysis.muscleDefinition}</Text>
+                        <Text style={styles.aiStatLabel}>Muscle Def.</Text>
+                    </View>
+                )}
+            </View>
+
+            {analysis.posture != null && (
+                <Text style={styles.aiPosture}>Posture: {analysis.posture}</Text>
+            )}
+
+            {analysis.keyObservations.length > 0 && (
+                <View style={styles.aiSection}>
+                    <Text style={styles.aiSectionTitle}>Key Observations</Text>
+                    {analysis.keyObservations.map((obs, i) => (
+                        <Text key={i} style={styles.aiListItem}>• {obs}</Text>
+                    ))}
+                </View>
+            )}
+
+            {analysis.recommendations.length > 0 && (
+                <View style={styles.aiSection}>
+                    <Text style={styles.aiSectionTitle}>Recommendations</Text>
+                    {analysis.recommendations.map((rec, i) => (
+                        <Text key={i} style={styles.aiListItem}>• {rec}</Text>
+                    ))}
+                </View>
+            )}
         </View>
     );
 }
@@ -517,6 +758,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     headerCenter: { flex: 1 },
     headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
     headerSubtitle: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
+    headerButtons: { flexDirection: 'row', gap: 8 },
     compareToggle: {
         width: 40, height: 40, borderRadius: 20,
         backgroundColor: 'rgba(255,255,255,0.15)',
@@ -628,6 +870,11 @@ const createStyles = (colors: any) => StyleSheet.create({
         marginBottom: Spacing.md,
     },
     photoHint: { fontSize: 13, color: colors.textTertiary, marginBottom: Spacing.sm, lineHeight: 18 },
+    photoStrip: { marginBottom: Spacing.sm },
+    photoStripContent: { gap: Spacing.sm, paddingVertical: 4 },
+    photoThumb: { alignItems: 'center', gap: 4 },
+    photoThumbImage: { width: 80, height: 104, borderRadius: BorderRadius.sm, backgroundColor: colors.border },
+    photoThumbDate: { fontSize: 11, color: colors.textTertiary },
     photoButtons: { flexDirection: 'row', gap: Spacing.sm },
     photoBtn: {
         flex: 1,
@@ -642,11 +889,56 @@ const createStyles = (colors: any) => StyleSheet.create({
         borderStyle: 'dashed',
     },
     photoBtnText: { fontSize: 14, color: Colors.primary, fontWeight: '600' },
-    photoPreview: { alignItems: 'center', gap: Spacing.sm },
-    photoPlaceholder: { alignItems: 'center', paddingVertical: Spacing.md },
-    photoUploadedText: { fontSize: 14, color: Colors.success, fontWeight: '600', marginTop: 8 },
-    photoRemoveBtn: { paddingVertical: 6, paddingHorizontal: 16 },
-    photoRemoveText: { fontSize: 13, color: Colors.error },
+    photoStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: Spacing.sm },
+    photoStatusText: { fontSize: 13, color: colors.textSecondary },
+    aiAnalyzingText: { fontSize: 13, color: '#8B5CF6', fontStyle: 'italic' },
+
+    // ── Full-screen modal
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.92)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modalImage: {
+        width: SCREEN_WIDTH,
+        height: SCREEN_WIDTH * (4 / 3),
+    },
+    modalClose: {
+        position: 'absolute',
+        top: Platform.OS === 'ios' ? 58 : 36,
+        right: 20,
+        backgroundColor: 'rgba(0,0,0,0.55)',
+        borderRadius: BorderRadius.round,
+        padding: 8,
+    },
+
+    // ── AI Analysis card
+    aiCard: {
+        marginTop: Spacing.md,
+        borderRadius: BorderRadius.md,
+        borderWidth: 1,
+        borderColor: '#8B5CF680',
+        backgroundColor: colors.surface,
+        padding: Spacing.md,
+    },
+    aiCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: Spacing.sm },
+    aiCardTitle: { fontSize: 15, fontWeight: '700', color: colors.text, flex: 1 },
+    confidenceBadge: { borderRadius: BorderRadius.round, paddingHorizontal: 8, paddingVertical: 3 },
+    confidenceBadgeText: { fontSize: 11, fontWeight: '700' },
+    aiStatsRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.sm },
+    aiStat: {
+        flex: 1, alignItems: 'center', gap: 2,
+        backgroundColor: colors.border + '50',
+        borderRadius: BorderRadius.sm,
+        padding: Spacing.sm,
+    },
+    aiStatValue: { fontSize: 14, fontWeight: '700', color: colors.text },
+    aiStatLabel: { fontSize: 10, color: colors.textTertiary },
+    aiPosture: { fontSize: 12, color: colors.textSecondary, fontStyle: 'italic', marginBottom: Spacing.sm },
+    aiSection: { marginTop: Spacing.sm },
+    aiSectionTitle: { fontSize: 13, fontWeight: '700', color: colors.textSecondary, marginBottom: 4 },
+    aiListItem: { fontSize: 13, color: colors.textSecondary, lineHeight: 20, marginBottom: 2 },
 
     // ── Change summary
     changeSummary: {

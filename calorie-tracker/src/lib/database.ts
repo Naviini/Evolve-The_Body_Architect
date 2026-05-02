@@ -857,6 +857,60 @@ export async function markAsSynced(table: string, id: string): Promise<void> {
     );
 }
 
+export async function getPendingDailyLogs(): Promise<Array<{
+    id: string;
+    user_id: string;
+    log_date: string;
+    total_calories: number;
+    total_protein_g: number;
+    total_carbs_g: number;
+    total_fat_g: number;
+    water_ml: number;
+    updated_at: string;
+}>> {
+    const database = getDb();
+    return database.getAllAsync<any>(
+        `SELECT * FROM daily_logs WHERE sync_status = 'pending'`
+    );
+}
+
+export async function upsertDailyLogDirect(log: {
+    id: string;
+    user_id: string;
+    log_date: string;
+    total_calories: number;
+    total_protein_g: number;
+    total_carbs_g: number;
+    total_fat_g: number;
+    water_ml: number;
+    updated_at: string;
+}): Promise<void> {
+    const database = getDb();
+    await database.runAsync(
+        `INSERT INTO daily_logs (id, user_id, log_date, total_calories, total_protein_g, total_carbs_g, total_fat_g, water_ml, updated_at, sync_status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced')
+         ON CONFLICT(user_id, log_date) DO UPDATE SET
+           total_calories = excluded.total_calories,
+           total_protein_g = excluded.total_protein_g,
+           total_carbs_g = excluded.total_carbs_g,
+           total_fat_g = excluded.total_fat_g,
+           water_ml = excluded.water_ml,
+           updated_at = excluded.updated_at,
+           sync_status = 'synced'`,
+        [
+            log.id,
+            log.user_id,
+            log.log_date,
+            log.total_calories,
+            log.total_protein_g,
+            log.total_carbs_g,
+            log.total_fat_g,
+            log.water_ml,
+            log.updated_at,
+        ]
+    );
+}
+
 // ============================================================
 // Onboarding Health Profile
 // ============================================================
@@ -1508,6 +1562,40 @@ export async function saveWorkoutPlan(
             plan.generatedAt,
         ]
     );
+
+    if (userId && userId !== 'onboarding-temp') {
+        try {
+            const { error } = await supabase.from('workout_plans').upsert({
+                id,
+                user_id: userId,
+                week_start_date: plan.weekStartDate,
+                plan_json: JSON.stringify(plan),
+                reasoning: plan.reasoning ?? null,
+                generated_at: plan.generatedAt,
+            }, { onConflict: 'user_id,week_start_date' });
+
+            if (error) {
+                console.error('Failed to sync workout plan to Supabase:', error.message);
+            }
+        } catch (e: any) {
+            console.error('Unexpected workout plan sync error:', e?.message ?? e);
+        }
+    }
+}
+
+export async function getAllWorkoutPlans(userId: string): Promise<Array<{
+    id: string;
+    user_id: string;
+    week_start_date: string;
+    plan_json: string;
+    reasoning: string | null;
+    generated_at: string;
+}>> {
+    const database = getDb();
+    return database.getAllAsync<any>(
+        `SELECT * FROM workout_plans WHERE user_id = ? ORDER BY week_start_date DESC`,
+        [userId]
+    );
 }
 
 export async function getWorkoutPlan(
@@ -1721,28 +1809,104 @@ export async function saveProfileHash(userId: string, hash: string): Promise<voi
 // Body Photos
 // ============================================================
 
+/**
+ * Uploads a local photo file to Supabase Storage and returns the public URL.
+ * Returns null if the upload fails (e.g. offline) — caller falls back to local URI.
+ *
+ * Bucket: body-photos  (must exist in Supabase Storage with public access)
+ * Path:   {userId}/{photoId}.jpg
+ */
+async function uploadPhotoToStorage(
+    localUri: string,
+    userId: string,
+    photoId: string,
+): Promise<string | null> {
+    try {
+        const response = await fetch(localUri);
+        if (!response.ok) {
+            console.error('Storage upload: could not fetch local file', response.status);
+            return null;
+        }
+
+        // ArrayBuffer works reliably across Expo native, Expo web, and blob: URLs
+        const arrayBuffer = await response.arrayBuffer();
+
+        // Detect mime type from URI extension; default to jpeg
+        const ext = localUri.split('?')[0].split('.').pop()?.toLowerCase();
+        const contentType =
+            ext === 'png' ? 'image/png' :
+            ext === 'webp' ? 'image/webp' :
+            ext === 'heic' ? 'image/heic' :
+            'image/jpeg';
+
+        const storagePath = `${userId}/${photoId}.jpg`;
+        const { error: uploadError } = await supabase.storage
+            .from('body-photos')
+            .upload(storagePath, arrayBuffer, {
+                contentType,
+                upsert: true,
+            });
+
+        if (uploadError) {
+            console.error('Storage upload error:', uploadError.message);
+            return null;
+        }
+
+        const { data } = supabase.storage
+            .from('body-photos')
+            .getPublicUrl(storagePath);
+
+        return data.publicUrl ?? null;
+    } catch (e: any) {
+        console.error('Unexpected upload error:', e?.message ?? e);
+        return null;
+    }
+}
+
 export async function saveBodyPhoto(photo: Omit<BodyPhotoRecord, 'createdAt'>): Promise<string> {
     const database = getDb();
     const id = photo.id || generateId();
+
+    // 1. Save locally first so the app works immediately offline
     await database.runAsync(
         `INSERT INTO body_photos (id, user_id, local_uri, date_taken, phase, notes)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           local_uri = excluded.local_uri,
+           date_taken = excluded.date_taken,
+           phase = excluded.phase,
+           notes = excluded.notes`,
         [id, photo.userId, photo.localUri, photo.dateTaken, photo.phase, photo.notes]
     );
 
-    // Sync to Supabase
-    if (photo.userId !== 'onboarding-temp') {
-        supabase.from('body_photos').upsert({
-            id,
-            user_id: photo.userId,
-            local_uri: photo.localUri,
-            date_taken: photo.dateTaken,
-            phase: photo.phase,
-            notes: photo.notes,
-            created_at: new Date().toISOString()
-        }, { onConflict: 'id' })
-        .then(({error}) => { if (error) console.error("Body photo sync error:", error); });
+    if (photo.userId === 'onboarding-temp') return id;
+
+    // 2. Upload the actual image file to Supabase Storage
+    const publicUrl = await uploadPhotoToStorage(photo.localUri, photo.userId, id);
+
+    // 3. Use the public URL everywhere so the photo is accessible on any device.
+    //    Fall back to the local URI if upload failed (e.g. offline).
+    const persistedUri = publicUrl ?? photo.localUri;
+
+    // 4. Update local SQLite with the public URL (so it survives reinstalls)
+    if (publicUrl) {
+        await database.runAsync(
+            `UPDATE body_photos SET local_uri = ? WHERE id = ?`,
+            [publicUrl, id]
+        );
     }
+
+    // 5. Upsert metadata row in Supabase with the public URL
+    supabase.from('body_photos').upsert({
+        id,
+        user_id: photo.userId,
+        local_uri: persistedUri,
+        date_taken: photo.dateTaken,
+        phase: photo.phase,
+        notes: photo.notes,
+        created_at: new Date().toISOString(),
+    }, { onConflict: 'id' })
+    .then(({ error }) => { if (error) console.error('Body photo metadata sync error:', error.message); });
 
     return id;
 }
@@ -1762,6 +1926,14 @@ export async function getBodyPhotos(userId: string): Promise<BodyPhotoRecord[]> 
         notes: r.notes,
         createdAt: r.created_at,
     }));
+}
+
+export async function purgeStaleBlobPhotos(userId: string): Promise<void> {
+    const database = getDb();
+    await database.runAsync(
+        `DELETE FROM body_photos WHERE user_id = ? AND local_uri LIKE 'blob:%'`,
+        [userId]
+    );
 }
 
 export async function deleteBodyPhoto(id: string): Promise<void> {
