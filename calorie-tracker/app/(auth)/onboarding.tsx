@@ -216,7 +216,7 @@ export default function OnboardingScreen() {
                     })}
                 </View>
 
-                {/* Action Button */}
+                {/* Primary action button */}
                 <TouchableOpacity style={styles.actionButton} onPress={handleNext} activeOpacity={0.85}>
                     <LinearGradient
                         colors={PAGES[currentPage].gradient}
@@ -237,6 +237,20 @@ export default function OnboardingScreen() {
                         )}
                     </LinearGradient>
                 </TouchableOpacity>
+
+                {/* Sign In link — always visible for returning users */}
+                <View style={styles.signInRow}>
+                    <Text style={styles.signInPrompt}>Already have an account?</Text>
+                    <TouchableOpacity
+                        onPress={() => router.push('/(auth)/login' as any)}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
+                    >
+                        <Text style={[styles.signInLink, { color: PAGES[currentPage].gradient[0] }]}>
+                            {' '}Sign In
+                        </Text>
+                    </TouchableOpacity>
+                </View>
             </View>
         </View>
     );
@@ -398,5 +412,20 @@ const styles = StyleSheet.create({
         fontSize: Typography.sizes.subtitle,
         fontWeight: Typography.weights.bold,
         color: '#FFF',
+    },
+
+    // Sign In row
+    signInRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    signInPrompt: {
+        fontSize: Typography.sizes.body,
+        color: ONBOARDING_THEME.textMuted,
+    },
+    signInLink: {
+        fontSize: Typography.sizes.body,
+        fontWeight: Typography.weights.bold,
     },
 });

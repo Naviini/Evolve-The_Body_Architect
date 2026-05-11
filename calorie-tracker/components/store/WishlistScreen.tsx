@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { StoreProduct } from './products';
+import { storeProductImageSource } from './productImages';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAppStyles } from '@/hooks/useAppStyles';
@@ -41,7 +42,16 @@ export default function WishlistScreen({ items, onBack, onMenuPress, onRemove, o
         }
         renderItem={({ item }) => (
           <View style={styles.card}>
-            <Image source={{ uri: item.image }} style={styles.image} />
+            {(() => {
+              const thumb = storeProductImageSource(item.id, item.image);
+              return thumb ? (
+                <Image source={thumb} style={styles.image} resizeMode="cover" />
+              ) : (
+                <View style={[styles.image, styles.thumbPlaceholder]}>
+                  <Ionicons name="image-outline" size={26} color={colors.textTertiary} />
+                </View>
+              );
+            })()}
             <View style={styles.info}>
               <Text style={styles.name}>{item.name}</Text>
               <Text style={styles.category}>{item.category}</Text>
@@ -104,6 +114,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 10,
   },
   image: { width: 88, height: 88, borderRadius: BorderRadius.sm, marginRight: 10 },
+  thumbPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceLight,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   info: { flex: 1 },
   name: { fontSize: Typography.sizes.bodyLarge, fontWeight: Typography.weights.bold, color: colors.text },
   category: { fontSize: Typography.sizes.caption, color: colors.textSecondary, marginTop: 2 },

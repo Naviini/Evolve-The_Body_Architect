@@ -12,8 +12,10 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "We need camera access to scan food items and estimate calories.",
-        "NSPhotoLibraryUsageDescription": "We need photo library access to select food images for scanning."
-      }
+        "NSPhotoLibraryUsageDescription": "We need photo library access to select food images for scanning.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "bundleIdentifier": "com.navini.calorietracker"
     },
     "android": {
       "adaptiveIcon": {
@@ -24,9 +26,11 @@
       },
       "edgeToEdgeEnabled": true,
       "permissions": [
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE"
-      ]
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.navini.calorietracker"
     },
     "web": {
       "output": "single",
@@ -65,6 +69,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "9da8c9c1-e09d-492b-b793-e1a8406795c1"
+      }
     }
   }
 }

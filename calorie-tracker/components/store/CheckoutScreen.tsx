@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, FlatList, TextInput, Image } 
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCart } from './CartContext';
+import { storeProductImageSource } from './productImages';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAppStyles } from '@/hooks/useAppStyles';
@@ -81,7 +82,16 @@ export default function CheckoutScreen({ onBack, onMenuPress, onPlaceOrder }: Ch
         }
         renderItem={({ item }) => (
           <View style={styles.itemRow}>
-            <Image source={{ uri: item.product.image }} style={styles.itemImage} />
+            {(() => {
+              const thumb = storeProductImageSource(item.product.id, item.product.image);
+              return thumb ? (
+                <Image source={thumb} style={styles.itemImage} resizeMode="cover" />
+              ) : (
+                <View style={[styles.itemImage, styles.thumbPlaceholder]}>
+                  <Ionicons name="image-outline" size={22} color={colors.textTertiary} />
+                </View>
+              );
+            })()}
             <View style={styles.itemInfo}>
               <Text style={styles.itemName}>{item.product.name}</Text>
               <Text style={styles.itemSub}>Qty: {item.quantity}</Text>
@@ -262,6 +272,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 8,
   },
   itemImage: { width: 70, height: 70, borderRadius: 12, marginRight: 10 },
+  thumbPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceLight,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   itemInfo: { flex: 1 },
   itemName: { fontSize: Typography.sizes.bodyLarge, color: colors.text, fontWeight: Typography.weights.semibold },
   itemSub: { fontSize: Typography.sizes.body, color: colors.textSecondary, marginTop: 2 },

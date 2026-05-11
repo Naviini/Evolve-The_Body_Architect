@@ -63,6 +63,33 @@ function lerp(a: number, b: number, t: number): number {
     return a + (b - a) * t;
 }
 
+// ─── US Navy Body Fat % Calculator ──────────────────────────
+
+/**
+ * Computes body fat % using the US Navy circumference method.
+ * Returns null when required measurements are unavailable.
+ * Males:   BF% = 495 / (1.0324 - 0.19077·log10(waist-neck) + 0.15456·log10(height)) - 450
+ * Females: BF% = 495 / (1.29579 - 0.35004·log10(waist+hip-neck) + 0.22100·log10(height)) - 450
+ */
+function computeNavyBF(
+    profile: OnboardingProfile,
+    isFemale: boolean,
+): number | null {
+    const h = profile.height_cm;
+    const waist = profile.waist_cm;
+    const neck = profile.neck_cm;
+    if (!h || !waist || !neck || waist <= neck) return null;
+
+    if (isFemale) {
+        const hip = profile.hip_cm;
+        if (!hip || (waist + hip) <= neck) return null;
+        const bf = 495 / (1.29579 - 0.35004 * Math.log10(waist + hip - neck) + 0.22100 * Math.log10(h)) - 450;
+        return clamp(bf, 5, 55);
+    }
+    const bf = 495 / (1.0324 - 0.19077 * Math.log10(waist - neck) + 0.15456 * Math.log10(h)) - 450;
+    return clamp(bf, 3, 50);
+}
+
 // ─── Rate-of-change factors per body type ────────────────────
 
 interface ChangeRates {
@@ -71,29 +98,59 @@ interface ChangeRates {
     bfDropPerMonth: number;        // body fat % drop per month (max)
 }
 
-function getChangeRates(bodyType: BodyType, isFemale: boolean): ChangeRates {
+function getChangeRates(
+    bodyType: BodyType,
+    isFemale: boolean,
+    age?: number | null,
+    sleepHours?: number | null,
+    stressLevel?: number | null,
+): ChangeRates {
     const genderMod = isFemale ? 0.7 : 1.0;
 
+    let rates: ChangeRates;
     switch (bodyType) {
         case 'ectomorph':
-            return {
+            rates = {
                 fatLossPerMonth: 1.5 * genderMod,
                 muscleGainPerMonth: 0.6 * genderMod,
                 bfDropPerMonth: 0.8,
             };
+            break;
         case 'mesomorph':
-            return {
+            rates = {
                 fatLossPerMonth: 2.0 * genderMod,
                 muscleGainPerMonth: 1.0 * genderMod,
                 bfDropPerMonth: 1.2,
             };
+            break;
         case 'endomorph':
-            return {
+        default:
+            rates = {
                 fatLossPerMonth: 1.8 * genderMod,
                 muscleGainPerMonth: 0.7 * genderMod,
                 bfDropPerMonth: 0.6,
             };
+            break;
     }
+
+    // Age factor: every year over 30 reduces rates by 0.5%, capped at 30% reduction
+    if (age != null && age > 30) {
+        const ageMultiplier = Math.max(0.7, 1 - (age - 30) * 0.005);
+        rates.fatLossPerMonth *= ageMultiplier;
+        rates.muscleGainPerMonth *= ageMultiplier;
+    }
+
+    // Sleep impact: poor sleep (<7h) hurts muscle recovery
+    if (sleepHours != null && sleepHours < 7) {
+        rates.muscleGainPerMonth *= 0.85;
+    }
+
+    // Stress impact: high cortisol (level ≥4) hurts fat loss
+    if (stressLevel != null && stressLevel >= 4) {
+        rates.fatLossPerMonth *= 0.85;
+    }
+
+    return rates;
 }
 
 // ─── Current Body Params ────────────────────────────────────
@@ -106,7 +163,9 @@ function computeCurrentParams(
     const h = profile.height_cm ?? 170;
     const w = profile.weight_kg ?? 70;
     const bmi = w / Math.pow(h / 100, 2);
-    const bf = btResult?.estimatedBF ?? (isFemale ? 28 : 18);
+    // Navy method has highest accuracy when measurements are present; fall back to btResult → BMI estimate
+    const navyBF = computeNavyBF(profile, isFemale);
+    const bf = navyBF ?? btResult?.estimatedBF ?? (isFemale ? 28 : 18);
 
     // Derive normalised proportions from measurements or BMI
     const waistRatio = profile.waist_cm
@@ -340,12 +399,21 @@ function getWorkoutFocus(ctx: PhaseContext): string {
     }
 }
 
-function getMacroSplit(ctx: PhaseContext, dailyCals: number): { protein: number; carbs: number; fat: number } {
+function getMacroSplit(ctx: PhaseContext, _dailyCals: number): { protein: number; carbs: number; fat: number } {
     if (ctx.isGaining) {
-        return { protein: 30, carbs: 45, fat: 25 };
-    } else {
-        return { protein: 35, carbs: 40, fat: 25 };
+        return { protein: 30, carbs: 48, fat: 22 };
     }
+    // Cutting — vary by body type and phase progression
+    if (ctx.bodyType === 'endomorph') {
+        // Endomorphs benefit from higher protein to preserve muscle during cut
+        return { protein: 42, carbs: 35, fat: 23 };
+    }
+    // Early cut phases (1-2): higher protein for adaptation
+    if (ctx.phase <= 2) {
+        return { protein: 38, carbs: 38, fat: 24 };
+    }
+    // Later cut phases (3-4): slightly more carbs for sustained energy
+    return { protein: 35, carbs: 40, fat: 25 };
 }
 
 // ─── Daily calorie calculator per phase ─────────────────────
@@ -410,12 +478,16 @@ export function generateBodySimulation(input: SimulationInput): MilestonePhase[]
     const currentParams = computeCurrentParams(profile, btResult, isFemale);
     const dreamParams = computeDreamParams(profile, btResult, isFemale, dreamBodyStyle ?? null, targetBFPercent ?? null);
 
-    const currentBF = btResult?.estimatedBF ?? (isFemale ? 28 : 18);
+    // Use Navy BF% for current body if measurements available; fall back to body-type estimate
+    const navyBF = computeNavyBF(profile, isFemale);
+    const currentBF = navyBF ?? btResult?.estimatedBF ?? (isFemale ? 28 : 18);
     const dreamBF = targetBFPercent ?? (isFemale ? 20 : 12);
     const isGaining = dreamW >= w;
 
     const totalPhases = 5; // 0..5
-    const rates = getChangeRates(bodyType, isFemale);
+    // Pass lifestyle factors so rates reflect real-world constraints
+    const rates = getChangeRates(bodyType, isFemale, profile.age, profile.sleep_hours, profile.stress_level);
+    void rates; // rates influence future constraint logic; kept for downstream use
 
     const phases: MilestonePhase[] = [];
 
@@ -423,14 +495,17 @@ export function generateBodySimulation(input: SimulationInput): MilestonePhase[]
         const t = i / totalPhases;
         const months = i < MILESTONE_MONTHS.length ? MILESTONE_MONTHS[i] : (i === totalPhases ? 18 : 12);
 
+        // Plateau modeling: phases 3+ (month 6+) progress more slowly — realistic adaptation ceiling
+        const effectiveT = i >= 3 ? t * 0.75 : t;
+
         // Weight interpolation with easing
-        const estWeight = lerp(w, dreamW, easeOutCubic(t));
+        const estWeight = lerp(w, dreamW, easeOutCubic(effectiveT));
 
         // BF% interpolation
-        const estBF = lerp(currentBF, dreamBF, easeOutCubic(t));
+        const estBF = lerp(currentBF, dreamBF, easeOutCubic(effectiveT));
 
         // Body params interpolation
-        const params = interpolateParams(currentParams, dreamParams, t);
+        const params = interpolateParams(currentParams, dreamParams, effectiveT);
 
         const ctx: PhaseContext = {
             isGaining,

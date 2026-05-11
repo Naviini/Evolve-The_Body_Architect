@@ -14,27 +14,46 @@
  * - Epic summary screen with XP breakdown
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  Animated, Platform, Alert, Easing,
+  Animated, Platform, Alert, Easing, ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Video, ResizeMode } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from '@/constants/theme';
 import { useAuth } from '@/src/contexts/AuthContext';
 import {
   saveWorkoutSession, getUserRewards, addXP, unlockAchievement,
-  getWorkoutStreak, getWorkoutHistory,
+  getWorkoutStreak, getWorkoutHistory, getUserHealthProfileForProcessing,
 } from '@/src/lib/database';
+import { generateBodySimulation, inferDreamBodyStyle } from '@/src/lib/bodySimulationEngine';
+import BodyModel3D from '@/components/BodyModel3D';
 import {
   calculateSessionXP, checkNewAchievements, getAchievement, getLevelForXP,
 } from '@/src/lib/rewardEngine';
 import { getTutorial, getCoachingCue, MOTIVATIONAL_QUOTES } from '@/src/lib/exerciseTutorials';
-import { WorkoutDay, WorkoutExercise, ExerciseLog, WorkoutSession } from '@/src/types';
+import {
+  getExerciseDemoVideoUrl, FALLBACK_DEMO_VIDEO, posterUriForDemoVideo,
+} from '@/src/lib/exerciseDemoVideos';
+import {
+  WorkoutDay, WorkoutExercise, ExerciseLog, WorkoutSession, BodySimulationParams,
+} from '@/src/types';
 import { useAppStyles } from '@/hooks/useAppStyles';
 import { useThemeColors } from '@/hooks/useThemeColors';
+
+const DEFAULT_BODY_SIM_PARAMS: BodySimulationParams = {
+  shoulderWidth: 0.5,
+  chestWidth: 0.5,
+  waistWidth: 0.5,
+  hipWidth: 0.5,
+  armSize: 0.52,
+  legSize: 0.5,
+  muscleTone: 0.45,
+  bodyFatOverlay: 0.35,
+};
 
 // ════════════════════════════════════════════════════════════
 // Types
@@ -71,6 +90,10 @@ export default function WorkoutSessionScreen() {
   const [skipTutorials, setSkipTutorials] = useState(false);
   const [startTime] = useState(new Date().toISOString());
   const [saving, setSaving] = useState(false);
+  const [activeCountdownSec, setActiveCountdownSec] = useState(0);
+  const [bodySimParams, setBodySimParams] = useState<BodySimulationParams>(DEFAULT_BODY_SIM_PARAMS);
+  const [bodySimGender, setBodySimGender] = useState<'male' | 'female'>('male');
+  const [bodyModelExpanded, setBodyModelExpanded] = useState(true);
 
   // XP / rewards state (summary)
   const [xpEarned, setXpEarned] = useState(0);
@@ -89,6 +112,9 @@ export default function WorkoutSessionScreen() {
   const cueRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const breathRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const repRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  /** True when rest timer is between sets of the same exercise (not between exercises). */
+  const intraSetRestRef = useRef(false);
 
   // Animations
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -109,11 +135,36 @@ export default function WorkoutSessionScreen() {
     } catch { }
   }, [params.dayJson]);
 
+  useEffect(() => {
+    setBodyModelExpanded(true);
+  }, [currentIdx]);
+
   // Elapsed timer
   useEffect(() => {
     elapsedRef.current = setInterval(() => setElapsedSec(s => s + 1), 1000);
     return () => { if (elapsedRef.current) clearInterval(elapsedRef.current); };
   }, []);
+
+  useEffect(() => {
+    const uid = user?.id;
+    if (!uid) return;
+    getUserHealthProfileForProcessing(uid)
+      .then((p) => {
+        if (!p) return;
+        const dreamStyle = inferDreamBodyStyle(p.dream_daily_routine);
+        const phases = generateBodySimulation({
+          profile: p,
+          dreamBodyStyle: dreamStyle,
+          targetBFPercent: null,
+        });
+        const current = phases[0];
+        if (current) {
+          setBodySimParams(current.bodyParams);
+          setBodySimGender(p.biological_gender === 'female' ? 'female' : 'male');
+        }
+      })
+      .catch(() => { });
+  }, [user?.id]);
 
   // Progress bar animation
   useEffect(() => {
@@ -181,7 +232,12 @@ export default function WorkoutSessionScreen() {
       setRestSeconds(s => {
         if (s <= 1) {
           clearInterval(restRef.current!);
-          advanceToNextExercise();
+          if (intraSetRestRef.current) {
+            intraSetRestRef.current = false;
+            setPhase('active');
+          } else {
+            advanceToNextExercise();
+          }
           return 0;
         }
         return s - 1;
@@ -218,6 +274,7 @@ export default function WorkoutSessionScreen() {
     if (currentSet < totalSets) {
       // more sets to go — short intra-set rest (half the restSec)
       const intraRest = Math.floor(currentExercise.restSec / 2);
+      intraSetRestRef.current = true;
       setSetState(prev => ({ ...prev, currentSet: prev.currentSet + 1 }));
       setRestSeconds(intraRest);
       restCircleAnim.setValue(1);
@@ -245,12 +302,35 @@ export default function WorkoutSessionScreen() {
         if (elapsedRef.current) clearInterval(elapsedRef.current);
         setPhase('summary');
       } else {
+        intraSetRestRef.current = false;
         setRestSeconds(currentExercise.restSec);
         restCircleAnim.setValue(1);
         setPhase('rest');
       }
     }
   };
+
+  const completeSetRef = useRef(completeSet);
+  completeSetRef.current = completeSet;
+
+  // Duration countdown during active phase (timed exercises)
+  useLayoutEffect(() => {
+    if (phase !== 'active' || !currentExercise?.durationSec) {
+      setActiveCountdownSec(0);
+      return;
+    }
+    let remaining = currentExercise.durationSec;
+    setActiveCountdownSec(remaining);
+    const id = setInterval(() => {
+      remaining -= 1;
+      setActiveCountdownSec(Math.max(0, remaining));
+      if (remaining <= 0) {
+        clearInterval(id);
+        queueMicrotask(() => completeSetRef.current());
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [phase, currentIdx, setState.currentSet, currentExercise?.id, currentExercise?.durationSec]);
 
   // ── Skip exercise ─────────────────────────────────────────
   const skipExercise = () => {
@@ -537,7 +617,12 @@ export default function WorkoutSessionScreen() {
             style={styles.skipRestBtn}
             onPress={() => {
               if (restRef.current) clearInterval(restRef.current);
-              advanceToNextExercise();
+              if (intraSetRestRef.current) {
+                intraSetRestRef.current = false;
+                setPhase('active');
+              } else {
+                advanceToNextExercise();
+              }
             }}
           >
             <Text style={styles.skipRestText}>Skip Rest →</Text>
@@ -705,12 +790,17 @@ export default function WorkoutSessionScreen() {
             <Text style={styles.headerTitle}>{currentExercise.name}</Text>
             <Text style={styles.headerSub}>Set {currentSet} of {totalSets}</Text>
           </View>
-          <Text style={styles.elapsed}>{formatSecs(elapsedSec)}</Text>
+          <View style={styles.headerSpacer} />
         </View>
         <View style={styles.progressTrack}>
           <Animated.View style={[styles.progressFill, {
             width: progressAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
           }]} />
+        </View>
+
+        <View style={styles.sessionElapsedBanner}>
+          <Text style={styles.sessionElapsedBig}>{formatSecs(elapsedSec)}</Text>
+          <Text style={styles.sessionElapsedBannerCaption}>Session time</Text>
         </View>
 
         {/* Set dots */}
@@ -720,37 +810,86 @@ export default function WorkoutSessionScreen() {
           ))}
         </View>
 
-        {/* Main rep/duration display */}
-        <View style={styles.activeCenter}>
-          <Animated.View style={{ transform: [{ scale: repPulseAnim }] }}>
+        {/* Main coaching area: demo video + countdown or reps */}
+        <ScrollView
+          style={styles.activeScroll}
+          contentContainerStyle={styles.activeScrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.sessionDemoCard}>
+            <View style={styles.sessionVideoSlot}>
+              <WorkoutSessionVideo
+                exerciseId={currentExercise.id}
+                category={currentExercise.category}
+                exerciseName={currentExercise.name}
+                playing={phase === 'active'}
+              />
+            </View>
+            <View style={styles.sessionSimSection}>
+              <TouchableOpacity
+                style={styles.sessionSimHeader}
+                onPress={() => setBodyModelExpanded((e) => !e)}
+                accessibilityRole="button"
+                accessibilityLabel={bodyModelExpanded ? 'Collapse your body model' : 'Expand your body model'}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.sessionSimCaption}>Your body model</Text>
+                <Ionicons
+                  name={bodyModelExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={18}
+                  color={colors.textTertiary}
+                />
+              </TouchableOpacity>
+              {bodyModelExpanded ? (
+                <View style={styles.sessionSimSilhouette}>
+                  <BodyModel3D
+                    params={bodySimParams}
+                    gender={bodySimGender}
+                    size={176}
+                    accentColor={Colors.primary}
+                    autoRotate
+                  />
+                </View>
+              ) : null}
+            </View>
+          </View>
+
+          <View style={styles.activeCenterInner}>
             {isDuration ? (
-              <View style={styles.durationCircle}>
-                <LinearGradient colors={['#6C63FF', '#00D2FF']} style={styles.durationCircleInner}>
-                  <Text style={styles.durationText}>{Math.round((currentExercise.durationSec ?? 0) / 60)}</Text>
-                  <Text style={styles.durationUnit}>min</Text>
-                </LinearGradient>
-              </View>
+              <LinearGradient
+                colors={['#6C63FF', '#00D2FF', '#8B5CF6']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.countdownGradientBorder}
+              >
+                <View style={styles.countdownInner}>
+                  <Text style={styles.countdownBadge}>TIMER</Text>
+                  <Text style={styles.countdownHuge}>{formatSecs(activeCountdownSec)}</Text>
+                  <Text style={styles.countdownLabel}>Time remaining</Text>
+                  <Text style={styles.countdownHint}>Follow the clip · tap Done anytime to finish this block</Text>
+                </View>
+              </LinearGradient>
             ) : (
-              <View style={styles.repDisplay}>
-                <Text style={styles.repNumbers}>{targetReps}</Text>
-                <Text style={styles.repLabel}>reps to complete</Text>
-              </View>
+              <Animated.View style={{ transform: [{ scale: repPulseAnim }] }}>
+                <View style={styles.repDisplay}>
+                  <Text style={styles.repNumbers}>{targetReps}</Text>
+                  <Text style={styles.repLabel}>reps to complete</Text>
+                </View>
+              </Animated.View>
             )}
-          </Animated.View>
 
-          {/* Coaching cue */}
-          <Animated.View style={[styles.cueBox, {
-            opacity: cueSlideAnim.interpolate({ inputRange: [-20, 0, 20], outputRange: [0, 1, 0] }),
-            transform: [{ translateY: cueSlideAnim }],
-          }]}>
-            <Text style={styles.cueText}>{cue}</Text>
-          </Animated.View>
+            <Animated.View style={[styles.cueBox, {
+              opacity: cueSlideAnim.interpolate({ inputRange: [-20, 0, 20], outputRange: [0, 1, 0] }),
+              transform: [{ translateY: cueSlideAnim }],
+            }]}>
+              <Text style={styles.cueText}>{cue}</Text>
+            </Animated.View>
 
-          {/* Breathing indicator */}
-          <Animated.View style={[styles.breathDot, { transform: [{ scale: breathAnim }] }]}>
-            <Text style={styles.breathDotText}>{breathPhase === 'in' ? '🌬️ In' : '💨 Out'}</Text>
-          </Animated.View>
-        </View>
+            <Animated.View style={[styles.breathDot, { transform: [{ scale: breathAnim }] }]}>
+              <Text style={styles.breathDotText}>{breathPhase === 'in' ? 'Breathe in' : 'Breathe out'}</Text>
+            </Animated.View>
+          </View>
+        </ScrollView>
 
         {/* Bottom area */}
         <View style={styles.activeBottom}>
@@ -775,6 +914,65 @@ export default function WorkoutSessionScreen() {
   }
 
   return null;
+}
+
+// ════════════════════════════════════════════════════════════
+// Looped form demo (muted) — per-exercise Mixkit/Pixabay clips + safe fallback
+// ════════════════════════════════════════════════════════════
+function WorkoutSessionVideo({
+  exerciseId,
+  category,
+  exerciseName,
+  playing,
+}: {
+  exerciseId: string;
+  category: string;
+  exerciseName: string;
+  playing: boolean;
+}) {
+  const styles = useAppStyles(createStyles);
+  const primary = getExerciseDemoVideoUrl(exerciseId, category);
+  const [uri, setUri] = useState(primary);
+  const [videoLoading, setVideoLoading] = useState(true);
+  const posterUri = posterUriForDemoVideo(primary);
+
+  useEffect(() => {
+    setUri(primary);
+    setVideoLoading(true);
+  }, [primary]);
+
+  return (
+    <View style={styles.sessionVideoContainer}>
+      <Video
+        key={uri}
+        source={{ uri }}
+        style={styles.sessionVideoFill}
+        resizeMode={ResizeMode.CONTAIN}
+        isLooping
+        shouldPlay={playing}
+        isMuted
+        useNativeControls={false}
+        posterSource={posterUri ? { uri: posterUri } : undefined}
+        onLoadStart={() => setVideoLoading(true)}
+        onLoad={() => setVideoLoading(false)}
+        onReadyForDisplay={() => setVideoLoading(false)}
+        onError={() => {
+          setVideoLoading(false);
+          setUri(u => (u === FALLBACK_DEMO_VIDEO ? u : FALLBACK_DEMO_VIDEO));
+        }}
+      />
+      <View style={styles.formDemoBadge} pointerEvents="none">
+        <Text style={styles.formDemoBadgeText} numberOfLines={1}>
+          Proper form · {exerciseName}
+        </Text>
+      </View>
+      {videoLoading ? (
+        <View style={styles.sessionVideoLoading} pointerEvents="none">
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      ) : null}
+    </View>
+  );
 }
 
 // ════════════════════════════════════════════════════════════
@@ -805,10 +1003,41 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: Spacing.md, paddingBottom: Spacing.sm,
   },
   closeBtn: { padding: 8 },
+  headerSpacer: { width: 40 },
   headerCenter: { flex: 1, alignItems: 'center' },
   headerTitle: { fontSize: 15, fontWeight: '700', color: colors.text },
   headerSub: { fontSize: 11, color: colors.textSecondary },
-  elapsed: { fontSize: 13, color: Colors.primary, fontWeight: '700', minWidth: 48, textAlign: 'right' },
+  elapsed: { fontSize: 13, color: Colors.primary, fontWeight: '700', textAlign: 'right' },
+  elapsedCol: { alignItems: 'flex-end', minWidth: 52 },
+  elapsedCaption: { fontSize: 9, color: colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 2 },
+
+  sessionElapsedBanner: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.surface + 'AA',
+  },
+  sessionElapsedBig: {
+    fontSize: 40,
+    fontWeight: '900',
+    color: Colors.primary,
+    fontVariant: ['tabular-nums'],
+    letterSpacing: 2,
+    textShadowColor: 'rgba(0, 178, 216, 0.35)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 12,
+  },
+  sessionElapsedBannerCaption: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 2,
+    marginTop: 6,
+  },
 
   progressTrack: { height: 3, backgroundColor: colors.border },
   progressFill: { height: '100%', backgroundColor: Colors.primary },
@@ -902,12 +1131,149 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   setDotDone: { backgroundColor: Colors.primary },
 
+  sessionDemoCard: {
+    width: '100%',
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    backgroundColor: '#0A0A12',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  sessionVideoSlot: {
+    width: '100%',
+    height: 200,
+    backgroundColor: '#050508',
+  },
+  sessionVideoContainer: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#050508',
+    position: 'relative',
+  },
+  sessionVideoFill: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  formDemoBadge: {
+    position: 'absolute',
+    top: Spacing.sm,
+    left: Spacing.sm,
+    right: Spacing.sm,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: BorderRadius.sm,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(0, 210, 255, 0.35)',
+  },
+  formDemoBadgeText: {
+    color: 'rgba(255,255,255,0.92)',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  sessionVideoLoading: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(5,5,8,0.35)',
+  },
+  sessionSimSection: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    backgroundColor: colors.surface + '40',
+  },
+  sessionSimHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+  },
+  sessionSimCaption: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 1.4,
+    flex: 1,
+  },
+  sessionSimSilhouette: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: Spacing.md - 2,
+    paddingTop: Spacing.xs,
+  },
+
+  activeScroll: { flex: 1 },
+  activeScrollContent: {
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.md,
+    flexGrow: 1,
+  },
+  activeCenterInner: {
+    alignItems: 'center',
+    paddingTop: Spacing.md,
+  },
+
+  countdownGradientBorder: {
+    width: '100%',
+    maxWidth: 340,
+    alignSelf: 'center',
+    borderRadius: BorderRadius.lg + 4,
+    padding: 3,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.sm,
+    ...Shadows.glow,
+  },
+  countdownInner: {
+    alignItems: 'center',
+    backgroundColor: '#0c0c18',
+    borderRadius: BorderRadius.lg + 2,
+    paddingVertical: Spacing.lg + 4,
+    paddingHorizontal: Spacing.lg,
+    width: '100%',
+  },
+  countdownBadge: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#00D2FF',
+    letterSpacing: 2.5,
+    marginBottom: 10,
+  },
+  countdownHuge: {
+    fontSize: 72,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    fontVariant: ['tabular-nums'],
+    letterSpacing: 2,
+    textShadowColor: 'rgba(108, 99, 255, 0.85)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 16,
+    lineHeight: 78,
+  },
+  countdownLabel: {
+    fontSize: 16,
+    color: '#00D2FF',
+    fontWeight: '800',
+    marginTop: 12,
+    letterSpacing: 0.3,
+  },
+  countdownHint: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.45)',
+    textAlign: 'center',
+    marginTop: 14,
+    lineHeight: 17,
+    paddingHorizontal: Spacing.sm,
+  },
+
   activeCenter: {
     flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: Spacing.md,
   },
   repDisplay: { alignItems: 'center' },
-  repNumbers: { fontSize: 96, fontWeight: '900', color: colors.text, lineHeight: 100 },
-  repLabel: { fontSize: 16, color: colors.textSecondary, fontWeight: '600' },
+  repNumbers: { fontSize: 56, fontWeight: '800', color: colors.text, lineHeight: 60 },
+  repLabel: { fontSize: 14, color: colors.textSecondary, fontWeight: '600', marginTop: 4 },
 
   durationCircle: { width: 160, height: 160, borderRadius: 80 },
   durationCircleInner: {

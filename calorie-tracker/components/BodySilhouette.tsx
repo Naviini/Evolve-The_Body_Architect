@@ -157,8 +157,10 @@ function generateBodyPath(
 }
 
 // ─── Component ──────────────────────────────────────────────
+// Named function (not `export default function`) so `BodySilhouetteMini` and
+// bundlers always have a stable `BodySilhouette` binding on web.
 
-export default function BodySilhouette({
+function BodySilhouette({
     params,
     gender,
     size = 340,
@@ -275,6 +277,8 @@ export default function BodySilhouette({
         </RNAnimated.View>
     );
 }
+
+export default BodySilhouette;
 
 // ─── Mini version for preview cards ─────────────────────────
 

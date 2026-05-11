@@ -26,6 +26,7 @@ import OrderStatusScreen from '../../components/store/OrderStatusScreen';
 import AccountScreen from '../../components/store/AccountScreen';
 import StoreDrawer from '../../components/store/StoreDrawer';
 import { StoreProduct } from '../../components/store/products';
+import { storeProductImageSource } from '../../components/store/productImages';
 import { getPersonalizedRecommendations } from '../../src/services/recommendationService';
 import { getAllProducts } from '../../src/services/storeService';
 import { getDailyLog, getStoreWishlistItems, getUserHealthProfileForProcessing, initDatabase, removeStoreWishlistItem, upsertStoreWishlistItem } from '../../src/lib/database';
@@ -33,6 +34,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 
 const categories = [
   { id: 'all', name: 'All', icon: 'https://img.icons8.com/color/96/shop.png' },
+  { id: 'Healthy Meals', name: 'Meals', icon: 'https://img.icons8.com/color/96/restaurant-table.png' },
   { id: 'Supplements', name: 'Supplements', icon: 'https://img.icons8.com/color/96/pill.png' },
   { id: 'Food & Drink', name: 'Food', icon: 'https://img.icons8.com/color/96/salad.png' },
   { id: 'Gear', name: 'Gear', icon: 'https://img.icons8.com/color/96/dumbbell.png' },
@@ -41,14 +43,33 @@ const categories = [
   { id: 'Body Care', name: 'Body Care', icon: 'https://img.icons8.com/color/96/cream-tube.png' },
 ];
 
-const tabs = ['For You', 'Deals', 'Top Rated', 'New'] as const;
+const tabs = ['For You', 'Restaurants', 'Deals', 'Top Rated', 'New'] as const;
+
+/** Extra display fields for Uber Eats–style partner rows (kitchens mapped from meal SKUs). */
+const RESTAURANT_SHOW: Record<
+  string,
+  { cuisine: string; eta: string }
+> = {
+  'Green Fork Kitchen': { cuisine: 'Bowls · High protein', eta: '20–35 min' },
+  'Ceylon Balance': { cuisine: 'Sri Lankan · Seafood', eta: '25–40 min' },
+  'Metro Protein Bar': { cuisine: 'Lean plates · Steak house', eta: '30–45 min' },
+  'Plant & Flow': { cuisine: 'Plant-based · Vegan', eta: '20–30 min' },
+  'Sunrise Deli': { cuisine: 'Breakfast wraps', eta: '15–28 min' },
+  'Spice Route Lean': { cuisine: 'Curries · Vegetarian friendly', eta: '22–38 min' },
+  'Fresh Stack': { cuisine: 'Yogurt · Light meals', eta: '18–32 min' },
+  'Pacific Lean Co': { cuisine: 'Salmon · Poke-inspired', eta: '28–42 min' },
+};
+
+function restaurantDisplayMeta(partnerName: string): { cuisine: string; eta: string } {
+  return RESTAURANT_SHOW[partnerName] ?? { cuisine: 'Healthy meals · FitStore partner', eta: '25–40 min' };
+}
 
 function formatCurrency(amount: number) {
   return `Rs. ${amount.toLocaleString()}`;
 }
 
 function StoreScreenInner() {
-  const params = useLocalSearchParams<{ screen?: string }>();
+  const params = useLocalSearchParams<{ screen?: string; tab?: string }>();
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const styles = useAppStyles(createStyles);
@@ -135,6 +156,13 @@ function StoreScreenInner() {
     else setScreenMode('store');
   }, [params.screen]);
 
+  useEffect(() => {
+    if (typeof params.tab === 'string' && params.tab === 'Restaurants') {
+      setActiveTab('Restaurants');
+      setScreenMode('store');
+    }
+  }, [params.tab]);
+
   const cartItemCount = useMemo(
     () => cart.reduce((sum, item) => sum + item.quantity, 0),
     [cart]
@@ -143,7 +171,9 @@ function StoreScreenInner() {
   const filteredProducts = useMemo(() => {
     let list = [...catalog];
 
-    if (activeTab === 'For You' && recommended.length > 0) {
+    if (activeTab === 'Restaurants') {
+      list = [];
+    } else if (activeTab === 'For You' && recommended.length > 0) {
       const recommendedIds = new Set(recommended.map(product => product.id));
       list = list.filter(product => recommendedIds.has(product.id));
     } else if (activeTab === 'Deals') {
@@ -171,7 +201,50 @@ function StoreScreenInner() {
     }
 
     return list;
-  }, [activeTab, recommended, search, selectedCategory]);
+  }, [activeTab, recommended, catalog, search, selectedCategory]);
+
+  /** Meal SKUs grouped by partner kitchen — Uber Eats style list (Restaurants tab only). */
+  const restaurantClusters = useMemo(() => {
+    if (activeTab !== 'Restaurants') return [];
+
+    if (selectedCategory !== 'all' && selectedCategory !== 'Healthy Meals') {
+      return [];
+    }
+
+    let meals = catalog.filter(p => p.category === 'Healthy Meals');
+
+    const query = search.trim().toLowerCase();
+    if (query) {
+      meals = meals.filter(product => {
+        const partner = (product.partnerName ?? '').toLowerCase();
+        const inName = product.name.toLowerCase().includes(query);
+        const inTags = product.tags?.some(tag => tag.toLowerCase().includes(query));
+        const inPartner = partner.includes(query);
+        return inName || inTags || inPartner;
+      });
+    }
+
+    const byPartner = new Map<string, StoreProduct[]>();
+    for (const p of meals) {
+      const key = p.partnerName?.trim() || 'Partner Kitchen';
+      if (!byPartner.has(key)) byPartner.set(key, []);
+      byPartner.get(key)!.push(p);
+    }
+
+    const clusters = Array.from(byPartner.entries()).map(([partnerName, items]) => {
+      const sorted = [...items].sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
+      const avgRating = sorted.reduce((s, i) => s + (i.rating ?? 4.5), 0) / sorted.length;
+      return { partnerName, items: sorted, heroProduct: sorted[0], avgRating };
+    });
+
+    clusters.sort((a, b) => b.avgRating - a.avgRating);
+    return clusters;
+  }, [activeTab, catalog, search, selectedCategory]);
+
+  const restaurantDishTotal = useMemo(
+    () => restaurantClusters.reduce((sum, c) => sum + c.items.length, 0),
+    [restaurantClusters]
+  );
 
   const topDeal = useMemo(
     () => catalog.find(product => product.onSale && product.previousPrice),
@@ -298,12 +371,36 @@ function StoreScreenInner() {
 
   if (screenMode === 'details' && selectedProduct) {
     return (
-      <ProductDetailScreen
-        product={selectedProduct}
-        onBack={() => setScreenMode('store')}
-        onAddToCart={(product, quantity) => addToCart(product, quantity)}
-        onCheckoutNow={handleCheckoutNowFromDetails}
-      />
+      <>
+        <ProductDetailScreen
+          product={selectedProduct}
+          onBack={() => setScreenMode('store')}
+          onMenuPress={() => setMenuOpen(true)}
+          isWishlisted={wishlistIdSet.has(selectedProduct.id)}
+          onToggleWishlist={() => toggleWishlist(selectedProduct)}
+          onAddToCart={(product, quantity) => addToCart(product, quantity)}
+          onCheckoutNow={handleCheckoutNowFromDetails}
+        />
+        <StoreDrawer
+          open={menuOpen}
+          statusText={orderStatusText}
+          onClose={closeMenu}
+          onAccount={openAccountFromMenu}
+          onWishlist={openWishlistFromMenu}
+          onCheckout={openCheckoutFromMenu}
+          onOrderStatus={openOrderStatusFromMenu}
+          onOrderHistory={openOrdersFromMenu}
+          onClearSearch={() => {
+            setSearch('');
+            closeMenu();
+          }}
+          onResetFilters={() => {
+            setActiveTab('For You');
+            setSelectedCategory('all');
+            closeMenu();
+          }}
+        />
+      </>
     );
   }
 
@@ -450,13 +547,25 @@ function StoreScreenInner() {
             onChangeText={setSearch}
           />
           <TouchableOpacity style={styles.searchAction}>
-            <Ionicons name="camera-outline" size={18} color={colors.buttonText} />
+            <Ionicons name="camera-outline" size={18} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
 
         <View style={styles.locationRow}>
           <Ionicons name="location-outline" size={16} color={colors.primary} />
-          <Text style={styles.locationText}>Delivering to your fitness profile</Text>
+          <Text style={styles.locationText}>Delivering to your fitness profile — gear, supplements & healthy meals</Text>
+        </View>
+
+        <View style={[styles.mealsInfoCard, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+          <View style={[styles.mealsInfoIconWrap, { backgroundColor: Colors.primary + '22' }]}>
+            <Ionicons name="restaurant-outline" size={22} color={Colors.primary} />
+          </View>
+          <View style={styles.mealsInfoTextWrap}>
+            <Text style={[styles.mealsInfoTitle, { color: colors.text }]}>Restaurant-style healthy meals</Text>
+            <Text style={[styles.mealsInfoSub, { color: colors.textSecondary }]}>
+              Order macro-friendly bowls, local plates, and breakfast options from partner kitchens—same FitStore checkout and delivery flow as the rest of your basket.
+            </Text>
+          </View>
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
@@ -488,9 +597,18 @@ function StoreScreenInner() {
           })}
         </ScrollView>
 
-        {topDeal ? (
+        {topDeal && activeTab !== 'Restaurants' ? (
           <View style={styles.bannerCard}>
-            <Image source={{ uri: topDeal.image }} style={styles.bannerImage} />
+            {(() => {
+              const src = storeProductImageSource(topDeal.id, topDeal.image);
+              return src ? (
+                <Image source={src} style={styles.bannerImage} resizeMode="cover" />
+              ) : (
+                <View style={[styles.bannerImage, styles.imagePlaceholderTiny]}>
+                  <Ionicons name="image-outline" size={22} color={colors.textTertiary} />
+                </View>
+              );
+            })()}
             <View style={styles.bannerInfo}>
               <Text style={styles.bannerTitle}>New Arrivals</Text>
               <Text style={styles.bannerSubtitle}>
@@ -527,71 +645,214 @@ function StoreScreenInner() {
           })}
         </ScrollView>
 
-        <View style={styles.sectionRow}>
-          <Text style={styles.sectionTitle}>Flash Sale</Text>
-          <Text style={styles.sectionCount}>{filteredProducts.length} items</Text>
-        </View>
-
-        <FlatList
-          data={filteredProducts}
-          keyExtractor={item => item.id}
-          scrollEnabled={false}
-          numColumns={2}
-          columnWrapperStyle={styles.productRow}
-          contentContainerStyle={styles.productList}
-          ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>No products match this filter.</Text>
-              <Text style={styles.emptySubtitle}>Try another category, tab, or search term.</Text>
+        {activeTab === 'Restaurants' ? (
+          <>
+            <View style={styles.sectionRow}>
+              <Text style={styles.sectionTitle}>Partner restaurants</Text>
+              <Text style={styles.sectionCount}>
+                {restaurantClusters.length > 0
+                  ? `${restaurantClusters.length} kitchens · ${restaurantDishTotal} dishes`
+                  : 'Uber Eats-style healthy picks'}
+              </Text>
             </View>
-          }
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              activeOpacity={0.9}
-              style={styles.productCard}
-              onPress={() => openProductDetails(item)}
-            >
-              <Image source={{ uri: item.image }} style={styles.productImage} />
-              <View style={styles.badgeRow}>
-                {item.onSale ? <Text style={styles.saleBadge}>SALE</Text> : null}
-                {item.isNew ? <Text style={styles.newBadge}>NEW</Text> : null}
+
+            {restaurantClusters.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyTitle}>No restaurants to show.</Text>
+                <Text style={styles.emptySubtitle}>
+                  Switch category to{' '}
+                  <Text style={{ fontWeight: '700', color: colors.text }}>All</Text> or{' '}
+                  <Text style={{ fontWeight: '700', color: colors.text }}>Meals</Text>, then try again—or clear your search.
+                </Text>
               </View>
-              <Text numberOfLines={2} style={styles.productName}>{item.name}</Text>
-              <Text style={styles.productCategory}>{item.category}</Text>
-              <View style={styles.priceRow}>
-                <Text style={styles.productPrice}>{formatCurrency(item.price)}</Text>
-                {item.previousPrice ? (
-                  <Text style={styles.previousPrice}>{formatCurrency(item.previousPrice)}</Text>
-                ) : null}
-              </View>
-              <View style={styles.productFooter}>
-                <Text style={styles.ratingText}>⭐ {(item.rating ?? 4.5).toFixed(1)}</Text>
-                <View style={styles.productActionRow}>
-                  <TouchableOpacity
-                    style={styles.wishlistButton}
-                    onPress={() => toggleWishlist(item)}
+            ) : (
+              restaurantClusters.map(({ partnerName, items, heroProduct, avgRating }) => {
+                const meta = restaurantDisplayMeta(partnerName);
+                const fromPrice = Math.min(...items.map(i => i.price));
+                const heroSrc = storeProductImageSource(heroProduct.id, heroProduct.image);
+
+                return (
+                  <View
+                    key={partnerName}
+                    style={[styles.restaurantBlock, { borderColor: colors.border }]}
                   >
-                    <Ionicons
-                      name={wishlistIdSet.has(item.id) ? 'heart' : 'heart-outline'}
-                      size={15}
-                      color={wishlistIdSet.has(item.id) ? '#ff4d6d' : colors.textSecondary}
-                    />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.addButton}
-                    onPress={() => addToCart(item, 1)}
-                  >
-                    <Text style={styles.addButtonText}>Add</Text>
-                  </TouchableOpacity>
+                    <View style={styles.restaurantHero}>
+                      {heroSrc ? (
+                        <Image source={heroSrc} style={styles.restaurantHeroImage} resizeMode="cover" />
+                      ) : (
+                        <View style={[styles.restaurantHeroImage, styles.imagePlaceholderTiny]}>
+                          <Ionicons name="restaurant-outline" size={36} color={colors.textTertiary} />
+                        </View>
+                      )}
+                      <View style={styles.restaurantHeroOverlay}>
+                        <View style={styles.restaurantHeroTopRow}>
+                          <View style={styles.fitstorePartnerBadge}>
+                            <Text style={styles.fitstorePartnerBadgeText}>FitStore partner</Text>
+                          </View>
+                          <View style={styles.etaBadge}>
+                            <Ionicons name="time-outline" size={14} color="#FFFFFF" />
+                            <Text style={styles.etaBadgeText}>{meta.eta}</Text>
+                          </View>
+                        </View>
+                        <Text style={styles.restaurantPartnerTitle}>{partnerName}</Text>
+                        <Text style={styles.restaurantPartnerSub} numberOfLines={1}>
+                          {meta.cuisine}
+                        </Text>
+                        <View style={styles.restaurantHeroMeta}>
+                          <Text style={styles.restaurantHeroRating}>
+                            ⭐ {avgRating.toFixed(1)} · {items.length}{' '}
+                            {items.length === 1 ? 'dish' : 'dishes'}
+                          </Text>
+                          <Text style={styles.restaurantHeroFrom}>From {formatCurrency(fromPrice)}</Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    <Text style={[styles.restaurantMenuLabel, { color: colors.textSecondary }]}>
+                      Popular on the menu
+                    </Text>
+
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.restaurantDishStrip}
+                    >
+                      {items.map(item => {
+                        const thumb = storeProductImageSource(item.id, item.image);
+                        return (
+                          <View key={item.id} style={[styles.restaurantDishCard, { borderColor: colors.border }]}>
+                            <TouchableOpacity activeOpacity={0.9} onPress={() => openProductDetails(item)}>
+                              {thumb ? (
+                                <Image source={thumb} style={styles.restaurantDishImage} resizeMode="cover" />
+                              ) : (
+                                <View style={[styles.restaurantDishImage, styles.productImagePlaceholder]}>
+                                  <Ionicons name="fast-food-outline" size={26} color={colors.textTertiary} />
+                                </View>
+                              )}
+                              <View style={styles.restaurantDishBadgeRow}>
+                                {item.onSale ? <Text style={styles.saleBadge}>SALE</Text> : null}
+                                {item.isNew ? <Text style={styles.newBadge}>NEW</Text> : null}
+                              </View>
+                              <Text style={[styles.restaurantDishName, { color: colors.text }]} numberOfLines={2}>
+                                {item.name}
+                              </Text>
+                              {item.nutrition?.calories != null ? (
+                                <Text style={[styles.restaurantDishMacros, { color: colors.textTertiary }]}>
+                                  {Math.round(item.nutrition.calories)} kcal
+                                  {item.nutrition.protein != null
+                                    ? ` · ${Math.round(item.nutrition.protein)}g protein`
+                                    : ''}
+                                </Text>
+                              ) : null}
+                              <Text style={[styles.restaurantDishPrice, { color: Colors.success }]}>
+                                {formatCurrency(item.price)}
+                              </Text>
+                            </TouchableOpacity>
+                            <View style={styles.restaurantDishActions}>
+                              <TouchableOpacity
+                                style={[styles.restaurantWishlistChip, { borderColor: colors.border }]}
+                                onPress={() => toggleWishlist(item)}
+                              >
+                                <Ionicons
+                                  name={wishlistIdSet.has(item.id) ? 'heart' : 'heart-outline'}
+                                  size={16}
+                                  color={wishlistIdSet.has(item.id) ? '#ff4d6d' : colors.textSecondary}
+                                />
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={[styles.restaurantQuickAdd, { backgroundColor: Colors.primary }]}
+                                onPress={() => addToCart(item, 1)}
+                              >
+                                <Text style={styles.restaurantQuickAddText}>Add</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+                );
+              })
+            )}
+          </>
+        ) : (
+          <>
+            <View style={styles.sectionRow}>
+              <Text style={styles.sectionTitle}>Flash Sale</Text>
+              <Text style={styles.sectionCount}>{filteredProducts.length} items</Text>
+            </View>
+
+            <FlatList
+              data={filteredProducts}
+              keyExtractor={item => item.id}
+              scrollEnabled={false}
+              numColumns={2}
+              columnWrapperStyle={styles.productRow}
+              contentContainerStyle={styles.productList}
+              ListEmptyComponent={
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyTitle}>No products match this filter.</Text>
+                  <Text style={styles.emptySubtitle}>Try another category, tab, or search term.</Text>
                 </View>
-              </View>
-            </TouchableOpacity>
-          )}
-        />
+              }
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={styles.productCard}
+                  onPress={() => openProductDetails(item)}
+                >
+                  {(() => {
+                    const thumb = storeProductImageSource(item.id, item.image);
+                    return thumb ? (
+                      <Image source={thumb} style={styles.productImage} resizeMode="cover" />
+                    ) : (
+                      <View style={[styles.productImage, styles.productImagePlaceholder]}>
+                        <Ionicons name="image-outline" size={28} color={colors.textTertiary} />
+                      </View>
+                    );
+                  })()}
+                  <View style={styles.badgeRow}>
+                    {item.onSale ? <Text style={styles.saleBadge}>SALE</Text> : null}
+                    {item.isNew ? <Text style={styles.newBadge}>NEW</Text> : null}
+                  </View>
+                  <Text numberOfLines={2} style={styles.productName}>{item.name}</Text>
+                  <Text style={styles.productCategory}>{item.category}</Text>
+                  <View style={styles.priceRow}>
+                    <Text style={styles.productPrice}>{formatCurrency(item.price)}</Text>
+                    {item.previousPrice ? (
+                      <Text style={styles.previousPrice}>{formatCurrency(item.previousPrice)}</Text>
+                    ) : null}
+                  </View>
+                  <View style={styles.productFooter}>
+                    <Text style={styles.ratingText}>⭐ {(item.rating ?? 4.5).toFixed(1)}</Text>
+                    <View style={styles.productActionRow}>
+                      <TouchableOpacity
+                        style={styles.wishlistButton}
+                        onPress={() => toggleWishlist(item)}
+                      >
+                        <Ionicons
+                          name={wishlistIdSet.has(item.id) ? 'heart' : 'heart-outline'}
+                          size={15}
+                          color={wishlistIdSet.has(item.id) ? '#ff4d6d' : colors.textSecondary}
+                        />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.addButton}
+                        onPress={() => addToCart(item, 1)}
+                      >
+                        <Text style={styles.addButtonText}>Add</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              )}
+            />
+          </>
+        )}
       </ScrollView>
 
       <TouchableOpacity style={styles.cartFab} onPress={() => setScreenMode('checkout')}>
-        <Ionicons name="cart" size={16} color={colors.buttonText} />
+        <Ionicons name="cart" size={16} color="#FFFFFF" />
         <Text style={styles.cartFabText}>{cartItemCount}</Text>
       </TouchableOpacity>
 
@@ -724,6 +985,32 @@ const createStyles = (colors: any) =>
       color: colors.textSecondary,
       fontSize: Typography.sizes.body,
     },
+    mealsInfoCard: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 12,
+      padding: Spacing.sm,
+      marginBottom: Spacing.sm,
+      borderRadius: BorderRadius.md,
+      borderWidth: 1,
+    },
+    mealsInfoIconWrap: {
+      width: 44,
+      height: 44,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    mealsInfoTextWrap: { flex: 1 },
+    mealsInfoTitle: {
+      fontSize: Typography.sizes.body,
+      fontWeight: Typography.weights.bold,
+      marginBottom: 4,
+    },
+    mealsInfoSub: {
+      fontSize: Typography.sizes.caption,
+      lineHeight: 18,
+    },
     categoryScroll: {
       marginBottom: Spacing.sm,
     },
@@ -775,6 +1062,13 @@ const createStyles = (colors: any) =>
       borderRadius: 10,
       marginRight: 12,
     },
+    imagePlaceholderTiny: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
     bannerInfo: {
       flex: 1,
     },
@@ -798,7 +1092,7 @@ const createStyles = (colors: any) =>
       alignSelf: 'flex-start',
     },
     bannerButtonText: {
-      color: colors.buttonText,
+      color: '#FFFFFF',
       fontWeight: '700',
       fontSize: 12,
     },
@@ -853,6 +1147,13 @@ const createStyles = (colors: any) =>
       height: 100,
       borderRadius: 10,
       marginBottom: 8,
+    },
+    productImagePlaceholder: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
     },
     badgeRow: {
       flexDirection: 'row',
@@ -939,7 +1240,7 @@ const createStyles = (colors: any) =>
       justifyContent: 'center',
     },
     addButtonText: {
-      color: colors.buttonText,
+      color: '#FFFFFF',
       fontWeight: '700',
       fontSize: 12,
     },
@@ -974,8 +1275,178 @@ const createStyles = (colors: any) =>
       ...Shadows.glow,
     },
     cartFabText: {
-      color: colors.buttonText,
+      color: '#FFFFFF',
       fontSize: 16,
       fontWeight: '800',
+    },
+    restaurantBlock: {
+      marginBottom: Spacing.md,
+      borderRadius: BorderRadius.md,
+      borderWidth: 1,
+      overflow: 'hidden',
+      backgroundColor: colors.surface,
+      ...Shadows.small,
+    },
+    restaurantHero: {
+      height: 154,
+      borderRadius: BorderRadius.md,
+      overflow: 'hidden',
+      position: 'relative',
+      marginBottom: 10,
+    },
+    restaurantHeroImage: {
+      ...StyleSheet.absoluteFillObject,
+      width: '100%',
+      height: '100%',
+    },
+    restaurantHeroOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      justifyContent: 'flex-end',
+      padding: 12,
+      backgroundColor: 'rgba(17,24,39,0.52)',
+    },
+    restaurantHeroTopRow: {
+      position: 'absolute',
+      top: 10,
+      left: 10,
+      right: 10,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    fitstorePartnerBadge: {
+      backgroundColor: 'rgba(139,92,246,0.92)',
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 999,
+    },
+    fitstorePartnerBadgeText: {
+      color: '#FFFFFF',
+      fontSize: 11,
+      fontWeight: '800',
+    },
+    etaBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      paddingHorizontal: 8,
+      paddingVertical: 5,
+      borderRadius: 999,
+    },
+    etaBadgeText: {
+      color: '#FFFFFF',
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    restaurantPartnerTitle: {
+      color: '#FFFFFF',
+      fontSize: Typography.sizes.subtitle,
+      fontWeight: Typography.weights.bold,
+      marginBottom: 4,
+      textShadowColor: 'rgba(0,0,0,0.35)',
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 6,
+    },
+    restaurantPartnerSub: {
+      color: 'rgba(255,255,255,0.92)',
+      fontSize: Typography.sizes.caption,
+      marginBottom: 8,
+      fontWeight: Typography.weights.medium,
+    },
+    restaurantHeroMeta: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    restaurantHeroRating: {
+      color: '#FFFFFF',
+      fontSize: Typography.sizes.caption,
+      fontWeight: Typography.weights.semibold,
+    },
+    restaurantHeroFrom: {
+      color: Colors.success,
+      fontSize: Typography.sizes.caption,
+      fontWeight: Typography.weights.bold,
+    },
+    restaurantMenuLabel: {
+      fontSize: 12,
+      fontWeight: '800',
+      textTransform: 'uppercase',
+      letterSpacing: 0.6,
+      marginBottom: 8,
+      paddingHorizontal: 2,
+    },
+    restaurantDishStrip: {
+      paddingBottom: 4,
+      gap: 10,
+      paddingRight: 4,
+    },
+    restaurantDishCard: {
+      width: 156,
+      backgroundColor: colors.surface,
+      borderRadius: BorderRadius.sm,
+      borderWidth: 1,
+      overflow: 'hidden',
+      paddingBottom: 10,
+    },
+    restaurantDishImage: {
+      width: '100%',
+      height: 104,
+      borderTopLeftRadius: BorderRadius.sm,
+      borderTopRightRadius: BorderRadius.sm,
+    },
+    restaurantDishBadgeRow: {
+      flexDirection: 'row',
+      gap: 6,
+      paddingHorizontal: 8,
+      marginTop: 6,
+      minHeight: 18,
+      flexWrap: 'wrap',
+    },
+    restaurantDishName: {
+      fontSize: 13,
+      fontWeight: Typography.weights.bold,
+      paddingHorizontal: 8,
+      marginTop: 4,
+      minHeight: 34,
+      lineHeight: 17,
+    },
+    restaurantDishMacros: {
+      fontSize: 11,
+      paddingHorizontal: 8,
+      marginTop: 2,
+    },
+    restaurantDishPrice: {
+      fontSize: Typography.sizes.body,
+      fontWeight: Typography.weights.bold,
+      paddingHorizontal: 8,
+      marginTop: 6,
+    },
+    restaurantDishActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 8,
+      marginTop: 8,
+    },
+    restaurantWishlistChip: {
+      width: 34,
+      height: 34,
+      borderRadius: BorderRadius.sm,
+      borderWidth: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    restaurantQuickAdd: {
+      flex: 1,
+      borderRadius: BorderRadius.sm,
+      paddingVertical: 8,
+      alignItems: 'center',
+    },
+    restaurantQuickAddText: {
+      color: '#FFFFFF',
+      fontWeight: '800',
+      fontSize: 13,
     },
   });

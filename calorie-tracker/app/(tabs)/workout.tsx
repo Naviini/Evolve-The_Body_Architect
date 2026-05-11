@@ -3,12 +3,11 @@
  *
  * Sections:
  *   XP progress bar · Achievement badges · Dynamic refresh banner
- *   Daily motivational nudge · Reasoning pill · Weekly day strip
- *   Day hero card · Exercise list (with Learn buttons) · Start CTA
- *   Week summary stats · History
+ *   Reasoning pill · Weekly day selector · Expandable day workout card
+ *   (recommended exercises) · Start CTA · Week summary stats · History
  */
 
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Animated, Platform, RefreshControl, ActivityIndicator,
@@ -57,16 +56,6 @@ const DIFF_BADGE: Record<string, { color: string; label: string }> = {
   intense:  { color: '#FF5252', label: 'Intense' },
 };
 
-const DAILY_NUDGES = [
-  { emoji: '💧', text: 'Start hydrated — drink a glass of water before your workout.' },
-  { emoji: '🌡️', text: 'Warm up for 5 minutes first. Cold muscles tear, warm muscles grow.' },
-  { emoji: '😴', text: 'Sleep is when you grow stronger. Aim for 7–9 hours tonight.' },
-  { emoji: '🥗', text: 'Fuel your body well today — protein repairs the muscles you build.' },
-  { emoji: '🧘', text: 'Consistency beats intensity. Show up, even on your off days.' },
-  { emoji: '📈', text: 'Track your progress — you can\'t improve what you don\'t measure.' },
-  { emoji: '🤝', text: 'Your body adapts to what you repeatedly do. Make it worth adapting to.' },
-];
-
 // ════════════════════════════════════════════════════════════
 // Main Screen
 // ════════════════════════════════════════════════════════════
@@ -87,7 +76,7 @@ export default function WorkoutScreen() {
   const [rewards, setRewards] = useState<UserRewards | null>(null);
   const [showRefreshBanner, setShowRefreshBanner] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [nudgeIdx] = useState(() => new Date().getDate() % DAILY_NUDGES.length);
+  const [workoutOverviewExpanded, setWorkoutOverviewExpanded] = useState(true);
 
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -185,6 +174,11 @@ export default function WorkoutScreen() {
     }, [loadData])
   );
 
+  useEffect(() => {
+    setWorkoutOverviewExpanded(true);
+    setExpandedExercise(null);
+  }, [selectedDay]);
+
   const onRefresh = async () => {
     setRefreshing(true);
     const uid = user?.id ?? 'demo-user';
@@ -207,7 +201,7 @@ export default function WorkoutScreen() {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.loadingText}>Building your plan… 💪</Text>
+        <Text style={styles.loadingText}>Building your plan…</Text>
       </View>
     );
   }
@@ -232,7 +226,10 @@ export default function WorkoutScreen() {
           <View style={styles.header}>
             <View>
               <Text style={styles.headerSub}>Your Plan This Week</Text>
-              <Text style={styles.headerTitle}>Workout 🏋️</Text>
+              <View style={styles.headerTitleRow}>
+                <Text style={styles.headerTitle}>Workout</Text>
+                <Ionicons name="barbell-outline" size={22} color={colors.text} style={styles.headerTitleIcon} />
+              </View>
             </View>
             <View style={styles.headerRight}>
               {streak > 0 && (
@@ -274,21 +271,21 @@ export default function WorkoutScreen() {
               <Ionicons name="refresh-circle" size={20} color={Colors.warning} />
               <Text style={styles.refreshBannerText}>Your body has changed — update your plan!</Text>
               <TouchableOpacity onPress={forceRefreshPlan} style={styles.refreshBtn}>
-                <Text style={styles.refreshBtnText}>Refresh 🔄</Text>
+                <View style={styles.refreshBtnInner}>
+                  <Ionicons name="refresh" size={14} color={Colors.warning} />
+                  <Text style={styles.refreshBtnText}>Refresh</Text>
+                </View>
               </TouchableOpacity>
             </Animated.View>
           )}
 
-          {/* ── Daily Nudge ──────────────────────────────────── */}
-          <View style={styles.nudgeCard}>
-            <Text style={styles.nudgeEmoji}>{DAILY_NUDGES[nudgeIdx].emoji}</Text>
-            <Text style={styles.nudgeText}>{DAILY_NUDGES[nudgeIdx].text}</Text>
-          </View>
-
           {/* ── Achievements Row ─────────────────────────────── */}
           {earnedAchievements.length > 0 && (
             <>
-              <Text style={styles.sectionTitle}>🏅 Achievements</Text>
+              <View style={styles.sectionTitleRow}>
+                <Ionicons name="trophy-outline" size={18} color={colors.text} />
+                <Text style={styles.sectionTitleInline}>Achievements</Text>
+              </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.badgesStrip}>
                 {earnedAchievements.map(badge => (
                   <View key={badge.id} style={styles.badgeChip}>
@@ -315,74 +312,114 @@ export default function WorkoutScreen() {
             </View>
           )}
 
-          {/* ── Weekly Day Strip ─────────────────────────────── */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dayStrip}>
-            {(plan?.days ?? []).map((day, i) => {
-              const isToday = i === todayDayIndex();
-              const isSelected = i === selectedDay;
-              return (
-                <TouchableOpacity key={i} onPress={() => setSelectedDay(i)} activeOpacity={0.7}>
-                  <View style={[styles.dayChip, isSelected && styles.dayChipActive, isToday && !isSelected && styles.dayChipToday]}>
-                    <Text style={[styles.dayChipLabel, isSelected && styles.dayChipLabelActive]}>{DAY_LABELS[i]}</Text>
-                    <Text style={styles.dayChipEmoji}>{day.isRestDay ? '😴' : day.emoji}</Text>
-                    {isToday && <View style={styles.todayDot} />}
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+          {/* ── Weekly day selector (equal columns, no emoji) ─ */}
+          <View style={styles.weekStripSection}>
+            <Text style={styles.weekStripLabel}>Schedule</Text>
+            <View style={styles.weekStripRow}>
+              {(plan?.days ?? []).map((day, i) => {
+                const isToday = i === todayDayIndex();
+                const isSelected = i === selectedDay;
+                const barColor = day.isRestDay
+                  ? colors.border
+                  : (CATEGORY_COLOR[day.exercises[0]?.category ?? 'strength'] ?? Colors.primary);
+                const accessibilityLabel = `${DAY_LABELS[i]}, ${day.isRestDay ? 'rest day' : day.theme}${isToday ? ', today' : ''}${isSelected ? ', selected' : ''}`;
+                return (
+                  <TouchableOpacity
+                    key={i}
+                    onPress={() => setSelectedDay(i)}
+                    activeOpacity={0.75}
+                    style={styles.weekDayTouchable}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isSelected }}
+                    accessibilityLabel={accessibilityLabel}
+                  >
+                    <View
+                      style={[
+                        styles.weekDayCell,
+                        isSelected && styles.weekDayCellSelected,
+                        isToday && !isSelected && styles.weekDayCellToday,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.weekDayLabel,
+                          isSelected && styles.weekDayLabelSelected,
+                          !isSelected && !day.isRestDay && styles.weekDayLabelTraining,
+                          day.isRestDay && !isSelected && styles.weekDayLabelRest,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {DAY_LABELS[i]}
+                      </Text>
+                      <View
+                        style={[
+                          styles.weekDayBar,
+                          { backgroundColor: isSelected ? 'rgba(255,255,255,0.85)' : barColor },
+                          day.isRestDay && !isSelected && styles.weekDayBarMuted,
+                        ]}
+                      />
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
         </Animated.View>
 
         {/* ── Selected Day Card ──────────────────────────────── */}
         {selectedDayData && (
           <Animated.View style={{ opacity: fadeAnim }}>
-            <DayCard day={selectedDayData} isToday={selectedDay === todayDayIndex()} />
+            <DayWorkoutExpandable
+              day={selectedDayData}
+              isToday={selectedDay === todayDayIndex()}
+              expanded={workoutOverviewExpanded}
+              onToggleExpanded={() => setWorkoutOverviewExpanded(v => !v)}
+            >
+              {!selectedDayData.isRestDay && selectedDayData.exercises.length > 0 && (
+                <>
+                  <Text style={styles.dayDropdownTitle}>Recommended exercises</Text>
+                  {selectedDayData.exercises.map((ex, i) => (
+                    <ExerciseCard
+                      key={ex.id}
+                      exercise={ex}
+                      index={i + 1}
+                      expanded={expandedExercise === ex.id}
+                      onToggle={() => setExpandedExercise(expandedExercise === ex.id ? null : ex.id)}
+                      onLearn={() => router.push({
+                        pathname: '/exercise-tutorial',
+                        params: { exerciseId: ex.id, exerciseName: ex.name },
+                      } as any)}
+                    />
+                  ))}
+                </>
+              )}
+            </DayWorkoutExpandable>
 
-            {/* ── Exercise List (with Learn buttons) ─────────── */}
-            {!selectedDayData.isRestDay && selectedDayData.exercises.length > 0 && (
-              <>
-                <Text style={styles.sectionTitle}>Exercises</Text>
-                {selectedDayData.exercises.map((ex, i) => (
-                  <ExerciseCard
-                    key={ex.id}
-                    exercise={ex}
-                    index={i + 1}
-                    expanded={expandedExercise === ex.id}
-                    onToggle={() => setExpandedExercise(expandedExercise === ex.id ? null : ex.id)}
-                    onLearn={() => router.push({
-                      pathname: '/exercise-tutorial',
-                      params: { exerciseId: ex.id, exerciseName: ex.name },
-                    } as any)}
-                  />
-                ))}
-
-                {/* ── Start CTA ─────────────────────────────── */}
-                {selectedDay === todayDayIndex() && (
-                  <TouchableOpacity
-                    style={styles.startBtn}
-                    activeOpacity={0.85}
-                    onPress={() => router.push({
-                      pathname: '/workout-session',
-                      params: { dayJson: JSON.stringify(selectedDayData), planId: plan?.id ?? '' },
-                    } as any)}
-                  >
-                    <LinearGradient
-                      colors={['#6C63FF', '#00D2FF']}
-                      start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                      style={styles.startBtnGradient}
-                    >
-                      <Ionicons name="play-circle" size={22} color="#FFF" />
-                      <Text style={styles.startBtnText}>Start Today's Workout</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-                )}
-              </>
+            {/* ── Start CTA ─────────────────────────────── */}
+            {!selectedDayData.isRestDay && selectedDayData.exercises.length > 0 && selectedDay === todayDayIndex() && (
+              <TouchableOpacity
+                style={styles.startBtn}
+                activeOpacity={0.85}
+                onPress={() => router.push({
+                  pathname: '/workout-session',
+                  params: { dayJson: JSON.stringify(selectedDayData), planId: plan?.id ?? '' },
+                } as any)}
+              >
+                <LinearGradient
+                  colors={['#6C63FF', '#00D2FF']}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                  style={styles.startBtnGradient}
+                >
+                  <Ionicons name="play-circle" size={22} color="#FFF" />
+                  <Text style={styles.startBtnText}>Start Today's Workout</Text>
+                </LinearGradient>
+              </TouchableOpacity>
             )}
 
             {/* ── Rest Day ───────────────────────────────────── */}
             {selectedDayData.isRestDay && (
               <View style={styles.restCard}>
-                <Text style={styles.restEmoji}>🛌</Text>
+                <Ionicons name="moon-outline" size={48} color={colors.textSecondary} style={styles.restIcon} />
                 <Text style={styles.restTitle}>Rest & Recover</Text>
                 <Text style={styles.restBody}>
                   Rest days are just as important as training. Stay hydrated, sleep well, and let your muscles rebuild stronger.
@@ -415,7 +452,10 @@ export default function WorkoutScreen() {
         {/* ── Locked Achievements Teaser ────────────────────── */}
         {allAchievements.filter(a => !a.unlockedAt).length > 0 && (
           <Animated.View style={{ opacity: fadeAnim }}>
-            <Text style={styles.sectionTitle}>🎯 Next Achievements</Text>
+            <View style={styles.sectionTitleRow}>
+              <Ionicons name="flag-outline" size={18} color={colors.text} />
+              <Text style={styles.sectionTitleInline}>Next Achievements</Text>
+            </View>
             <View style={styles.nextAchievementsCard}>
               {allAchievements.filter(a => !a.unlockedAt).slice(0, 3).map((a, i) => (
                 <View key={a.id} style={[styles.nextAchRow, i < 2 && styles.rowBorder]}>
@@ -448,7 +488,7 @@ export default function WorkoutScreen() {
         {/* ── Empty State ───────────────────────────────────── */}
         {!plan && !loading && (
           <View style={styles.emptyState}>
-            <Text style={{ fontSize: 48 }}>🏋️</Text>
+            <Ionicons name="barbell-outline" size={52} color={colors.textTertiary} />
             <Text style={styles.emptyTitle}>Complete Your Profile</Text>
             <Text style={styles.emptyBody}>Add your health details to get a personalised workout plan.</Text>
           </View>
@@ -474,15 +514,29 @@ export default function WorkoutScreen() {
 }
 
 // ════════════════════════════════════════════════════════════
-// Day Card
+// Day card — expandable workout overview + recommended exercises
 // ════════════════════════════════════════════════════════════
 
-function DayCard({ day, isToday }: { day: WorkoutDay; isToday: boolean }) {
+function DayWorkoutExpandable({
+  day,
+  isToday,
+  expanded,
+  onToggleExpanded,
+  children,
+}: {
+  day: WorkoutDay;
+  isToday: boolean;
+  expanded: boolean;
+  onToggleExpanded: () => void;
+  children?: React.ReactNode;
+}) {
   const colors = useThemeColors();
   const styles = useAppStyles(createStyles);
   const catColor = day.isRestDay
     ? colors.textTertiary
     : (CATEGORY_COLOR[day.exercises[0]?.category ?? 'strength'] ?? Colors.primary);
+
+  const hasExercises = !day.isRestDay && day.exercises.length > 0;
 
   return (
     <LinearGradient
@@ -491,27 +545,59 @@ function DayCard({ day, isToday }: { day: WorkoutDay; isToday: boolean }) {
       start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
     >
       <View style={[styles.dayCardAccent, { backgroundColor: catColor }]} />
-      <View style={styles.dayCardContent}>
-        <Text style={styles.dayCardEmoji}>{day.emoji}</Text>
-        <Text style={styles.dayCardTheme}>{day.theme}</Text>
-        {isToday && <View style={styles.todayTagPill}><Text style={styles.todayTagText}>TODAY</Text></View>}
-      </View>
-      {!day.isRestDay && (
-        <View style={styles.dayCardStats}>
-          <View style={styles.dayCardStat}>
-            <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
-            <Text style={styles.dayCardStatText}>{day.estimatedDurationMin} min</Text>
+      <TouchableOpacity
+        activeOpacity={hasExercises ? 0.88 : 1}
+        onPress={hasExercises ? onToggleExpanded : undefined}
+        disabled={!hasExercises}
+        accessibilityRole={hasExercises ? 'button' : undefined}
+        accessibilityState={hasExercises ? { expanded } : undefined}
+        accessibilityHint={hasExercises ? (expanded ? 'Collapses exercise list' : 'Shows recommended exercises') : undefined}
+      >
+        <View style={styles.dayCardContent}>
+          <View style={[styles.dayCardIconWrap, { backgroundColor: catColor + '22' }]}>
+            <Ionicons
+              name={day.isRestDay ? 'moon-outline' : 'barbell-outline'}
+              size={22}
+              color={catColor}
+            />
           </View>
-          <View style={styles.dayCardStat}>
-            <Ionicons name="flame-outline" size={14} color={Colors.warning} />
-            <Text style={styles.dayCardStatText}>{day.estimatedCaloriesBurned} kcal</Text>
-          </View>
-          <View style={styles.dayCardStat}>
-            <Ionicons name="barbell-outline" size={14} color={Colors.primary} />
-            <Text style={styles.dayCardStatText}>{day.exercises.length} exercises</Text>
+          <Text style={styles.dayCardTheme} numberOfLines={2}>{day.theme}</Text>
+          <View style={styles.dayCardHeaderRight}>
+            {isToday && (
+              <View style={styles.todayTagPill}>
+                <Text style={styles.todayTagText}>TODAY</Text>
+              </View>
+            )}
+            {hasExercises && (
+              <Ionicons
+                name={expanded ? 'chevron-up' : 'chevron-down'}
+                size={22}
+                color="rgba(255,255,255,0.75)"
+              />
+            )}
           </View>
         </View>
-      )}
+        {!day.isRestDay && (
+          <View style={styles.dayCardStats}>
+            <View style={styles.dayCardStat}>
+              <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
+              <Text style={styles.dayCardStatText}>{day.estimatedDurationMin} min</Text>
+            </View>
+            <View style={styles.dayCardStat}>
+              <Ionicons name="flame-outline" size={14} color={Colors.warning} />
+              <Text style={styles.dayCardStatText}>{day.estimatedCaloriesBurned} kcal</Text>
+            </View>
+            <View style={styles.dayCardStat}>
+              <Ionicons name="barbell-outline" size={14} color={Colors.primary} />
+              <Text style={styles.dayCardStatText}>{day.exercises.length} exercises</Text>
+            </View>
+          </View>
+        )}
+      </TouchableOpacity>
+
+      {hasExercises && expanded && children ? (
+        <View style={styles.dayCardDropdown}>{children}</View>
+      ) : null}
     </LinearGradient>
   );
 }
@@ -572,7 +658,8 @@ function ExerciseCard({
         ))}
         {exercise.equipment !== 'none' && (
           <View style={styles.equipTag}>
-            <Text style={styles.equipTagText}>🏋️ {exercise.equipment}</Text>
+            <Ionicons name="barbell-outline" size={12} color={colors.textSecondary} style={styles.equipTagIcon} />
+            <Text style={styles.equipTagText}>{exercise.equipment}</Text>
           </View>
         )}
       </View>
@@ -640,7 +727,9 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 8,
   },
   headerSub: { fontSize: Typography.sizes.body, color: colors.textSecondary },
+  headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
   headerTitle: { fontSize: Typography.sizes.heading, color: colors.text, fontWeight: Typography.weights.bold },
+  headerTitleIcon: { marginTop: 1 },
   streakBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: colors.surface, borderRadius: BorderRadius.round,
@@ -685,17 +774,8 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: Colors.warning + '30', borderRadius: BorderRadius.sm,
     paddingHorizontal: 10, paddingVertical: 4,
   },
+  refreshBtnInner: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   refreshBtnText: { fontSize: 12, fontWeight: '700', color: Colors.warning },
-
-  // Daily nudge
-  nudgeCard: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-    backgroundColor: colors.surface, borderRadius: BorderRadius.md,
-    padding: Spacing.sm, marginBottom: Spacing.sm,
-    borderWidth: 1, borderColor: colors.border,
-  },
-  nudgeEmoji: { fontSize: 20 },
-  nudgeText: { flex: 1, fontSize: 13, color: colors.textSecondary, lineHeight: 18, paddingTop: 2 },
 
   // Achievements strip
   badgesStrip: { marginBottom: Spacing.md },
@@ -717,20 +797,58 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   reasoningText: { flex: 1, fontSize: 13, color: colors.textSecondary, lineHeight: 18 },
 
-  // Day strip
-  dayStrip: { marginBottom: Spacing.md },
-  dayChip: {
-    alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8,
-    borderRadius: BorderRadius.md, marginRight: 8,
-    backgroundColor: colors.surface,
-    borderWidth: 1, borderColor: colors.border, minWidth: 52,
+  // Week strip (7 equal columns)
+  weekStripSection: { marginBottom: Spacing.md },
+  weekStripLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textTertiary,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    marginBottom: 8,
   },
-  dayChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  dayChipToday: { borderColor: Colors.primary + '80' },
-  dayChipLabel: { fontSize: 12, color: colors.textSecondary, fontWeight: '600' },
-  dayChipLabelActive: { color: '#FFF' },
-  dayChipEmoji: { fontSize: 16, marginTop: 2 },
-  todayDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: Colors.primary, marginTop: 3 },
+  weekStripRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 6,
+  },
+  weekDayTouchable: { flex: 1, minWidth: 0 },
+  weekDayCell: {
+    alignItems: 'center',
+    paddingTop: 10,
+    paddingBottom: 8,
+    paddingHorizontal: 2,
+    borderRadius: BorderRadius.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  weekDayCellSelected: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+    ...Shadows.small,
+  },
+  weekDayCellToday: {
+    borderColor: Colors.primary,
+    borderWidth: 2,
+  },
+  weekDayLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  weekDayLabelSelected: { color: '#FFF' },
+  weekDayLabelTraining: { color: colors.text },
+  weekDayLabelRest: { color: colors.textTertiary },
+  weekDayBar: {
+    width: '100%',
+    maxWidth: 28,
+    height: 3,
+    borderRadius: 2,
+  },
+  weekDayBarMuted: { opacity: 0.45 },
 
   // Day card
   dayCard: {
@@ -742,7 +860,35 @@ const createStyles = (colors: any) => StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
     paddingHorizontal: Spacing.md, paddingTop: Spacing.md, paddingBottom: Spacing.sm,
   },
-  dayCardEmoji: { fontSize: 28 },
+  dayCardHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 0,
+  },
+  dayCardDropdown: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(255,255,255,0.12)',
+    paddingTop: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingBottom: Spacing.md,
+  },
+  dayDropdownTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: 'rgba(255,255,255,0.45)',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: Spacing.sm,
+    marginLeft: 4,
+  },
+  dayCardIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   dayCardTheme: { flex: 1, fontSize: Typography.sizes.subtitle, fontWeight: '700', color: colors.text },
   todayTagPill: {
     backgroundColor: Colors.primary, borderRadius: BorderRadius.round,
@@ -757,6 +903,14 @@ const createStyles = (colors: any) => StyleSheet.create({
   sectionTitle: {
     fontSize: Typography.sizes.bodyLarge, fontWeight: '700',
     color: colors.text, marginBottom: Spacing.sm, marginTop: Spacing.sm,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    marginBottom: Spacing.sm, marginTop: Spacing.sm,
+  },
+  sectionTitleInline: {
+    fontSize: Typography.sizes.bodyLarge, fontWeight: '700',
+    color: colors.text,
   },
 
   // Exercise card
@@ -779,9 +933,11 @@ const createStyles = (colors: any) => StyleSheet.create({
   muscleTag: { borderRadius: BorderRadius.round, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 2 },
   muscleTagText: { fontSize: 10, fontWeight: '600' },
   equipTag: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: colors.border + '80', borderRadius: BorderRadius.round,
     paddingHorizontal: 8, paddingVertical: 2,
   },
+  equipTagIcon: { marginTop: 0 },
   equipTagText: { fontSize: 10, color: colors.textSecondary },
   exExpanded: {
     marginTop: Spacing.sm, paddingTop: Spacing.sm,
@@ -813,7 +969,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderWidth: 1, borderColor: colors.border,
     padding: Spacing.xl, alignItems: 'center', marginBottom: Spacing.md,
   },
-  restEmoji: { fontSize: 48, marginBottom: Spacing.sm },
+  restIcon: { marginBottom: Spacing.sm },
   restTitle: { fontSize: Typography.sizes.subtitle, fontWeight: '700', color: colors.text, marginBottom: 8 },
   restBody: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 },
   restOptional: { marginTop: Spacing.sm, fontSize: 13, color: Colors.primary, fontWeight: '600' },

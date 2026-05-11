@@ -73,12 +73,31 @@ export function getPersonalizedRecommendations(
     const tags = (product.tags ?? []).map(normalize);
     let score = 0;
 
+    const isHealthyMeal = product.category === 'Healthy Meals' || tags.includes('healthy-meal');
+
     // Goal alignment (muscle/strength/fat-loss/hydration/recovery)
     score += tagScore(tags, sig.goals, 2);
+
+    if (isHealthyMeal) {
+      score += 1;
+      if (sig.goals.some(g => /muscle|strength|lean|protein/.test(g))) score += 1;
+      if (daily.recentWorkouts?.length) score += 0.75;
+      if (typeof daily.todayCalories === 'number') {
+        const diff = sig.calRec.dailyCalories - daily.todayCalories;
+        if (diff > 200) score += 0.75;
+      }
+    }
 
     // Diet type alignment (soft)
     if (sig.dietType === 'keto' && tags.includes('carbs')) score -= 1;
     if ((sig.dietType === 'vegan' || sig.dietType === 'vegetarian') && tags.includes('protein') && product.nutrition?.allergens?.includes('milk')) score -= 1;
+
+    if (sig.dietType === 'vegan' && !tags.includes('vegan')) {
+      score -= 3;
+    }
+    if (sig.dietType === 'vegetarian' && (tags.includes('beef') || tags.includes('chicken') || tags.includes('fish'))) {
+      score -= 2;
+    }
 
     // Health conditions
     const condBlob = sig.conditions.join(' ');

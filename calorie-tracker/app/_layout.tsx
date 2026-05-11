@@ -125,37 +125,6 @@ function InnerLayout({
           }}
         >
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="add-meal"
-            options={{
-              presentation: 'modal',
-              animation: 'slide_from_bottom',
-            }}
-          />
-          <Stack.Screen
-            name="edit-health-profile"
-            options={{
-              presentation: 'modal',
-              animation: 'slide_from_bottom',
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen
-            name="body-insights"
-            options={{
-              presentation: 'modal',
-              animation: 'slide_from_bottom',
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen
-            name="body-simulation"
-            options={{
-              presentation: 'modal',
-              animation: 'slide_from_bottom',
-              headerShown: false,
-            }}
-          />
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         </Stack>
         <StatusBar style="light" />
