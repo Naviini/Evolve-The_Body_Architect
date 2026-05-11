@@ -94,8 +94,6 @@ export async function initDatabase(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_meal_entries_date ON meal_entries(logged_at);
     CREATE INDEX IF NOT EXISTS idx_meal_entries_sync ON meal_entries(sync_status);
     CREATE INDEX IF NOT EXISTS idx_daily_logs_date ON daily_logs(log_date);
-    CREATE INDEX IF NOT EXISTS idx_food_items_name ON food_items(name);
-    CREATE INDEX IF NOT EXISTS idx_food_items_verified ON food_items(is_verified, name);
   `);
 
     // Workout tables
@@ -288,6 +286,7 @@ export async function initDatabase(): Promise<void> {
       is_new INTEGER DEFAULT 0,
       on_sale INTEGER DEFAULT 0,
       nutrition_json TEXT,
+      partner_name TEXT,
       updated_at TEXT DEFAULT (datetime('now'))
     );
 
@@ -339,6 +338,12 @@ export async function initDatabase(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_store_order_items_order ON store_order_items(order_id);
     CREATE INDEX IF NOT EXISTS idx_store_wishlist_user ON store_wishlist_items(user_id, created_at DESC);
   `);
+
+    try {
+        await db.execAsync(`ALTER TABLE store_products ADD COLUMN partner_name TEXT`);
+    } catch {
+        /* already exists */
+    }
 }
 
 function getDb(): SQLite.SQLiteDatabase {
@@ -478,49 +483,20 @@ export async function insertFoodItem(item: Partial<FoodItem>): Promise<void> {
     );
 }
 
-/**
- * Bulk-upsert a batch of food items (used by the catalog sync pipeline).
- * Runs all inserts inside a single transaction for performance.
- */
-export async function insertFoodItemsBatch(items: Partial<FoodItem>[]): Promise<void> {
-    if (items.length === 0) return;
-    const database = getDb();
-    await database.withTransactionAsync(async () => {
-        for (const item of items) {
-            await database.runAsync(
-                `INSERT OR REPLACE INTO food_items
-                 (id, name, brand, serving_size, serving_unit, calories, protein_g, carbs_g, fat_g, fiber_g, image_url, barcode, is_verified)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [
-                    item.id || generateId(),
-                    item.name || '',
-                    item.brand || null,
-                    item.serving_size || 100,
-                    item.serving_unit || 'g',
-                    item.calories || 0,
-                    item.protein_g || 0,
-                    item.carbs_g || 0,
-                    item.fat_g || 0,
-                    item.fiber_g || 0,
-                    item.image_url || null,
-                    item.barcode || null,
-                    item.is_verified ? 1 : 0,
-                ]
-            );
-        }
-    });
-}
-
-/**
- * Returns the total number of food items stored in the local catalog.
- * Used to decide whether a catalog sync is needed.
- */
 export async function getFoodCatalogCount(): Promise<number> {
     const database = getDb();
-    const row = await database.getFirstAsync<{ cnt: number }>(
-        `SELECT COUNT(*) AS cnt FROM food_items`
-    );
-    return row?.cnt ?? 0;
+    const row = await database.getFirstAsync<{ c: number }>('SELECT COUNT(*) AS c FROM food_items');
+    return row?.c ?? 0;
+}
+
+export async function insertFoodItemsBatch(rows: Partial<FoodItem>[]): Promise<void> {
+    if (rows.length === 0) return;
+    const database = getDb();
+    await database.withTransactionAsync(async () => {
+        for (const row of rows) {
+            await insertFoodItem(row);
+        }
+    });
 }
 
 // ============================================================
@@ -857,60 +833,6 @@ export async function markAsSynced(table: string, id: string): Promise<void> {
     );
 }
 
-export async function getPendingDailyLogs(): Promise<Array<{
-    id: string;
-    user_id: string;
-    log_date: string;
-    total_calories: number;
-    total_protein_g: number;
-    total_carbs_g: number;
-    total_fat_g: number;
-    water_ml: number;
-    updated_at: string;
-}>> {
-    const database = getDb();
-    return database.getAllAsync<any>(
-        `SELECT * FROM daily_logs WHERE sync_status = 'pending'`
-    );
-}
-
-export async function upsertDailyLogDirect(log: {
-    id: string;
-    user_id: string;
-    log_date: string;
-    total_calories: number;
-    total_protein_g: number;
-    total_carbs_g: number;
-    total_fat_g: number;
-    water_ml: number;
-    updated_at: string;
-}): Promise<void> {
-    const database = getDb();
-    await database.runAsync(
-        `INSERT INTO daily_logs (id, user_id, log_date, total_calories, total_protein_g, total_carbs_g, total_fat_g, water_ml, updated_at, sync_status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced')
-         ON CONFLICT(user_id, log_date) DO UPDATE SET
-           total_calories = excluded.total_calories,
-           total_protein_g = excluded.total_protein_g,
-           total_carbs_g = excluded.total_carbs_g,
-           total_fat_g = excluded.total_fat_g,
-           water_ml = excluded.water_ml,
-           updated_at = excluded.updated_at,
-           sync_status = 'synced'`,
-        [
-            log.id,
-            log.user_id,
-            log.log_date,
-            log.total_calories,
-            log.total_protein_g,
-            log.total_carbs_g,
-            log.total_fat_g,
-            log.water_ml,
-            log.updated_at,
-        ]
-    );
-}
-
 // ============================================================
 // Onboarding Health Profile
 // ============================================================
@@ -921,14 +843,20 @@ export async function saveOnboardingProfile(
 ): Promise<void> {
     await upsertLocalOnboardingProfile(userId, data, null);
 
-    // Mirror onboarding data to Supabase when authenticated.
-    if (userId !== 'onboarding-temp') {
+    // Mirror onboarding data to Supabase only for real authenticated users.
+    if (isRealUserId(userId)) {
         await syncOnboardingToSupabase(userId, data);
     }
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isRealUserId(id: string): boolean {
+    return Boolean(id) && UUID_REGEX.test(id);
+}
+
 export async function hydrateOnboardingProfileFromSupabase(userId: string): Promise<void> {
-    if (!userId || userId === 'onboarding-temp') return;
+    if (!isRealUserId(userId)) return;
 
     try {
         const { data: remote, error } = await supabase
@@ -969,7 +897,7 @@ export async function hydrateOnboardingProfileFromSupabase(userId: string): Prom
 export async function getUserHealthProfileForProcessing(
     userId: string
 ): Promise<OnboardingProfile | null> {
-    if (!userId) return null;
+    if (!isRealUserId(userId)) return getOnboardingProfile(userId);
 
     // Best-effort remote hydration. This is safe even when offline or not authed.
     try {
@@ -1326,14 +1254,12 @@ async function syncOnboardingToSupabase(
 }
 
 export async function getDailyCalorieGoalForUser(userId: string): Promise<number> {
-    if (!userId || userId === 'demo-user') return 2000;
+    if (!isRealUserId(userId)) return 2000;
 
     const localProfile = await getUserHealthProfileForProcessing(userId).catch(() => null);
     if (localProfile) {
         return calculatePersonalizedCalorieRecommendation(localProfile).dailyCalories;
     }
-
-    if (userId === 'onboarding-temp') return 2000;
 
     try {
         const { data, error } = await supabase
@@ -1358,7 +1284,8 @@ export async function getDailyCalorieGoalForUser(userId: string): Promise<number
  */
 export async function getDailyDietPlanForUser(
     userId: string,
-    date: string = new Date().toISOString().split('T')[0]
+    date: string = new Date().toISOString().split('T')[0],
+    variationRoll: number = 0
 ): Promise<DailyDietPlan | null> {
     if (!userId) return null;
     const profile = await getUserHealthProfileForProcessing(userId).catch(() => null);
@@ -1373,7 +1300,9 @@ export async function getDailyDietPlanForUser(
         recentWorkouts: normalizeStringArray(daily?.recent_workouts),
     };
 
-    return generateDailyDietPlan(profile, date, context);
+    return generateDailyDietPlan(profile, date, context, {
+        variationRoll,
+    });
 }
 
 export async function getOnboardingProfile(
@@ -1445,7 +1374,7 @@ export async function saveBodyTypeResult(
         ]
     );
 
-    if (userId !== 'onboarding-temp') {
+    if (isRealUserId(userId)) {
         try {
             const { error } = await supabase
                 .from('user_health_profiles')
@@ -1561,40 +1490,6 @@ export async function saveWorkoutPlan(
             plan.reasoning,
             plan.generatedAt,
         ]
-    );
-
-    if (userId && userId !== 'onboarding-temp') {
-        try {
-            const { error } = await supabase.from('workout_plans').upsert({
-                id,
-                user_id: userId,
-                week_start_date: plan.weekStartDate,
-                plan_json: JSON.stringify(plan),
-                reasoning: plan.reasoning ?? null,
-                generated_at: plan.generatedAt,
-            }, { onConflict: 'user_id,week_start_date' });
-
-            if (error) {
-                console.error('Failed to sync workout plan to Supabase:', error.message);
-            }
-        } catch (e: any) {
-            console.error('Unexpected workout plan sync error:', e?.message ?? e);
-        }
-    }
-}
-
-export async function getAllWorkoutPlans(userId: string): Promise<Array<{
-    id: string;
-    user_id: string;
-    week_start_date: string;
-    plan_json: string;
-    reasoning: string | null;
-    generated_at: string;
-}>> {
-    const database = getDb();
-    return database.getAllAsync<any>(
-        `SELECT * FROM workout_plans WHERE user_id = ? ORDER BY week_start_date DESC`,
-        [userId]
     );
 }
 
@@ -1809,104 +1704,28 @@ export async function saveProfileHash(userId: string, hash: string): Promise<voi
 // Body Photos
 // ============================================================
 
-/**
- * Uploads a local photo file to Supabase Storage and returns the public URL.
- * Returns null if the upload fails (e.g. offline) — caller falls back to local URI.
- *
- * Bucket: body-photos  (must exist in Supabase Storage with public access)
- * Path:   {userId}/{photoId}.jpg
- */
-async function uploadPhotoToStorage(
-    localUri: string,
-    userId: string,
-    photoId: string,
-): Promise<string | null> {
-    try {
-        const response = await fetch(localUri);
-        if (!response.ok) {
-            console.error('Storage upload: could not fetch local file', response.status);
-            return null;
-        }
-
-        // ArrayBuffer works reliably across Expo native, Expo web, and blob: URLs
-        const arrayBuffer = await response.arrayBuffer();
-
-        // Detect mime type from URI extension; default to jpeg
-        const ext = localUri.split('?')[0].split('.').pop()?.toLowerCase();
-        const contentType =
-            ext === 'png' ? 'image/png' :
-            ext === 'webp' ? 'image/webp' :
-            ext === 'heic' ? 'image/heic' :
-            'image/jpeg';
-
-        const storagePath = `${userId}/${photoId}.jpg`;
-        const { error: uploadError } = await supabase.storage
-            .from('body-photos')
-            .upload(storagePath, arrayBuffer, {
-                contentType,
-                upsert: true,
-            });
-
-        if (uploadError) {
-            console.error('Storage upload error:', uploadError.message);
-            return null;
-        }
-
-        const { data } = supabase.storage
-            .from('body-photos')
-            .getPublicUrl(storagePath);
-
-        return data.publicUrl ?? null;
-    } catch (e: any) {
-        console.error('Unexpected upload error:', e?.message ?? e);
-        return null;
-    }
-}
-
 export async function saveBodyPhoto(photo: Omit<BodyPhotoRecord, 'createdAt'>): Promise<string> {
     const database = getDb();
     const id = photo.id || generateId();
-
-    // 1. Save locally first so the app works immediately offline
     await database.runAsync(
         `INSERT INTO body_photos (id, user_id, local_uri, date_taken, phase, notes)
-         VALUES (?, ?, ?, ?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET
-           local_uri = excluded.local_uri,
-           date_taken = excluded.date_taken,
-           phase = excluded.phase,
-           notes = excluded.notes`,
+         VALUES (?, ?, ?, ?, ?, ?)`,
         [id, photo.userId, photo.localUri, photo.dateTaken, photo.phase, photo.notes]
     );
 
-    if (photo.userId === 'onboarding-temp') return id;
-
-    // 2. Upload the actual image file to Supabase Storage
-    const publicUrl = await uploadPhotoToStorage(photo.localUri, photo.userId, id);
-
-    // 3. Use the public URL everywhere so the photo is accessible on any device.
-    //    Fall back to the local URI if upload failed (e.g. offline).
-    const persistedUri = publicUrl ?? photo.localUri;
-
-    // 4. Update local SQLite with the public URL (so it survives reinstalls)
-    if (publicUrl) {
-        await database.runAsync(
-            `UPDATE body_photos SET local_uri = ? WHERE id = ?`,
-            [publicUrl, id]
-        );
+    // Sync to Supabase
+    if (isRealUserId(photo.userId)) {
+        supabase.from('body_photos').upsert({
+            id,
+            user_id: photo.userId,
+            local_uri: photo.localUri,
+            date_taken: photo.dateTaken,
+            phase: photo.phase,
+            notes: photo.notes,
+            created_at: new Date().toISOString()
+        }, { onConflict: 'id' })
+        .then(({error}) => { if (error) console.error("Body photo sync error:", error); });
     }
-
-    // 5. Upsert metadata row in Supabase with the public URL
-    supabase.from('body_photos').upsert({
-        id,
-        user_id: photo.userId,
-        local_uri: persistedUri,
-        date_taken: photo.dateTaken,
-        phase: photo.phase,
-        notes: photo.notes,
-        created_at: new Date().toISOString(),
-    }, { onConflict: 'id' })
-    .then(({ error }) => { if (error) console.error('Body photo metadata sync error:', error.message); });
 
     return id;
 }
@@ -1926,14 +1745,6 @@ export async function getBodyPhotos(userId: string): Promise<BodyPhotoRecord[]> 
         notes: r.notes,
         createdAt: r.created_at,
     }));
-}
-
-export async function purgeStaleBlobPhotos(userId: string): Promise<void> {
-    const database = getDb();
-    await database.runAsync(
-        `DELETE FROM body_photos WHERE user_id = ? AND local_uri LIKE 'blob:%'`,
-        [userId]
-    );
 }
 
 export async function deleteBodyPhoto(id: string): Promise<void> {
@@ -1969,7 +1780,7 @@ export async function saveBodySimulation(
     );
 
     // Sync to Supabase
-    if (userId !== 'onboarding-temp') {
+    if (isRealUserId(userId)) {
         supabase.from('body_simulations').upsert({
             id,
             user_id: userId,
@@ -2068,6 +1879,7 @@ function mapStoreProductRow(row: any): StoreProduct {
         isNew: row.is_new === 1,
         onSale: row.on_sale === 1,
         nutrition: row.nutrition_json ? JSON.parse(row.nutrition_json) : undefined,
+        partnerName: row.partner_name ?? undefined,
     };
 }
 
@@ -2084,8 +1896,8 @@ export async function seedStoreProductsIfEmpty(seedProducts: StoreProduct[]): Pr
             await database.runAsync(
                 `INSERT INTO store_products (
                     id, name, category, price, previous_price, description, image,
-                    tags_json, rating, is_new, on_sale, nutrition_json, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+                    tags_json, rating, is_new, on_sale, nutrition_json, partner_name, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
                 [
                     product.id,
                     product.name,
@@ -2099,6 +1911,42 @@ export async function seedStoreProductsIfEmpty(seedProducts: StoreProduct[]): Pr
                     product.isNew ? 1 : 0,
                     product.onSale ? 1 : 0,
                     product.nutrition ? JSON.stringify(product.nutrition) : null,
+                    product.partnerName ?? null,
+                ]
+            );
+        }
+    });
+}
+
+/** Inserts catalogue rows from seed only when IDs are missing (adds new SKUs without wiping DB). */
+export async function mergeMissingStoreProducts(seedProducts: StoreProduct[]): Promise<void> {
+    const database = getDb();
+    await database.withTransactionAsync(async () => {
+        for (const product of seedProducts) {
+            const existing = await database.getFirstAsync<{ id: string }>(
+                `SELECT id FROM store_products WHERE id = ?`,
+                [product.id]
+            );
+            if (existing) continue;
+            await database.runAsync(
+                `INSERT INTO store_products (
+                    id, name, category, price, previous_price, description, image,
+                    tags_json, rating, is_new, on_sale, nutrition_json, partner_name, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+                [
+                    product.id,
+                    product.name,
+                    product.category,
+                    product.price,
+                    product.previousPrice ?? null,
+                    product.description ?? null,
+                    product.image ?? null,
+                    JSON.stringify(product.tags || []),
+                    product.rating ?? null,
+                    product.isNew ? 1 : 0,
+                    product.onSale ? 1 : 0,
+                    product.nutrition ? JSON.stringify(product.nutrition) : null,
+                    product.partnerName ?? null,
                 ]
             );
         }

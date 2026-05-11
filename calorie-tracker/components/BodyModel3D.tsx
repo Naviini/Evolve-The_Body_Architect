@@ -7,7 +7,7 @@
  * For the full 3D experience use a development build —
  * Metro will then prefer BodyModel3D.native.tsx if present.
  *
- * Web uses BodyModel3D.web.tsx (Three.js / React Three Fiber).
+ * Web uses BodyModel3D.web.tsx (animated SVG silhouette — no Three.js on web).
  */
 
 import React from 'react';

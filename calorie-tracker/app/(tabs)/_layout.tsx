@@ -126,6 +126,16 @@ export default function TabLayout() {
       />
       {/* Hide the old explore screen */}
       <Tabs.Screen name="explore" options={{ href: null }} />
+
+      {/* Full-screen helpers under tabs so bottom navigation stays visible */}
+      <Tabs.Screen name="workout-session" options={{ href: null }} />
+      <Tabs.Screen name="diet-plan" options={{ href: null }} />
+      <Tabs.Screen name="body-insights" options={{ href: null }} />
+      <Tabs.Screen name="body-simulation" options={{ href: null }} />
+      <Tabs.Screen name="add-meal" options={{ href: null }} />
+      <Tabs.Screen name="edit-health-profile" options={{ href: null }} />
+      <Tabs.Screen name="exercise-tutorial" options={{ href: null }} />
+      <Tabs.Screen name="settings" options={{ href: null }} />
     </Tabs>
   );
 }

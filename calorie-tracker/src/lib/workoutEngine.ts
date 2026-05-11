@@ -518,7 +518,7 @@ function derivePlanParams(
   let goal: PlanParams['goal'] = 'maintain';
   if (dreamWeight && currentWeight) {
     if (dreamWeight < currentWeight - 2) { goal = 'cut'; reasons.push('Weight loss goal detected → cardio priority 🔥'); }
-    else if (dreamWeight > currentWeight + 2) { goal = 'bulk'; reasons.push('Muscle gain goal → strength focus 💪'); }
+    else if (dreamWeight > currentWeight + 2) { goal = 'bulk'; reasons.push('Muscle gain goal → strength focus 📈'); }
     else { goal = 'tone'; reasons.push('Body recomposition goal → balanced plan ⚡'); }
   }
 
@@ -535,16 +535,16 @@ function derivePlanParams(
   // (We don't have BodyTypeResult directly, but we can infer from BMI + activity)
   if (profile.height_cm && profile.weight_kg) {
     const bmi = profile.weight_kg / Math.pow(profile.height_cm / 100, 2);
-    if (bmi < 20) { bodyType = 'ectomorph'; reasons.push('Lean build → strength focus, minimal cardio 🏋️'); }
-    else if (bmi > 27) { bodyType = 'endomorph'; reasons.push('Robust build → cardio + strength hybrid 🏃'); }
-    else { bodyType = 'mesomorph'; reasons.push('Athletic build → balanced Push/Pull/Legs split 💪'); }
+    if (bmi < 20) { bodyType = 'ectomorph'; reasons.push('Lean build → strength focus, minimal cardio 🎯'); }
+    else if (bmi > 27) { bodyType = 'endomorph'; reasons.push('Robust build → cardio + strength hybrid ⏱️'); }
+    else { bodyType = 'mesomorph'; reasons.push('Athletic build → balanced Push/Pull/Legs split ⚖️'); }
   }
 
   // ── Health conditions → safe tags ───────────────────────
   const conditions = (profile.health_conditions ?? []).join(' ').toLowerCase();
   let heartCondition = false;
   if (conditions.match(/knee|acl|meniscus/)) {
-    tags.push('knee-friendly'); reasons.push('Knee condition → low-impact alternatives 🦵');
+    tags.push('knee-friendly'); reasons.push('Knee condition → low-impact alternatives ✓');
   }
   if (conditions.match(/back|spine|disc|lumbar/)) {
     tags.push('back-friendly'); reasons.push('Back condition → spine-safe exercises only 🛡️');
@@ -554,7 +554,7 @@ function derivePlanParams(
     reasons.push('Cardiovascular condition → steady-state cardio, no HIIT ❤️');
   }
   if (conditions.match(/shoulder|rotator/)) {
-    tags.push('shoulder-friendly'); reasons.push('Shoulder condition → modified pressing movements 🫙');
+    tags.push('shoulder-friendly'); reasons.push('Shoulder condition → modified pressing movements 🛡️');
   }
   if (conditions.match(/joint|arthritis|fibromyalgia/)) {
     tags.push('joint-friendly'); reasons.push('Joint condition → gentle, low-impact movements 🌿');
@@ -570,7 +570,7 @@ function derivePlanParams(
   // ── Stress / sleep ───────────────────────────────────────
   const highStress = (profile.stress_level ?? 0) >= 4;
   const poorSleep = (profile.sleep_hours ?? 8) < 6;
-  if (highStress) reasons.push('High stress → recovery and yoga sessions added 🧘');
+  if (highStress) reasons.push('High stress → recovery and gentle mobility sessions added 🌿');
   if (poorSleep) reasons.push('Low sleep → intensity reduced, recovery priority 😴');
 
   // ── Activity level ─────────────────────────────────────
@@ -598,14 +598,14 @@ function derivePlanParams(
       case 'powerlifter':
         primaryFocus = 'strength';
         if (fitnessLevel !== 'beginner') restDaysPerWeek = Math.max(restDaysPerWeek - 1, 1);
-        reasons.push(`Dream body "${dreamStyle}" → heavy compound lifts prioritised 🏋️`);
+        reasons.push(`Dream body "${dreamStyle}" → heavy compound lifts prioritised 🎯`);
         break;
       case 'swimmer':
-        reasons.push('Swimmer physique → back, shoulders & cardio emphasis 🏊');
+        reasons.push('Swimmer physique → back, shoulders & cardio emphasis 🌊');
         break;
       case 'runner':
         primaryFocus = 'cardio';
-        reasons.push('Runner build → endurance cardio + leg conditioning 🏃');
+        reasons.push('Runner build → endurance cardio + leg conditioning ⏱️');
         break;
       case 'lean_athletic':
         reasons.push('Lean athletic goal → balanced strength + HIIT 🔥');
@@ -646,34 +646,34 @@ const WEEKLY_TEMPLATES: Record<PlanParams['fitnessLevel'], DayTheme[]> = {
     { theme: 'Active Recovery', emoji: '🌿', categories: ['recovery', 'flexibility'], exerciseCount: 3 },
     { theme: 'Cardio & Core', emoji: '🔥', categories: ['cardio', 'strength'], exerciseCount: 4 },
     { theme: 'Rest Day', emoji: '😴', categories: [], exerciseCount: 0 },
-    { theme: 'Lower Body', emoji: '🦵', categories: ['strength', 'flexibility'], exerciseCount: 4 },
-    { theme: 'Upper Body', emoji: '💪', categories: ['strength'], exerciseCount: 4 },
+    { theme: 'Lower Body', emoji: '🔷', categories: ['strength', 'flexibility'], exerciseCount: 4 },
+    { theme: 'Upper Body', emoji: '🎯', categories: ['strength'], exerciseCount: 4 },
     { theme: 'Rest Day', emoji: '😴', categories: [], exerciseCount: 0 },
   ],
   intermediate: [
-    { theme: 'Push Day', emoji: '🏋️', categories: ['strength'], exerciseCount: 5 },
+    { theme: 'Push Day', emoji: '⬆️', categories: ['strength'], exerciseCount: 5 },
     { theme: 'Cardio Blast', emoji: '🔥', categories: ['cardio', 'hiit'], exerciseCount: 4 },
-    { theme: 'Pull Day', emoji: '💪', categories: ['strength'], exerciseCount: 5 },
+    { theme: 'Pull Day', emoji: '🔄', categories: ['strength'], exerciseCount: 5 },
     { theme: 'Active Recovery', emoji: '🌿', categories: ['yoga', 'mobility'], exerciseCount: 4 },
-    { theme: 'Legs & Glutes', emoji: '🦵', categories: ['strength'], exerciseCount: 5 },
+    { theme: 'Legs & Glutes', emoji: '🔷', categories: ['strength'], exerciseCount: 5 },
     { theme: 'HIIT Full Body', emoji: '⚡', categories: ['hiit', 'cardio'], exerciseCount: 5 },
     { theme: 'Rest Day', emoji: '😴', categories: [], exerciseCount: 0 },
   ],
   advanced: [
-    { theme: 'Push Strength', emoji: '🏋️', categories: ['strength'], exerciseCount: 6 },
+    { theme: 'Push Strength', emoji: '⬆️', categories: ['strength'], exerciseCount: 6 },
     { theme: 'HIIT & Cardio', emoji: '⚡', categories: ['hiit', 'cardio'], exerciseCount: 5 },
-    { theme: 'Pull & Back', emoji: '💪', categories: ['strength'], exerciseCount: 6 },
-    { theme: 'Legs Power', emoji: '🦵', categories: ['strength'], exerciseCount: 6 },
+    { theme: 'Pull & Back', emoji: '🔄', categories: ['strength'], exerciseCount: 6 },
+    { theme: 'Legs Power', emoji: '🔷', categories: ['strength'], exerciseCount: 6 },
     { theme: 'Core & Mobility', emoji: '🔮', categories: ['strength', 'mobility'], exerciseCount: 5 },
-    { theme: 'Cardio Endurance', emoji: '🏃', categories: ['cardio'], exerciseCount: 4 },
+    { theme: 'Cardio Endurance', emoji: '⏱️', categories: ['cardio'], exerciseCount: 4 },
     { theme: 'Active Recovery', emoji: '🌿', categories: ['recovery', 'yoga'], exerciseCount: 3 },
   ],
   athlete: [
-    { theme: 'Max Strength', emoji: '🏋️', categories: ['strength'], exerciseCount: 7 },
+    { theme: 'Max Strength', emoji: '⬆️', categories: ['strength'], exerciseCount: 7 },
     { theme: 'Explosive HIIT', emoji: '💥', categories: ['hiit'], exerciseCount: 6 },
-    { theme: 'Hypertrophy Pull', emoji: '💪', categories: ['strength'], exerciseCount: 7 },
-    { theme: 'Power Legs', emoji: '🦵', categories: ['strength'], exerciseCount: 6 },
-    { theme: 'Conditioning', emoji: '🏃', categories: ['cardio', 'hiit'], exerciseCount: 5 },
+    { theme: 'Hypertrophy Pull', emoji: '🔄', categories: ['strength'], exerciseCount: 7 },
+    { theme: 'Power Legs', emoji: '🔷', categories: ['strength'], exerciseCount: 6 },
+    { theme: 'Conditioning', emoji: '⏱️', categories: ['cardio', 'hiit'], exerciseCount: 5 },
     { theme: 'Full Body Power', emoji: '⚡', categories: ['strength', 'hiit'], exerciseCount: 6 },
     { theme: 'Active Rest', emoji: '🌿', categories: ['recovery', 'flexibility'], exerciseCount: 3 },
   ],

@@ -1,5 +1,35 @@
 import { products, StoreProduct } from '../../components/store/products';
-import { getStoreProductById, getStoreProducts, initDatabase, seedStoreProductsIfEmpty } from '../lib/database';
+import { HEALTHY_MEAL_REMOTE_IMAGES } from '../../components/store/fitmealRemoteImages';
+import {
+  getStoreProductById,
+  getStoreProducts,
+  initDatabase,
+  mergeMissingStoreProducts,
+  seedStoreProductsIfEmpty,
+} from '../lib/database';
+
+/** Deprecated URL patterns + random Picsum meal shots → stable food imagery per SKU where defined. */
+function repairRemoteProductImage(product: StoreProduct): StoreProduct {
+    const curated = HEALTHY_MEAL_REMOTE_IMAGES[product.id];
+    const uri = (product.image ?? '').trim();
+    const isBadHealthyMealPic =
+        curated !== undefined &&
+        (!uri ||
+            uri.includes('picsum.photos') ||
+            uri.includes('source.unsplash.com'));
+
+    if (curated && isBadHealthyMealPic) {
+        return { ...product, image: curated };
+    }
+
+    if (!uri || uri.includes('source.unsplash.com')) {
+        return {
+            ...product,
+            image: `https://picsum.photos/seed/evolve-fit-${encodeURIComponent(product.id)}/720/560`,
+        };
+    }
+    return product;
+}
 
 export interface ProductQuery {
   category?: string;
@@ -17,11 +47,12 @@ function includesNormalized(haystack: string, needle: string) {
 async function ensureStoreBackendReady() {
   await initDatabase();
   await seedStoreProductsIfEmpty(products);
+  await mergeMissingStoreProducts(products);
 }
 
 export async function getAllProducts(query?: ProductQuery): Promise<StoreProduct[]> {
   await ensureStoreBackendReady();
-  let list = await getStoreProducts();
+  let list = (await getStoreProducts()).map(repairRemoteProductImage);
 
   if (query?.category && query.category !== 'all') {
     list = list.filter(product => product.category === query.category);
@@ -45,8 +76,9 @@ export async function getAllProducts(query?: ProductQuery): Promise<StoreProduct
     list = list.filter(product => product.isNew);
   }
 
-  if (typeof query?.minRating === 'number') {
-    list = list.filter(product => (product.rating ?? 0) >= query.minRating);
+  if (query && typeof query.minRating === 'number') {
+    const min = query.minRating;
+    list = list.filter(product => (product.rating ?? 0) >= min);
   }
 
   switch (query?.sortBy) {
@@ -72,12 +104,12 @@ export async function getAllProducts(query?: ProductQuery): Promise<StoreProduct
 export async function getProductById(id: string): Promise<StoreProduct | undefined> {
   await ensureStoreBackendReady();
   const product = await getStoreProductById(id);
-  return product ?? undefined;
+  return product ? repairRemoteProductImage(product) : undefined;
 }
 
 export async function getFeaturedProducts(limit: number = 8): Promise<StoreProduct[]> {
   await ensureStoreBackendReady();
-  const list = await getStoreProducts();
+  const list = (await getStoreProducts()).map(repairRemoteProductImage);
   return list
     .filter(product => product.onSale || product.isNew || (product.rating ?? 0) >= 4.7)
     .slice(0, limit);

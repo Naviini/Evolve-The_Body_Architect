@@ -327,31 +327,61 @@ function pickTemplate(
   seed: number,
   preferredCuisineKeys: string[],
   localCuisineRatio: number,
-  usedTitles: Set<string>
+  usedTitles: Set<string>,
 ) {
-  if (list.length === 0) {
-    return { title: 'Balanced Meal', description: 'Protein + carbs + vegetables.', tags: ['balanced'], cuisines: ['global'] };
-  }
+  const fallbackTpl: MealTemplate = {
+    title: 'Balanced Meal',
+    description: 'Protein + carbs + vegetables.',
+    tags: ['balanced'],
+    cuisines: ['global'],
+  };
+
+  if (list.length === 0) return fallbackTpl;
 
   const scored = list.map((item, idx) => {
     const cuisineScore = scoreCuisineFit(item, preferredCuisineKeys, localCuisineRatio);
-    const diversityPenalty = usedTitles.has(item.title) ? 4 : 0;
-    // deterministic tiny jitter avoids always selecting first in ties
+    const diversityPenalty = usedTitles.has(item.title) ? 99 : 0;
     const jitter = ((seed + idx * 31) % 100) / 1000;
     return { item, score: cuisineScore - diversityPenalty + jitter };
   });
 
   scored.sort((a, b) => b.score - a.score);
-  const selected = scored[0].item;
-  usedTitles.add(selected.title);
-  return selected;
+
+  const poolSize = Math.min(6, scored.length);
+  const start =
+    ((((seed >>> 0) ^ (seed << 11) ^ ((seed >>> 16) >>> 0)) >>> 0) % poolSize) || 0;
+
+  for (let step = 0; step < poolSize; step++) {
+    const i = (start + step) % poolSize;
+    const cand = scored[i].item;
+    if (!usedTitles.has(cand.title)) {
+      usedTitles.add(cand.title);
+      return cand;
+    }
+  }
+  for (let j = poolSize; j < scored.length; j++) {
+    const cand = scored[j].item;
+    if (!usedTitles.has(cand.title)) {
+      usedTitles.add(cand.title);
+      return cand;
+    }
+  }
+  usedTitles.add(scored[0].item.title);
+  return scored[0].item;
+}
+
+export interface DietPlanGenerateOptions {
+  /** Each increment shuffles meals among eligible templates — daily targets stay identical. */
+  variationRoll?: number;
 }
 
 export function generateDailyDietPlan(
   profile: OnboardingProfile,
   date: string = new Date().toISOString().split('T')[0],
-  context: DailyDietContext = {}
+  context: DailyDietContext = {},
+  options: DietPlanGenerateOptions = {},
 ): DailyDietPlan {
+  const variationRoll = Math.max(0, Math.floor(Number(options.variationRoll) || 0));
   const rec = calculatePersonalizedCalorieRecommendation(profile);
   const split = macroSplitForProfile(profile);
   applyHealthRiskAdjustments(profile, split);
@@ -385,8 +415,11 @@ export function generateDailyDietPlan(
     };
   };
 
-  // Stable daily seed so plan is reproducible for that date & user.
-  const seedBase = (profile.user_id?.charCodeAt(0) ?? 17) + parseInt(date.replace(/-/g, ''), 10) % 997;
+  // Stable per day unless `variationRoll` changes (shuffle among top-ranked meals).
+  const seedBase =
+    (profile.user_id?.charCodeAt(0) ?? 17)
+    + (parseInt(date.replace(/-/g, ''), 10) % 997)
+    + variationRoll * 733;
 
   const notes: string[] = [
     ...split.notes,

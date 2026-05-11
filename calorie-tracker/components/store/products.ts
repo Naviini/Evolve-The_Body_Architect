@@ -1,6 +1,8 @@
 // This file contains the initial product data for the store.
 // In a real app, this would come from a backend or database.
 
+import { HEALTHY_MEAL_REMOTE_IMAGES } from './fitmealRemoteImages';
+
 export interface StoreProduct {
   id: string;
   name: string;
@@ -13,6 +15,8 @@ export interface StoreProduct {
   rating?: number;
   isNew?: boolean;
   onSale?: boolean;
+  /** Partner restaurant / cloud kitchen (healthy meal delivery SKUs) */
+  partnerName?: string;
   nutrition?: {
     calories?: number;
     protein?: number;
@@ -29,7 +33,8 @@ export const products: StoreProduct[] = [
     category: 'Supplements',
     price: 3199,
     previousPrice: 3799,
-    description: 'Fast-absorbing whey isolate for muscle recovery and lean mass support.',
+    description:
+      'Ultra-filtered whey isolate for fast digestion after training—popular for lean gains and recovery without unnecessary fillers. Mixes smoothly for a light shake; stack alongside whole-food protein in your diary for balanced days.',
     image: 'https://source.unsplash.com/900x700/?whey,protein',
     tags: ['protein', 'muscle', 'supplement', 'recovery', 'strength'],
     rating: 4.8,
@@ -78,7 +83,8 @@ export const products: StoreProduct[] = [
     category: 'Gear',
     price: 6999,
     previousPrice: 8499,
-    description: 'Space-saving adjustable dumbbells for strength workouts.',
+    description:
+      'Dial-select plates make it easy to change load in seconds—ideal for supersets, warm-up sets, and progressive overload without a full rack. The included tray keeps your space tidy so it works well in apartments and garage gyms alike. Comfortable grip and secure adjustments help you lift with confidence on presses, rows, curls, and accessories.',
     image: 'https://source.unsplash.com/900x700/?dumbbell,gym',
     tags: ['gear', 'strength', 'home-gym', 'muscle'],
     rating: 4.9,
@@ -89,7 +95,8 @@ export const products: StoreProduct[] = [
     name: 'Stainless Steel Shaker',
     category: 'Accessories',
     price: 799,
-    description: 'Leak-proof 700ml shaker bottle with mixing ball.',
+    description:
+      'Vacuum-insulated steel helps keep shakes cold through commutes and long sessions—no sweaty condensation on gym bags. Leak-tested lid with carry loop; the mixing ball breaks up clumps for smooth protein, pre-workout, or hydration powders.',
     image: 'https://source.unsplash.com/900x700/?shaker,bottle',
     tags: ['accessory', 'shaker', 'protein'],
     rating: 4.5,
@@ -332,5 +339,116 @@ export const products: StoreProduct[] = [
     tags: ['supplement', 'energy', 'focus', 'performance'],
     rating: 4.7,
     isNew: true,
+  },
+
+  // ── Healthy Meals (partner restaurants / kitchens — fulfilled via FitStore delivery) ──
+  {
+    id: 'p029',
+    name: 'Grilled Chicken Quinoa Macro Bowl',
+    category: 'Healthy Meals',
+    price: 1290,
+    previousPrice: 1490,
+    partnerName: 'Green Fork Kitchen',
+    description:
+      'Grilled antibiotic-free chicken, tri-color quinoa, roasted vegetables, tahini drizzle. Macros printed on label. Chill until 2h before eating; microwave-safe tray.',
+    image: HEALTHY_MEAL_REMOTE_IMAGES.p029,
+    tags: ['healthy-meal', 'restaurant', 'delivery', 'high-protein', 'lunch', 'meal-prep', 'chicken'],
+    rating: 4.7,
+    onSale: true,
+    nutrition: { calories: 520, protein: 42, carbs: 48, fat: 16 },
+  },
+  {
+    id: 'p030',
+    name: 'Sri Lankan Grilled Fish & Gotukola',
+    category: 'Healthy Meals',
+    price: 1150,
+    partnerName: 'Ceylon Balance',
+    description:
+      'Island-style grilled fish, red rice, gotukola mallung, cucumber sambol. Coconut oil controlled; allergy card included.',
+    image: HEALTHY_MEAL_REMOTE_IMAGES.p030,
+    tags: ['healthy-meal', 'restaurant', 'delivery', 'local-cuisine', 'seafood', 'fish'],
+    rating: 4.8,
+    nutrition: { calories: 480, protein: 38, carbs: 52, fat: 14, allergens: ['fish'] },
+  },
+  {
+    id: 'p031',
+    name: 'Lean Beef Stir-Fry & Brown Rice',
+    category: 'Healthy Meals',
+    price: 1390,
+    partnerName: 'Metro Protein Bar',
+    description:
+      'Lean beef strips, broccoli, peppers, low-sodium glaze, jasmine brown rice split. Heat 2 minutes; ideal post-leg day.',
+    image: HEALTHY_MEAL_REMOTE_IMAGES.p031,
+    tags: ['healthy-meal', 'restaurant', 'delivery', 'high-protein', 'dinner', 'beef'],
+    rating: 4.6,
+    isNew: true,
+    nutrition: { calories: 580, protein: 45, carbs: 54, fat: 18 },
+  },
+  {
+    id: 'p032',
+    name: 'Vegan Tofu Buddha Bowl',
+    category: 'Healthy Meals',
+    price: 990,
+    partnerName: 'Plant & Flow',
+    description:
+      'Crispy tofu, edamame, purple cabbage, miso ginger dressing on mixed grains. Fully plant-based kitchen.',
+    image: HEALTHY_MEAL_REMOTE_IMAGES.p032,
+    tags: ['healthy-meal', 'restaurant', 'delivery', 'vegan', 'high-fiber'],
+    rating: 4.5,
+    nutrition: { calories: 510, protein: 28, carbs: 62, fat: 19 },
+  },
+  {
+    id: 'p033',
+    name: 'Egg White Veggie Breakfast Wrap',
+    category: 'Healthy Meals',
+    price: 650,
+    partnerName: 'Sunrise Deli',
+    description:
+      'Whole-wheat wrap, egg whites, spinach, tomato, feta (optional packet on side). Delivered mornings 7–10.',
+    image: HEALTHY_MEAL_REMOTE_IMAGES.p033,
+    tags: ['healthy-meal', 'restaurant', 'delivery', 'breakfast', 'high-protein'],
+    rating: 4.4,
+    nutrition: { calories: 380, protein: 26, carbs: 36, fat: 12, allergens: ['milk'] },
+  },
+  {
+    id: 'p034',
+    name: 'High-Protein Lentil Curry & Red Rice',
+    category: 'Healthy Meals',
+    price: 850,
+    partnerName: 'Spice Route Lean',
+    description:
+      'Slow-cooked lentil dahl, tempered greens, Sri Lankan red rice, papadam on the side. Medium spice — heat scale on lid.',
+    image: HEALTHY_MEAL_REMOTE_IMAGES.p034,
+    tags: ['healthy-meal', 'restaurant', 'delivery', 'local-cuisine', 'vegetarian', 'fiber'],
+    rating: 4.7,
+    onSale: true,
+    nutrition: { calories: 540, protein: 22, carbs: 78, fat: 14 },
+  },
+  {
+    id: 'p035',
+    name: 'Greek Yogurt Protein Parfait Meal',
+    category: 'Healthy Meals',
+    price: 720,
+    partnerName: 'Fresh Stack',
+    description:
+      'Thick Greek yogurt, berry compote, chia, granola pouch separate for crunch. Keeps cold chain — consume same day.',
+    image: HEALTHY_MEAL_REMOTE_IMAGES.p035,
+    tags: ['healthy-meal', 'restaurant', 'delivery', 'breakfast', 'protein'],
+    rating: 4.3,
+    nutrition: { calories: 420, protein: 32, carbs: 48, fat: 11, allergens: ['milk'] },
+  },
+  {
+    id: 'p036',
+    name: 'Teriyaki Salmon & Greens',
+    category: 'Healthy Meals',
+    price: 1550,
+    partnerName: 'Pacific Lean Co',
+    description:
+      'Atlantic salmon portion, sesame greens, jasmine rice controlled portion. Omega-3 forward; glaze on side.',
+    image: HEALTHY_MEAL_REMOTE_IMAGES.p036,
+    tags: ['healthy-meal', 'restaurant', 'delivery', 'dinner', 'omega-3', 'seafood', 'fish'],
+    rating: 4.9,
+    isNew: true,
+    nutrition: { calories: 560, protein: 40, carbs: 44, fat: 22, allergens: ['fish', 'soy'] },
   },
 ];

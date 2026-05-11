@@ -13,8 +13,8 @@ import { UserRewards, Achievement } from '@/src/types';
 
 export const LEVELS = [
   { level: 1, name: 'Beginner 🌱',   minXP: 0,    maxXP: 199  },
-  { level: 2, name: 'Mover 🚶',      minXP: 200,  maxXP: 499  },
-  { level: 3, name: 'Athlete 🏃',    minXP: 500,  maxXP: 999  },
+  { level: 2, name: 'Mover 📊',      minXP: 200,  maxXP: 499  },
+  { level: 3, name: 'Athlete ⭐',    minXP: 500,  maxXP: 999  },
   { level: 4, name: 'Warrior ⚔️',   minXP: 1000, maxXP: 1999 },
   { level: 5, name: 'Champion 🏆',   minXP: 2000, maxXP: 3999 },
   { level: 6, name: 'Legend 🌟',     minXP: 4000, maxXP: 99999 },
@@ -109,7 +109,7 @@ export const ALL_ACHIEVEMENTS: Omit<Achievement, 'unlockedAt'>[] = [
   {
     id: 'level_3',
     name: 'Athlete Status',
-    emoji: '🏃',
+    emoji: '⭐',
     description: 'Reach Level 3 (Athlete) — 500 XP earned.',
   },
   {
