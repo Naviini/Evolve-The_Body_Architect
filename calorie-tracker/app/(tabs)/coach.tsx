@@ -50,6 +50,7 @@ import {
 import * as Haptics from 'expo-haptics';
 import * as Speech from 'expo-speech';
 import { VoiceRecordingOverlay } from '@/components/coach/VoiceRecordingOverlay';
+import { FitBotCoachCompanion } from '@/components/fitbot/FitBotCoachCompanion';
 import { pickBestCoachVoice, type CoachSpeechVoice } from '@/src/lib/coachVoiceSpeech';
 
 /** Enables native metering for voice-reactive UI + haptics */
@@ -708,6 +709,7 @@ export default function CoachScreen() {
             </ScrollView>
 
             <View style={styles.messagesPane}>
+                <FitBotCoachCompanion active={messages.length > 0 || sending} paused={isRecording} />
                 <ScrollView
                     ref={scrollRef}
                     style={styles.messagesScroll}
@@ -924,10 +926,13 @@ const createStyles = (colors: any) =>
         messagesPane: {
             flex: 1,
             position: 'relative',
-            overflow: 'hidden',
+            /** Allow FIT-BOT fly/peek paths to extend slightly past pane bounds without clipping */
+            overflow: 'visible',
         },
         messagesScroll: {
             flex: 1,
+            zIndex: 1,
+            elevation: 1,
         },
         messagesContent: {
             paddingHorizontal: TAB_SCROLL_GUTTER,

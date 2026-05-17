@@ -10,7 +10,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "seed:foods": "node --env-file=.env scripts/seed-food-catalog.mjs",
-    "seed:srilankan": "node --env-file=.env scripts/seed-srilankan-foods.mjs"
+    "seed:srilankan": "node --env-file=.env scripts/seed-srilankan-foods.mjs",
+    "fitbot:transparent-bg": "node scripts/fitbot-transparent-bg.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -64,6 +65,8 @@
     "@types/three": "^0.184.0",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
+    "jpeg-js": "^0.4.4",
+    "pngjs": "^7.0.0",
     "typescript": "~5.9.2"
   },
   "private": true

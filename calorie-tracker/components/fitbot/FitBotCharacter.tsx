@@ -6,7 +6,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
-import { Colors, BorderRadius, Shadows, Spacing, Typography } from '@/constants/theme';
+import { Colors, Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 
 const ART = require('@/assets/images/fitbot.png');
@@ -17,7 +17,7 @@ type Props = {
     artWidth?: number;
 };
 
-export function FitBotCharacter({ caption, artWidth = 92 }: Props) {
+export function FitBotCharacter({ caption, artWidth = 118 }: Props) {
     const colors = useThemeColors();
     const bob = useRef(new Animated.Value(0)).current;
 
@@ -56,19 +56,14 @@ export function FitBotCharacter({ caption, artWidth = 92 }: Props) {
     });
 
     return (
-        <View
-            style={[
-                styles.row,
-                {
-                    backgroundColor: colors.surfaceLight,
-                    borderColor: colors.border,
-                },
-            ]}
-            accessibilityRole="summary"
-            accessibilityLabel={`FIT-BOT says: ${caption}`}
-        >
+        <View style={styles.row} accessibilityRole="summary" accessibilityLabel={`FIT-BOT says: ${caption}`}>
             <Animated.View style={{ transform: [{ translateY }] }}>
-                <Image source={ART} style={artStyle} contentFit="contain" accessibilityIgnoresInvertColors />
+                <Image
+                    source={ART}
+                    style={artStyle}
+                    contentFit="contain"
+                    accessibilityIgnoresInvertColors
+                />
             </Animated.View>
             <View style={styles.copyCol}>
                 <Text style={[styles.nameplate, { color: Colors.accent }]}>FIT-BOT</Text>
@@ -83,11 +78,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: Spacing.md,
-        paddingVertical: Spacing.sm,
-        paddingHorizontal: Spacing.md,
-        borderRadius: BorderRadius.lg,
-        borderWidth: StyleSheet.hairlineWidth,
-        ...Shadows.card,
+        paddingVertical: Spacing.xs,
+        paddingHorizontal: Spacing.xs,
+        backgroundColor: 'transparent',
     },
     copyCol: {
         flex: 1,

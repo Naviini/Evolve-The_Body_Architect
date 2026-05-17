@@ -36,11 +36,20 @@ export function useTabEntranceAnimation(options: TabEntranceAnimationOptions = {
       fadeAnim.setValue(0);
       slideAnim.setValue(slidePx);
       let cancelled = false;
+      let ran = false;
+      const fire = () => {
+        if (cancelled || ran) return;
+        ran = true;
+        runEntrance();
+      };
+      const fallback = setTimeout(fire, 700);
       const handle = InteractionManager.runAfterInteractions(() => {
-        if (!cancelled) runEntrance();
+        clearTimeout(fallback);
+        fire();
       });
       return () => {
         cancelled = true;
+        clearTimeout(fallback);
         const cancel = (handle as { cancel?: () => void })?.cancel;
         if (typeof cancel === 'function') cancel();
       };

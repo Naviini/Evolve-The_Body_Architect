@@ -130,10 +130,17 @@ export default function ScanScreen() {
         setShowResult(false);
     };
 
-    // Permission check
+    // Permission check — avoid blank screen while hook resolves permission state
     if (Platform.OS !== 'web') {
         if (!permission) {
-            return <View style={styles.container} />;
+            return (
+                <View style={[styles.container, styles.cameraPrepWrap]}>
+                    <ActivityIndicator size="large" color={Colors.primary} />
+                    <Text style={[styles.cameraPrepText, { color: colors.textSecondary }]}>
+                        Opening camera…
+                    </Text>
+                </View>
+            );
         }
 
         if (!permission.granted) {
@@ -428,6 +435,17 @@ const createStyles = (colors: any) => StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: colors.background,
+    },
+    cameraPrepWrap: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: Spacing.md,
+        paddingHorizontal: Spacing.xl,
+    },
+    cameraPrepText: {
+        fontSize: Typography.sizes.body,
+        textAlign: 'center',
     },
     menuButton: {
         position: 'absolute',
