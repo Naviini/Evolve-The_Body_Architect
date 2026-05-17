@@ -3,9 +3,10 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../src/contexts/AuthContext';
-import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
+import { BorderRadius, Colors, Shadows, Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAppStyles } from '@/hooks/useAppStyles';
+import { HeaderIconButton } from '@/components/ui/header-icon-button';
 
 interface AccountScreenProps {
   onBack: () => void;
@@ -30,14 +31,17 @@ export default function AccountScreen({ onBack, onMenuPress }: AccountScreenProp
           <Ionicons name="arrow-back" size={20} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Account</Text>
-        <TouchableOpacity style={styles.headerBtn} onPress={onMenuPress}>
-          <Ionicons name="menu" size={20} color={colors.text} />
-        </TouchableOpacity>
+        <HeaderIconButton
+          icon="menu"
+          iconSize={22}
+          onPress={onMenuPress}
+          accessibilityLabel="Open navigation menu"
+        />
       </View>
 
       <View style={styles.profileCard}>
         <View style={styles.avatar}>
-          <Ionicons name="person" size={26} color="#fff" />
+          <Ionicons name="person" size={26} color="#FFFFFF" />
         </View>
         <Text style={styles.name}>{displayName}</Text>
         <Text style={styles.email}>{user?.email ?? 'guest@fitstore.local'}</Text>
@@ -61,7 +65,7 @@ export default function AccountScreen({ onBack, onMenuPress }: AccountScreenProp
           await signOut();
         }}
       >
-        <Ionicons name="log-out-outline" size={18} color="#fff" />
+        <Ionicons name="log-out-outline" size={18} color="#FFFFFF" />
         <Text style={styles.signOutText}>Sign Out</Text>
       </TouchableOpacity>
     </View>
@@ -81,21 +85,23 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceLight,
+    ...Shadows.card,
   },
   headerTitle: { fontSize: Typography.sizes.title, fontWeight: Typography.weights.bold, color: colors.text },
   profileCard: {
     marginTop: 10,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.card,
     borderRadius: BorderRadius.md,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     alignItems: 'center',
     padding: 18,
+    ...Shadows.card,
   },
   avatar: {
     width: 56,
@@ -110,12 +116,13 @@ const createStyles = (colors: any) => StyleSheet.create({
   email: { marginTop: 2, fontSize: Typography.sizes.body, color: colors.textSecondary },
   section: {
     marginTop: 14,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.card,
     borderRadius: BorderRadius.md,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     padding: 14,
     gap: 10,
+    ...Shadows.card,
   },
   sectionTitle: { fontSize: Typography.sizes.body, fontWeight: Typography.weights.heavy, color: colors.text },
   item: { flexDirection: 'row', alignItems: 'center', gap: 8 },

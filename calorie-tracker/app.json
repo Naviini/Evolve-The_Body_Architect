@@ -13,6 +13,7 @@
       "infoPlist": {
         "NSCameraUsageDescription": "We need camera access to scan food items and estimate calories.",
         "NSPhotoLibraryUsageDescription": "We need photo library access to select food images for scanning.",
+        "NSMicrophoneUsageDescription": "Allow microphone access to talk with your Mindset Coach using voice.",
         "ITSAppUsesNonExemptEncryption": false
       },
       "bundleIdentifier": "com.navini.calorietracker"
@@ -62,9 +63,16 @@
           "photosPermission": "Allow Calorie Tracker to access your photos for food scanning."
         }
       ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow Calorie Tracker to record voice messages for your Mindset Coach."
+        }
+      ],
       "expo-sqlite",
       "expo-secure-store",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true,

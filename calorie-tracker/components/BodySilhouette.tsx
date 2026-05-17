@@ -12,7 +12,7 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, Animated as RNAnimated, Platform } from 'react-native';
+import { StyleSheet, Animated as RNAnimated } from 'react-native';
 import Svg, {
     Path,
     Defs,
@@ -36,10 +36,6 @@ interface BodySilhouetteProps {
 }
 
 // ─── SVG Path Generator ─────────────────────────────────────
-
-function clamp(v: number, min: number, max: number) {
-    return Math.max(min, Math.min(max, v));
-}
 
 /**
  * Generate a smooth body silhouette path.
@@ -181,7 +177,7 @@ function BodySilhouette({
         } else {
             fadeAnim.setValue(1);
         }
-    }, [params]);
+    }, [params, animated, fadeAnim]);
 
     const path = generateBodyPath(params, gender);
 

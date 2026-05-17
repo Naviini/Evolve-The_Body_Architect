@@ -6,6 +6,5 @@
  */
 
 import ProfileSetupScreen from '../(auth)/profile-setup';
-import { useLocalSearchParams } from 'expo-router';
 
 export default ProfileSetupScreen;

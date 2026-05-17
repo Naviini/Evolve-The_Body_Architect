@@ -1,19 +1,33 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  RefreshControl,
+  ActivityIndicator,
+  Animated,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
+import { Colors, Spacing, BorderRadius, Typography, Shadows, TAB_SCROLL_GUTTER, TAB_SCROLL_BOTTOM_GAP } from '@/constants/theme';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { getDailyDietPlanForUser } from '@/src/lib/database';
 import type { DailyDietPlan } from '@/src/lib/dietPlanEngine';
 import { useAppStyles } from '@/hooks/useAppStyles';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useTabEntranceAnimation } from '@/hooks/useTabEntranceAnimation';
+import { ScreenTitleRow } from '@/components/ui/screen-title-row';
 
 export default function DietPlanScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const colors = useThemeColors();
   const styles = useAppStyles(createStyles);
+  const insets = useSafeAreaInsets();
+  const { entranceStyle } = useTabEntranceAnimation();
 
   const [refreshing, setRefreshing] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
@@ -53,16 +67,25 @@ export default function DietPlanScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={[styles.header, { paddingTop: Spacing.lg }]}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.headerBtn}
+          activeOpacity={0.72}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
           <Ionicons name="arrow-back" size={20} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Today's Diet Plan</Text>
+        <View style={styles.headerTitleWrap}>
+          <ScreenTitleRow title={"Today's Diet Plan"} icon="nutrition-outline" />
+        </View>
         <TouchableOpacity
           onPress={onRegenerate}
           style={[styles.headerBtn, (!dietPlan || regenerating) && styles.headerBtnDisabled]}
           disabled={!dietPlan || regenerating}
+          activeOpacity={0.72}
           accessibilityLabel="Regenerate diet plan with different meal ideas"
         >
           {regenerating
@@ -72,7 +95,10 @@ export default function DietPlanScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: insets.bottom + TAB_SCROLL_BOTTOM_GAP },
+        ]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -82,6 +108,7 @@ export default function DietPlanScreen() {
           />
         }
       >
+        <Animated.View style={entranceStyle}>
         {!dietPlan ? (
           <View style={styles.emptyCard}>
             <Text style={styles.emptyTitle}>No diet plan found for today</Text>
@@ -120,6 +147,7 @@ export default function DietPlanScreen() {
             )}
           </View>
         )}
+        </Animated.View>
       </ScrollView>
     </View>
   );
@@ -132,41 +160,43 @@ const createStyles = (colors: any) =>
       backgroundColor: colors.background,
     },
     header: {
-      paddingTop: 56,
-      paddingHorizontal: Spacing.md,
+      paddingHorizontal: TAB_SCROLL_GUTTER,
       paddingBottom: Spacing.sm,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
     },
     headerBtn: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
+      width: 40,
+      height: 40,
+      borderRadius: BorderRadius.md,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.surface,
-      borderWidth: 1,
+      backgroundColor: colors.surfaceLight,
+      borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.border,
     },
     headerBtnDisabled: {
       opacity: 0.38,
     },
-    headerTitle: {
-      fontSize: Typography.sizes.subtitle,
-      color: colors.text,
-      fontWeight: Typography.weights.bold,
+    headerTitleWrap: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: Spacing.sm,
     },
     content: {
-      padding: Spacing.md,
-      paddingBottom: 120,
+      paddingHorizontal: TAB_SCROLL_GUTTER,
+      paddingTop: Spacing.md,
     },
     card: {
       backgroundColor: colors.surface,
-      borderRadius: BorderRadius.md,
-      borderWidth: 1,
+      borderRadius: BorderRadius.lg,
+      borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.border,
       padding: Spacing.md,
+      overflow: 'hidden',
+      ...Shadows.card,
     },
     target: {
       fontSize: Typography.sizes.title,
@@ -188,7 +218,7 @@ const createStyles = (colors: any) =>
     mealRow: {
       flexDirection: 'row',
       alignItems: 'flex-start',
-      borderTopWidth: 1,
+      borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: colors.border,
       paddingTop: Spacing.sm,
       marginTop: Spacing.sm,
@@ -222,7 +252,7 @@ const createStyles = (colors: any) =>
     notesWrap: {
       marginTop: Spacing.md,
       paddingTop: Spacing.sm,
-      borderTopWidth: 1,
+      borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: colors.border,
     },
     notesTitle: {
@@ -239,10 +269,12 @@ const createStyles = (colors: any) =>
     },
     emptyCard: {
       backgroundColor: colors.surface,
-      borderRadius: BorderRadius.md,
-      borderWidth: 1,
+      borderRadius: BorderRadius.lg,
+      borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.border,
-      padding: Spacing.md,
+      padding: Spacing.lg,
+      overflow: 'hidden',
+      ...Shadows.card,
     },
     emptyTitle: {
       color: colors.text,

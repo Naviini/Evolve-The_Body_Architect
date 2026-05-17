@@ -17,14 +17,17 @@
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  Animated, Platform, Alert, Easing, ActivityIndicator,
+  Animated, Platform, ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Video, ResizeMode } from 'expo-av';
+import { useEventListener } from 'expo';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, Spacing, BorderRadius, Typography, Shadows } from '@/constants/theme';
+import { Colors, Spacing, BorderRadius, Typography, Shadows, TAB_SCROLL_GUTTER, TAB_SCROLL_BOTTOM_GAP } from '@/constants/theme';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useThemedAlert } from '@/src/contexts/ThemedAlertContext';
 import {
   saveWorkoutSession, getUserRewards, addXP, unlockAchievement,
   getWorkoutStreak, getWorkoutHistory, getUserHealthProfileForProcessing,
@@ -36,16 +39,17 @@ import {
 } from '@/src/lib/rewardEngine';
 import { getTutorial, getCoachingCue, MOTIVATIONAL_QUOTES } from '@/src/lib/exerciseTutorials';
 import {
-  getExerciseDemoVideoUrl, FALLBACK_DEMO_VIDEO, posterUriForDemoVideo,
+  getExerciseDemoVideoUrl, FALLBACK_DEMO_VIDEO,
 } from '@/src/lib/exerciseDemoVideos';
 import {
   WorkoutDay, WorkoutExercise, ExerciseLog, WorkoutSession, BodySimulationParams,
 } from '@/src/types';
 import { useAppStyles } from '@/hooks/useAppStyles';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useTabEntranceAnimation } from '@/hooks/useTabEntranceAnimation';
 
-/** Match tab bar footprint in `(tabs)/_layout.tsx` so session CTAs sit above bottom nav */
-const MAIN_TAB_BAR_OFFSET = Platform.OS === 'ios' ? 76 : 60;
+/** Sticky CTAs sit above the tab bar — avoid TAB_SCROLL_BOTTOM_GAP or briefing scroll doubles dead space */
+const SESSION_STICKY_BOTTOM_PAD = Spacing.lg;
 
 /** Default silhouette params when health profile is not loaded yet */
 const DEFAULT_BODY_SIM_PARAMS: BodySimulationParams = {
@@ -78,7 +82,9 @@ interface SetState {
 export default function WorkoutSessionScreen() {
   const colors = useThemeColors();
   const styles = useAppStyles(createStyles);
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const { alert } = useThemedAlert();
   const router = useRouter();
   const params = useLocalSearchParams<{ dayJson?: string; planId?: string }>();
 
@@ -91,13 +97,13 @@ export default function WorkoutSessionScreen() {
   const [elapsedSec, setElapsedSec] = useState(0);
   const [totalCalories, setTotalCalories] = useState(0);
   const [logs, setLogs] = useState<ExerciseLog[]>([]);
-  const [skipTutorials, setSkipTutorials] = useState(false);
+  const [skipTutorials] = useState(false);
   const [startTime] = useState(new Date().toISOString());
   const [saving, setSaving] = useState(false);
   const [activeCountdownSec, setActiveCountdownSec] = useState(0);
   const [bodySimParams, setBodySimParams] = useState<BodySimulationParams>(DEFAULT_BODY_SIM_PARAMS);
   const [bodySimGender, setBodySimGender] = useState<'male' | 'female'>('male');
-  const [bodyModelExpanded, setBodyModelExpanded] = useState(true);
+  const [bodyModelExpanded, setBodyModelExpanded] = useState(false);
 
   // XP / rewards state (summary)
   const [xpEarned, setXpEarned] = useState(0);
@@ -115,7 +121,6 @@ export default function WorkoutSessionScreen() {
   const restRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const cueRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const breathRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const repRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   /** True when rest timer is between sets of the same exercise (not between exercises). */
   const intraSetRestRef = useRef(false);
@@ -127,6 +132,10 @@ export default function WorkoutSessionScreen() {
   const cueSlideAnim = useRef(new Animated.Value(0)).current;
   const badgeAnim = useRef(new Animated.Value(0)).current;
   const restCircleAnim = useRef(new Animated.Value(1)).current;
+
+  const { entranceStyle } = useTabEntranceAnimation({
+    replayDeps: day ? [phase, currentIdx] : ['boot'],
+  });
 
   // Parse day
   useEffect(() => {
@@ -140,7 +149,7 @@ export default function WorkoutSessionScreen() {
   }, [params.dayJson]);
 
   useEffect(() => {
-    setBodyModelExpanded(true);
+    setBodyModelExpanded(false);
   }, [currentIdx]);
 
   // Elapsed timer
@@ -288,7 +297,6 @@ export default function WorkoutSessionScreen() {
       // All sets done — log this exercise
       const burnedCals = currentExercise.estimatedCaloriesBurned * totalSets;
       setTotalCalories(tc => tc + burnedCals);
-      const effort = 3 as const; // default effort — summoned by effort buttons at end
 
       const log: ExerciseLog = {
         exerciseId: currentExercise.id,
@@ -454,7 +462,9 @@ export default function WorkoutSessionScreen() {
   if (!day) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ color: colors.textSecondary, fontSize: 15 }}>Loading workout…</Text>
+        <Animated.View style={[{ flex: 1, justifyContent: 'center', alignItems: 'center', alignSelf: 'stretch' }, entranceStyle]}>
+          <Text style={{ color: colors.textSecondary, fontSize: 15 }}>Loading workout…</Text>
+        </Animated.View>
       </View>
     );
   }
@@ -471,6 +481,7 @@ export default function WorkoutSessionScreen() {
 
     return (
       <View style={styles.container}>
+        <Animated.View style={[{ flex: 1 }, entranceStyle]}>
         <LinearGradient
           colors={['#4A42DB', '#00B4D8']}
           style={styles.summaryHero}
@@ -481,7 +492,11 @@ export default function WorkoutSessionScreen() {
           <Text style={styles.summaryXP}>+{xpEarned} XP</Text>
         </LinearGradient>
 
-        <ScrollView contentContainerStyle={{ padding: Spacing.md, paddingBottom: MAIN_TAB_BAR_OFFSET + 48 }}>
+        <ScrollView contentContainerStyle={{
+          paddingHorizontal: TAB_SCROLL_GUTTER,
+          paddingTop: Spacing.md,
+          paddingBottom: Spacing.md + insets.bottom + TAB_SCROLL_BOTTOM_GAP,
+        }}>
           {/* Stats row */}
           <View style={styles.summaryRow}>
             <SummaryStat emoji="⏱️" label="Duration" value={formatSecs(elapsedSec)} />
@@ -560,6 +575,7 @@ export default function WorkoutSessionScreen() {
             </LinearGradient>
           </TouchableOpacity>
         </ScrollView>
+        </Animated.View>
       </View>
     );
   }
@@ -573,6 +589,7 @@ export default function WorkoutSessionScreen() {
 
     return (
       <View style={[styles.container, { justifyContent: 'space-between' }]}>
+        <Animated.View style={[{ flex: 1 }, entranceStyle]}>
         <LinearGradient
           colors={['#13132B', '#0A0A1A']}
           style={{
@@ -580,7 +597,7 @@ export default function WorkoutSessionScreen() {
             alignItems: 'center',
             justifyContent: 'center',
             padding: Spacing.xl,
-            paddingBottom: Spacing.xl + MAIN_TAB_BAR_OFFSET,
+            paddingBottom: Spacing.xl + insets.bottom + TAB_SCROLL_BOTTOM_GAP,
           }}
         >
           <Text style={styles.restTitle}>Rest & Recover 😤</Text>
@@ -603,7 +620,11 @@ export default function WorkoutSessionScreen() {
 
           {/* Motivational quote */}
           <View style={styles.quoteBox}>
-            <Text style={styles.quoteText}>"{quote.quote}"</Text>
+            <Text style={styles.quoteText}>
+              {'\u201C'}
+              {quote.quote}
+              {'\u201D'}
+            </Text>
             <Text style={styles.quoteAuthor}>— {quote.author}</Text>
           </View>
 
@@ -638,6 +659,7 @@ export default function WorkoutSessionScreen() {
             <Text style={styles.skipRestText}>Skip Rest →</Text>
           </TouchableOpacity>
         </LinearGradient>
+        </Animated.View>
       </View>
     );
   }
@@ -648,10 +670,11 @@ export default function WorkoutSessionScreen() {
   if (phase === 'briefing' && currentExercise) {
     const tut = tutorial;
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <Animated.View style={[{ flex: 1 }, entranceStyle]}>
         {/* Header */}
-        <View style={styles.sessionHeader}>
-          <TouchableOpacity onPress={() => Alert.alert('Quit Workout?', 'Progress will be lost.', [
+        <View style={[styles.sessionHeader, { paddingTop: Spacing.lg }]}>
+          <TouchableOpacity onPress={() => alert('Quit Workout?', 'Progress will be lost.', [
             { text: 'Cancel', style: 'cancel' },
             { text: 'Quit', style: 'destructive', onPress: () => router.back() },
           ])} style={styles.closeBtn}>
@@ -669,7 +692,11 @@ export default function WorkoutSessionScreen() {
           }]} />
         </View>
 
-        <ScrollView contentContainerStyle={{ padding: Spacing.md, paddingBottom: 120 + MAIN_TAB_BAR_OFFSET }}>
+        <ScrollView contentContainerStyle={{
+          paddingHorizontal: TAB_SCROLL_GUTTER,
+          paddingTop: Spacing.md,
+          paddingBottom: Spacing.md + insets.bottom + SESSION_STICKY_BOTTOM_PAD + Spacing.xxl,
+        }}>
           {/* Exercise name */}
           <LinearGradient
             colors={['#2A1A60', '#0A0A1A']}
@@ -756,9 +783,10 @@ export default function WorkoutSessionScreen() {
             <Text style={styles.learnMoreText}>Full Tutorial & Biology</Text>
           </TouchableOpacity>
         </ScrollView>
+        </Animated.View>
 
         {/* Bottom CTA */}
-        <View style={styles.bottomCta}>
+        <View style={[styles.bottomCta, { paddingBottom: insets.bottom + SESSION_STICKY_BOTTOM_PAD }]}>
           <TouchableOpacity style={styles.skipExBtn} onPress={skipExercise}>
             <Text style={styles.skipExText}>Skip</Text>
           </TouchableOpacity>
@@ -790,9 +818,10 @@ export default function WorkoutSessionScreen() {
     const cue = getCoachingCue(currentExercise.id, coachingCueIdx);
 
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <Animated.View style={[{ flex: 1 }, entranceStyle]}>
         {/* Header */}
-        <View style={styles.sessionHeader}>
+        <View style={[styles.sessionHeader, { paddingTop: Spacing.lg }]}>
           <TouchableOpacity onPress={() => setPhase('briefing')} style={styles.closeBtn}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
@@ -821,7 +850,9 @@ export default function WorkoutSessionScreen() {
         {/* Main coaching area: demo video + countdown or reps */}
         <ScrollView
           style={styles.activeScroll}
-          contentContainerStyle={styles.activeScrollContent}
+          contentContainerStyle={[styles.activeScrollContent, {
+            paddingBottom: Spacing.md + insets.bottom + SESSION_STICKY_BOTTOM_PAD + Spacing.xxl,
+          }]}
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.sessionDemoCard}>
@@ -898,9 +929,10 @@ export default function WorkoutSessionScreen() {
             </Animated.View>
           </View>
         </ScrollView>
+        </Animated.View>
 
         {/* Bottom area */}
-        <View style={styles.activeBottom}>
+        <View style={[styles.activeBottom, { paddingBottom: insets.bottom + SESSION_STICKY_BOTTOM_PAD }]}>
           <TouchableOpacity style={styles.skipExBtn} onPress={skipExercise}>
             <Text style={styles.skipExText}>Skip</Text>
           </TouchableOpacity>
@@ -942,32 +974,39 @@ function WorkoutSessionVideo({
   const primary = getExerciseDemoVideoUrl(exerciseId, category);
   const [uri, setUri] = useState(primary);
   const [videoLoading, setVideoLoading] = useState(true);
-  const posterUri = posterUriForDemoVideo(primary);
 
   useEffect(() => {
     setUri(primary);
     setVideoLoading(true);
   }, [primary]);
 
+  const player = useVideoPlayer(uri, (p) => {
+    p.loop = true;
+    p.muted = true;
+  });
+
+  useEventListener(player, 'statusChange', ({ status }) => {
+    if (status === 'loading') setVideoLoading(true);
+    if (status === 'readyToPlay') setVideoLoading(false);
+    if (status === 'error') {
+      setVideoLoading(false);
+      setUri((u) => (u === FALLBACK_DEMO_VIDEO ? u : FALLBACK_DEMO_VIDEO));
+    }
+  });
+
+  useEffect(() => {
+    if (playing) player.play();
+    else player.pause();
+  }, [playing, player]);
+
   return (
     <View style={styles.sessionVideoContainer}>
-      <Video
-        key={uri}
-        source={{ uri }}
+      <VideoView
+        player={player}
         style={styles.sessionVideoFill}
-        resizeMode={ResizeMode.CONTAIN}
-        isLooping
-        shouldPlay={playing}
-        isMuted
-        useNativeControls={false}
-        posterSource={posterUri ? { uri: posterUri } : undefined}
-        onLoadStart={() => setVideoLoading(true)}
-        onLoad={() => setVideoLoading(false)}
-        onReadyForDisplay={() => setVideoLoading(false)}
-        onError={() => {
-          setVideoLoading(false);
-          setUri(u => (u === FALLBACK_DEMO_VIDEO ? u : FALLBACK_DEMO_VIDEO));
-        }}
+        contentFit="contain"
+        nativeControls={false}
+        onFirstFrameRender={() => setVideoLoading(false)}
       />
       <View style={styles.formDemoBadge} pointerEvents="none">
         <Text style={styles.formDemoBadgeText} numberOfLines={1}>
@@ -987,7 +1026,6 @@ function WorkoutSessionVideo({
 // Summary Stat card
 // ════════════════════════════════════════════════════════════
 function SummaryStat({ emoji, label, value }: { emoji: string; label: string; value: string }) {
-  const colors = useThemeColors();
   const styles = useAppStyles(createStyles);
   return (
     <View style={styles.summaryStatCard}>
@@ -1007,8 +1045,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   // Shared Header
   sessionHeader: {
     flexDirection: 'row', alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 56 : 44,
-    paddingHorizontal: Spacing.md, paddingBottom: Spacing.sm,
+    paddingHorizontal: TAB_SCROLL_GUTTER, paddingBottom: Spacing.sm,
   },
   closeBtn: { padding: 8 },
   headerCenter: { flex: 1, alignItems: 'center' },
@@ -1080,14 +1117,13 @@ const createStyles = (colors: any) => StyleSheet.create({
   bottomCta: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     flexDirection: 'row', gap: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    paddingBottom: (Platform.OS === 'ios' ? 36 : 20) + MAIN_TAB_BAR_OFFSET,
-    paddingTop: 12,
+    paddingHorizontal: TAB_SCROLL_GUTTER,
+    paddingTop: Spacing.sm,
     backgroundColor: colors.background,
     borderTopWidth: 1, borderTopColor: colors.border,
   },
   skipExBtn: {
-    paddingHorizontal: 20, paddingVertical: 14,
+    paddingHorizontal: 20, paddingVertical: 12,
     borderRadius: BorderRadius.md, borderWidth: 1, borderColor: colors.border,
     justifyContent: 'center',
   },
@@ -1095,7 +1131,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   startExBtn: { flex: 1, borderRadius: BorderRadius.md, overflow: 'hidden' },
   startExBtnGradient: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, paddingVertical: 14,
+    gap: 8, paddingVertical: 12,
   },
   startExBtnText: { fontSize: 16, fontWeight: '800', color: '#FFF' },
 
@@ -1186,8 +1222,7 @@ const createStyles = (colors: any) => StyleSheet.create({
 
   activeScroll: { flex: 1 },
   activeScrollContent: {
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.md + MAIN_TAB_BAR_OFFSET + 72,
+    paddingHorizontal: TAB_SCROLL_GUTTER,
     flexGrow: 1,
   },
   activeCenterInner: {
@@ -1277,9 +1312,8 @@ const createStyles = (colors: any) => StyleSheet.create({
 
   activeBottom: {
     flexDirection: 'row', gap: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    paddingBottom: (Platform.OS === 'ios' ? 36 : 20) + MAIN_TAB_BAR_OFFSET,
-    paddingTop: 12,
+    paddingHorizontal: TAB_SCROLL_GUTTER,
+    paddingTop: Spacing.sm,
     borderTopWidth: 1, borderTopColor: colors.border,
   },
   doneSetBtn: { flex: 1, borderRadius: BorderRadius.md, overflow: 'hidden', ...Shadows.glow },

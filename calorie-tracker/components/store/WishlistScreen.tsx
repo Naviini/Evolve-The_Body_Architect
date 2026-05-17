@@ -3,9 +3,10 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image } from 'react
 import { Ionicons } from '@expo/vector-icons';
 import { StoreProduct } from './products';
 import { storeProductImageSource } from './productImages';
-import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
+import { BorderRadius, Colors, Shadows, Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAppStyles } from '@/hooks/useAppStyles';
+import { HeaderIconButton } from '@/components/ui/header-icon-button';
 
 interface WishlistScreenProps {
   items: StoreProduct[];
@@ -25,9 +26,12 @@ export default function WishlistScreen({ items, onBack, onMenuPress, onRemove, o
           <Ionicons name="arrow-back" size={20} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Wishlist</Text>
-        <TouchableOpacity style={styles.headerBtn} onPress={onMenuPress}>
-          <Ionicons name="menu" size={20} color={colors.text} />
-        </TouchableOpacity>
+        <HeaderIconButton
+          icon="menu"
+          iconSize={22}
+          onPress={onMenuPress}
+          accessibilityLabel="Open navigation menu"
+        />
       </View>
 
       <FlatList
@@ -86,39 +90,42 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceLight,
+    ...Shadows.card,
   },
   headerTitle: { fontSize: Typography.sizes.title, fontWeight: Typography.weights.bold, color: colors.text },
   list: { padding: Spacing.md, paddingBottom: Spacing.lg },
   emptyWrap: {
     marginTop: 80,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.card,
     borderRadius: BorderRadius.md,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     padding: Spacing.md,
+    ...Shadows.card,
   },
   emptyTitle: { fontSize: Typography.sizes.bodyLarge, fontWeight: Typography.weights.bold, color: colors.text, marginBottom: 4 },
   emptySubtitle: { fontSize: Typography.sizes.body, color: colors.textSecondary },
   card: {
     flexDirection: 'row',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.card,
     borderRadius: BorderRadius.md,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     padding: 10,
     marginBottom: 10,
+    ...Shadows.card,
   },
   image: { width: 88, height: 88, borderRadius: BorderRadius.sm, marginRight: 10 },
   thumbPlaceholder: {
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surfaceLight,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
   info: { flex: 1 },
@@ -140,10 +147,10 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: BorderRadius.sm,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceLight,
   },
 });

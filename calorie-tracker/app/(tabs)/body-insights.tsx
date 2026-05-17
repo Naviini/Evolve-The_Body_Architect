@@ -9,18 +9,21 @@
 import React, { useEffect, useState } from 'react';
 import {
     View, Text, StyleSheet, ScrollView,
-    TouchableOpacity, ActivityIndicator, Animated, Platform,
+    TouchableOpacity, ActivityIndicator, Animated,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
+import {
+    Colors, Spacing, BorderRadius, Typography,
+    TAB_SCROLL_GUTTER, TAB_SCROLL_BOTTOM_GAP,
+} from '@/constants/theme';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { getUserHealthProfileForProcessing, saveBodyTypeResult, getBodyTypeResult } from '@/src/lib/database';
 import { detectBodyType } from '@/src/lib/bodyTypeEngine';
 import { BodyTypeResult, OnboardingProfile } from '@/src/types';
 import { useAppStyles } from '@/hooks/useAppStyles';
-import { useThemeColors } from '@/hooks/useThemeColors';
 
 // ════════════════════════════════════════════════════════════
 // Constants
@@ -65,8 +68,8 @@ const CONFIDENCE_CONFIG = {
 // Main Screen
 // ════════════════════════════════════════════════════════════
 export default function BodyInsightsScreen() {
-  const colors = useThemeColors();
   const styles = useAppStyles(createStyles);
+    const insets = useSafeAreaInsets();
     const router = useRouter();
     const { user } = useAuth();
     const [loading, setLoading] = useState(true);
@@ -112,7 +115,7 @@ export default function BodyInsightsScreen() {
             }
             setLoading(false);
         }).catch(() => setLoading(false));
-    }, []);
+    }, [user?.id, ectoAnim, mesoAnim, endoAnim]);
 
     if (loading) {
         return (
@@ -144,8 +147,16 @@ export default function BodyInsightsScreen() {
     return (
         <View style={styles.container}>
             {/* Header */}
-            <LinearGradient colors={cfg.gradient} style={styles.header} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <LinearGradient
+                colors={cfg.gradient}
+                style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+            >
+                <TouchableOpacity
+                    onPress={() => router.back()}
+                    style={[styles.backBtn, { top: insets.top + Spacing.sm }]}
+                >
                     <Ionicons name="arrow-back" size={24} color="#FFF" />
                 </TouchableOpacity>
                 <Text style={styles.headerEmoji}>{cfg.emoji}</Text>
@@ -164,7 +175,11 @@ export default function BodyInsightsScreen() {
                 </View>
             </LinearGradient>
 
-            <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+            <ScrollView
+                style={styles.body}
+                contentContainerStyle={{ paddingBottom: insets.bottom + TAB_SCROLL_BOTTOM_GAP }}
+                showsVerticalScrollIndicator={false}
+            >
 
                 {/* Somatotype Score Bars */}
                 <Text style={styles.sectionTitle}>Somatotype Breakdown</Text>
@@ -262,7 +277,6 @@ export default function BodyInsightsScreen() {
                     <Text style={[styles.updateBtnText, { color: '#10B981' }]}>Simulate My Transformation</Text>
                 </TouchableOpacity>
 
-                <View style={{ height: 100 }} />
             </ScrollView>
         </View>
     );
@@ -274,12 +288,11 @@ const createStyles = (colors: any) => StyleSheet.create({
 
     // Header
     header: {
-        paddingTop: Platform.OS === 'ios' ? 60 : 44,
         paddingBottom: Spacing.xl,
-        paddingHorizontal: Spacing.lg,
+        paddingHorizontal: TAB_SCROLL_GUTTER,
         alignItems: 'center',
     },
-    backBtn: { position: 'absolute', top: Platform.OS === 'ios' ? 58 : 40, left: Spacing.md, padding: 8 },
+    backBtn: { position: 'absolute', left: TAB_SCROLL_GUTTER, padding: 8 },
     headerEmoji: { fontSize: 56, marginBottom: 4 },
     headerType: { fontSize: 28, fontWeight: '800', color: '#FFF', marginBottom: 4 },
     headerTagline: { fontSize: 14, color: 'rgba(255,255,255,0.8)', textAlign: 'center', marginBottom: Spacing.md },
@@ -288,7 +301,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     traitText: { fontSize: 12, color: '#FFF', fontWeight: '600' },
 
     // Body
-    body: { flex: 1, paddingHorizontal: Spacing.md, paddingTop: Spacing.lg },
+    body: { flex: 1, paddingHorizontal: TAB_SCROLL_GUTTER, paddingTop: Spacing.lg },
     sectionTitle: {
         fontSize: Typography.sizes.bodyLarge,
         color: colors.textSecondary,

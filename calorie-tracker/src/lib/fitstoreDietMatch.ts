@@ -25,7 +25,7 @@ export function partnerDeliveryEta(partnerName: string | undefined): string {
 }
 
 /** Strong title/description cues → meal SKU ids (prioritized). */
-const MEAL_RULES: Array<{ re: RegExp; id: string; weight: number }> = [
+const MEAL_RULES: { re: RegExp; id: string; weight: number }[] = [
   { re: /parfait|greek\s*yogurt|yogurt.*berries|chia.*overnight/i, id: 'p035', weight: 110 },
   { re: /lentil|dhal|dahl|sambar|parippu|bean\s*&\s*veg|grain\s*&\s*bean/i, id: 'p034', weight: 105 },
   { re: /polos|young\s*jackfruit|jackfruit\s*curry/i, id: 'p030', weight: 100 },
@@ -86,10 +86,6 @@ const MEAL_SLOT_WEIGHT: Partial<Record<DietPlanMeal['type'], Record<string, numb
     p031: -4,
   },
 };
-
-function byId(products: StoreProduct[], id: string): StoreProduct | undefined {
-  return products.find(p => p.id === id);
-}
 
 function skuCalorie(p: StoreProduct): number {
   const c = p.nutrition?.calories;

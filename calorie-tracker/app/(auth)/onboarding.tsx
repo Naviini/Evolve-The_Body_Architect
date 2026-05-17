@@ -115,7 +115,7 @@ export default function OnboardingScreen() {
     const completeOnboarding = async () => {
         try {
             await AsyncStorage.setItem(ONBOARDING_KEY, 'true');
-        } catch (e) {
+        } catch {
             // Silently fail — not critical
         }
         router.replace('/(auth)/profile-setup' as any);

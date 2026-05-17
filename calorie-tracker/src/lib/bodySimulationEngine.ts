@@ -465,7 +465,6 @@ export interface SimulationInput {
 export function generateBodySimulation(input: SimulationInput): MilestonePhase[] {
     const { profile, dreamBodyStyle, targetBFPercent } = input;
 
-    const h = profile.height_cm ?? 170;
     const w = profile.weight_kg ?? 70;
     const dreamW = profile.dream_weight_kg ?? w;
     const isFemale = profile.biological_gender === 'female';

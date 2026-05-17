@@ -5,7 +5,7 @@
  * All logic is pure (no side effects) — DB writes happen separately.
  */
 
-import { UserRewards, Achievement } from '@/src/types';
+import type { Achievement } from '@/src/types';
 
 // ════════════════════════════════════════════════════════════
 // Level Definitions

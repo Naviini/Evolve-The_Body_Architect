@@ -14,9 +14,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StoreProduct } from './products';
 import { storeProductImageSource } from './productImages';
-import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
+import { BorderRadius, Colors, Shadows, Spacing, Typography, TAB_SCROLL_BOTTOM_GAP } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAppStyles } from '@/hooks/useAppStyles';
+import { HeaderIconButton } from '@/components/ui/header-icon-button';
 
 function titleCaseTag(tag: string): string {
   return tag
@@ -24,6 +25,11 @@ function titleCaseTag(tag: string): string {
     .split(' ')
     .map(word => (word.length ? word[0].toUpperCase() + word.slice(1) : ''))
     .join(' ');
+}
+
+/** Catalogue uses plural category ids; UI shows shorter singular where preferred */
+function categoryDisplayLabel(category: string): string {
+  return category === 'Supplements' ? 'Supplement' : category;
 }
 
 /** Extra copy derived from catalogue fields so every SKU feels informative. */
@@ -121,7 +127,6 @@ export default function ProductDetailScreen({
   const imageWidth = Math.max(width - Spacing.md * 2, 280);
   /** Taller frame + `contain` so the full product stays visible (no aggressive zoom/crop). */
   const imageFrameHeight = Math.min(Math.round(imageWidth * 0.92), 340);
-  const tabBarOffset = 84;
 
   const increase = () => setQuantity(prev => prev + 1);
   const decrease = () => setQuantity(prev => (prev > 1 ? prev - 1 : 1));
@@ -133,16 +138,19 @@ export default function ProductDetailScreen({
           <Ionicons name="arrow-back" size={20} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Product Detail</Text>
-        <TouchableOpacity style={styles.headerBtn} onPress={() => onMenuPress?.()} accessibilityLabel="Open menu">
-          <Ionicons name="menu" size={22} color={colors.text} />
-        </TouchableOpacity>
+        <HeaderIconButton
+          icon="menu"
+          iconSize={22}
+          onPress={() => onMenuPress?.()}
+          accessibilityLabel="Open menu"
+        />
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: insets.bottom + tabBarOffset + 120 },
+          { paddingBottom: insets.bottom + TAB_SCROLL_BOTTOM_GAP },
         ]}
       >
         {gallery.length > 0 ? (
@@ -195,7 +203,7 @@ export default function ProductDetailScreen({
             <Ionicons
               name={isWishlisted ? 'heart' : 'heart-outline'}
               size={24}
-              color={isWishlisted ? '#ff5f45' : colors.textTertiary}
+              color={isWishlisted ? Colors.protein : colors.textTertiary}
             />
           </TouchableOpacity>
         </View>
@@ -207,7 +215,7 @@ export default function ProductDetailScreen({
 
         <View style={styles.metaRow}>
           <View style={styles.categoryPill}>
-            <Text style={styles.categoryPillText}>{product.category}</Text>
+            <Text style={styles.categoryPillText}>{categoryDisplayLabel(product.category)}</Text>
           </View>
           {product.onSale ? (
             <View style={[styles.statusPill, styles.dealPill]}>
@@ -220,7 +228,7 @@ export default function ProductDetailScreen({
             </View>
           ) : null}
           <View style={styles.ratingPill}>
-            <Ionicons name="star" size={14} color="#FFB020" />
+            <Ionicons name="star" size={14} color={Colors.warning} />
             <Text style={styles.ratingPillText}>
               {(product.rating ?? 4.6).toFixed(1)}
             </Text>
@@ -238,6 +246,56 @@ export default function ProductDetailScreen({
             </View>
           </View>
         ) : null}
+
+        <Text style={styles.sectionTitle}>Variant</Text>
+        <Text style={styles.typeText}>Pick a finish (cosmetic).</Text>
+        <View style={styles.colorRow}>
+          {[
+            { hex: '#7A8086' },
+            { hex: '#CBD5E1' },
+            { hex: '#111827' },
+          ].map(({ hex }) => (
+            <TouchableOpacity
+              key={hex}
+              style={[styles.colorChip, selectedColor === hex && styles.colorChipActive]}
+              onPress={() => setSelectedColor(hex)}
+            >
+              <View style={[styles.colorSwatch, { backgroundColor: hex }]} />
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <Text style={styles.sectionTitle}>Quantity</Text>
+        <View style={styles.qtyRow}>
+          <TouchableOpacity style={styles.qtyBtn} onPress={decrease}>
+            <Ionicons name="remove" size={16} color={colors.text} />
+          </TouchableOpacity>
+          <TextInput style={styles.qtyInput} editable={false} value={String(quantity)} />
+          <TouchableOpacity style={styles.qtyBtn} onPress={increase}>
+            <Ionicons name="add" size={16} color={colors.text} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.ctaRow}>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            style={styles.addToCartBtn}
+            onPress={() => onAddToCart(product, quantity)}
+          >
+            <Text style={styles.addToCartText} numberOfLines={1}>
+              Add to Cart
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            style={styles.checkoutBtn}
+            onPress={() => onCheckoutNow(product, quantity)}
+          >
+            <Text style={styles.checkoutText} numberOfLines={1}>
+              Checkout
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         <Text style={styles.sectionTitle}>About this product</Text>
         {aboutParagraphs.map((para, idx) => (
@@ -330,50 +388,7 @@ export default function ProductDetailScreen({
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>Variant</Text>
-        <Text style={styles.typeText}>Pick a finish (cosmetic).</Text>
-        <View style={styles.colorRow}>
-          {[
-            { hex: '#7A8086' },
-            { hex: '#CBD5E1' },
-            { hex: '#111827' },
-          ].map(({ hex }) => (
-            <TouchableOpacity
-              key={hex}
-              style={[styles.colorChip, selectedColor === hex && styles.colorChipActive]}
-              onPress={() => setSelectedColor(hex)}
-            >
-              <View style={[styles.colorSwatch, { backgroundColor: hex }]} />
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <Text style={styles.sectionTitle}>Quantity</Text>
-        <View style={styles.qtyRow}>
-          <TouchableOpacity style={styles.qtyBtn} onPress={decrease}>
-            <Ionicons name="remove" size={16} color={colors.text} />
-          </TouchableOpacity>
-          <TextInput style={styles.qtyInput} editable={false} value={String(quantity)} />
-          <TouchableOpacity style={styles.qtyBtn} onPress={increase}>
-            <Ionicons name="add" size={16} color={colors.text} />
-          </TouchableOpacity>
-        </View>
       </ScrollView>
-
-      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + tabBarOffset, bottom: 0 }]}>
-        <TouchableOpacity
-          style={styles.addToCartBtn}
-          onPress={() => onAddToCart(product, quantity)}
-        >
-          <Text style={styles.addToCartText}>Add to Cart</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.checkoutBtn}
-          onPress={() => onCheckoutNow(product, quantity)}
-        >
-          <Text style={styles.checkoutText}>Checkout</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 }
@@ -392,11 +407,12 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceLight,
+    ...Shadows.card,
   },
   headerTitle: { fontSize: Typography.sizes.title, fontWeight: Typography.weights.bold, color: colors.text },
   content: { paddingHorizontal: Spacing.md },
@@ -407,12 +423,13 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   imageFrame: {
     borderRadius: BorderRadius.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
+    backgroundColor: colors.card,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
+    ...Shadows.card,
   },
   imageContained: {
     width: '100%',
@@ -424,7 +441,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   dots: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginVertical: 14 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.border },
-  dotActive: { backgroundColor: '#ff5f45' },
+  dotActive: { backgroundColor: Colors.protein },
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   titleHeartBtn: {
     padding: 4,
@@ -445,12 +462,12 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.card,
   },
   colorChipActive: {
-    borderColor: '#ff5f45',
+    borderColor: Colors.protein,
     borderWidth: 2,
   },
   colorSwatch: { width: 30, height: 30, borderRadius: 15 },
@@ -468,46 +485,58 @@ const createStyles = (colors: any) => StyleSheet.create({
     height: 40,
     marginHorizontal: 8,
     borderRadius: 10,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     textAlign: 'center',
     fontSize: 18,
     color: colors.text,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceLight,
   },
-  bottomBar: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: colors.surface,
+  ctaRow: {
     flexDirection: 'row',
-    paddingHorizontal: Spacing.md,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderColor: colors.border,
-    gap: 12,
+    alignItems: 'stretch',
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   addToCartBtn: {
     flex: 1,
-    borderWidth: 1.5,
+    flexBasis: 0,
+    minHeight: 48,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth + 1,
     borderColor: Colors.primary,
     borderRadius: BorderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    height: 48,
-    backgroundColor: colors.surface,
+    backgroundColor: `${Colors.primary}26`,
   },
-  addToCartText: { color: Colors.primary, fontWeight: Typography.weights.bold, fontSize: Typography.sizes.bodyLarge },
+  addToCartText: {
+    color: Colors.primaryLight,
+    fontWeight: Typography.weights.bold,
+    fontSize: Typography.sizes.bodyLarge,
+    textAlign: 'center',
+  },
   checkoutBtn: {
     flex: 1,
+    flexBasis: 0,
+    minHeight: 48,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth + 1,
+    borderColor: Colors.primary,
     backgroundColor: Colors.primary,
     borderRadius: BorderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    height: 48,
   },
-  checkoutText: { color: '#fff', fontWeight: Typography.weights.bold, fontSize: Typography.sizes.bodyLarge },
+  checkoutText: {
+    color: '#fff',
+    fontWeight: Typography.weights.bold,
+    fontSize: Typography.sizes.bodyLarge,
+    textAlign: 'center',
+  },
   metaRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -520,7 +549,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingVertical: 5,
     borderRadius: BorderRadius.round,
     backgroundColor: colors.surfaceLight,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
   categoryPillText: {
@@ -534,14 +563,14 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderRadius: BorderRadius.round,
   },
   dealPill: {
-    backgroundColor: 'rgba(239,68,68,0.14)',
-    borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.35)',
+    backgroundColor: `${Colors.error}26`,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: `${Colors.error}59`,
   },
   newPill: {
-    backgroundColor: 'rgba(34,197,94,0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.35)',
+    backgroundColor: `${Colors.success}22`,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: `${Colors.success}59`,
   },
   statusPillText: {
     fontSize: 12,
@@ -555,9 +584,10 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: BorderRadius.round,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.card,
+    ...Shadows.small,
   },
   ratingPillText: {
     fontSize: Typography.sizes.caption,
@@ -574,10 +604,11 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 12,
     padding: Spacing.sm,
     borderRadius: BorderRadius.md,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.primary + '40',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.card,
     marginBottom: 12,
+    ...Shadows.card,
   },
   partnerTextCol: { flex: 1 },
   partnerLabel: {
@@ -621,13 +652,14 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontWeight: Typography.weights.medium,
   },
   specCard: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.card,
     borderRadius: BorderRadius.md,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     padding: Spacing.sm,
     marginBottom: 4,
     gap: 2,
+    ...Shadows.card,
   },
   specRow: {
     flexDirection: 'row',
@@ -651,9 +683,9 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginTop: Spacing.sm,
     padding: Spacing.sm,
     borderRadius: BorderRadius.sm,
-    backgroundColor: 'rgba(255,183,77,0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,183,77,0.35)',
+    backgroundColor: `${Colors.warning}22`,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: `${Colors.warning}59`,
   },
   allergenText: {
     flex: 1,
@@ -663,13 +695,14 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontWeight: Typography.weights.semibold,
   },
   trustCard: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.card,
     borderRadius: BorderRadius.md,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     padding: Spacing.md,
     gap: Spacing.sm,
     marginBottom: 4,
+    ...Shadows.card,
   },
   trustRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   trustCopy: { flex: 1 },

@@ -7,7 +7,7 @@
  */
 
 import * as SQLite from 'expo-sqlite';
-import { MealEntry, FoodItem, MealType, OnboardingProfile, WorkoutPlan, WorkoutSession, UserRewards, BodyPhotoRecord, BodySimulationResult, MilestonePhase } from '@/src/types';
+import { MealEntry, FoodItem, OnboardingProfile, WorkoutPlan, WorkoutSession, UserRewards, BodyPhotoRecord, MilestonePhase, CoachChatMessage } from '@/src/types';
 import { supabase } from './supabase';
 import { calculatePersonalizedCalorieRecommendation } from './calorieEngine';
 import { DailyDietPlan, generateDailyDietPlan } from './dietPlanEngine';
@@ -337,6 +337,17 @@ export async function initDatabase(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_store_orders_user ON store_orders(user_id, placed_at DESC);
     CREATE INDEX IF NOT EXISTS idx_store_order_items_order ON store_order_items(order_id);
     CREATE INDEX IF NOT EXISTS idx_store_wishlist_user ON store_wishlist_items(user_id, created_at DESC);
+  `);
+
+    await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS coach_chat_messages (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      role TEXT NOT NULL CHECK (role IN ('user','assistant')),
+      content TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_coach_chat_user ON coach_chat_messages(user_id, created_at);
   `);
 
     try {
@@ -1599,6 +1610,46 @@ export async function getWorkoutStreak(userId: string): Promise<number> {
 }
 
 // ============================================================
+// AI Coach chat (local storage)
+// ============================================================
+
+export async function appendCoachChatMessage(
+    userId: string,
+    role: 'user' | 'assistant',
+    content: string
+): Promise<CoachChatMessage> {
+    const database = getDb();
+    const id = generateId();
+    const createdAt = new Date().toISOString();
+    await database.runAsync(
+        `INSERT INTO coach_chat_messages (id, user_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)`,
+        [id, userId, role, content, createdAt]
+    );
+    return { id, userId, role, content, createdAt };
+}
+
+export async function getCoachChatMessages(userId: string, limit = 80): Promise<CoachChatMessage[]> {
+    const database = getDb();
+    const rows = await database.getAllAsync<any>(
+        `SELECT id, user_id AS userId, role, content, created_at AS createdAt
+         FROM coach_chat_messages WHERE user_id = ? ORDER BY created_at ASC LIMIT ?`,
+        [userId, limit]
+    );
+    return rows.map((r) => ({
+        id: r.id,
+        userId: r.userId ?? r.user_id,
+        role: r.role,
+        content: r.content,
+        createdAt: r.createdAt ?? r.created_at,
+    }));
+}
+
+export async function clearCoachChatMessages(userId: string): Promise<void> {
+    const database = getDb();
+    await database.runAsync(`DELETE FROM coach_chat_messages WHERE user_id = ?`, [userId]);
+}
+
+// ============================================================
 // User Rewards
 // ============================================================
 
@@ -1649,7 +1700,6 @@ export async function addXP(
     for (const c of sessionStats.categories) {
         if (!cats.includes(c)) cats.push(c);
     }
-    const isFirst = !existing || (existing.total_workouts ?? 0) === 0;
 
     await database.runAsync(
         `INSERT INTO user_rewards (user_id, total_xp, level, total_workouts, total_exercises, total_calories_burned, categories_json, last_updated)
@@ -2030,7 +2080,7 @@ export async function clearStoreCart(userId: string): Promise<void> {
 export async function createStoreOrder(
     userId: string,
     payload: {
-        items: Array<{ product: StoreProduct; quantity: number }>;
+        items: { product: StoreProduct; quantity: number }[];
         subtotal: number;
         shippingFee: number;
         discount: number;

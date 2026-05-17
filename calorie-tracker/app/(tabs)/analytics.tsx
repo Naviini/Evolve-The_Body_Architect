@@ -12,30 +12,31 @@ import {
     StyleSheet,
     ScrollView,
     TouchableOpacity,
-    Dimensions,
-    Platform,
+    Animated,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import { Colors, Spacing, BorderRadius, Typography, Shadows } from '@/constants/theme';
+import { Colors, Spacing, BorderRadius, Typography, Shadows, TAB_SCROLL_GUTTER, TAB_SCROLL_BOTTOM_GAP } from '@/constants/theme';
 import { getWeeklyLogs, getMonthlyLogs } from '@/src/lib/database';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useAppStyles } from '@/hooks/useAppStyles';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useTabEntranceAnimation } from '@/hooks/useTabEntranceAnimation';
 import StoreDrawer from '@/components/store/StoreDrawer';
+import { HeaderIconButton } from '@/components/ui/header-icon-button';
+import { ScreenTitleRow } from '@/components/ui/screen-title-row';
 
-const { width: windowWidth } = Dimensions.get('window');
-const SCREEN_WIDTH = Platform.OS === 'web' ? Math.min(windowWidth, 480) : windowWidth;
 const CHART_HEIGHT = 180;
-const CHART_WIDTH = SCREEN_WIDTH - Spacing.md * 2 - Spacing.lg * 2;
 
 type TimeRange = 'week' | 'month';
 
 export default function AnalyticsScreen() {
   const colors = useThemeColors();
   const styles = useAppStyles(createStyles);
+  const insets = useSafeAreaInsets();
+  const { entranceStyle } = useTabEntranceAnimation();
   const router = useRouter();
     const { user } = useAuth();
     const [menuOpen, setMenuOpen] = useState(false);
@@ -88,14 +89,20 @@ export default function AnalyticsScreen() {
     const maxCal = Math.max(...logs.map((l: any) => l.total_calories || 0), 1);
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { paddingTop: insets.top }]}>
             <ScrollView
-                contentContainerStyle={styles.scrollContent}
+                contentContainerStyle={[
+                  styles.scrollContent,
+                  {
+                    paddingBottom: insets.bottom + TAB_SCROLL_BOTTOM_GAP,
+                  },
+                ]}
                 showsVerticalScrollIndicator={false}
             >
+                <Animated.View style={entranceStyle}>
                 {/* Header */}
                 <View style={styles.header}>
-                    <Text style={styles.headerTitle}>Analytics</Text>
+                    <ScreenTitleRow title="Analytics" icon="stats-chart" />
                     <View style={styles.headerActions}>
                         <View style={styles.timeToggle}>
                             <TouchableOpacity
@@ -115,9 +122,12 @@ export default function AnalyticsScreen() {
                                 </Text>
                             </TouchableOpacity>
                         </View>
-                        <TouchableOpacity style={styles.menuButton} onPress={() => setMenuOpen(true)}>
-                            <Ionicons name="menu" size={20} color={colors.text} />
-                        </TouchableOpacity>
+                        <HeaderIconButton
+                            icon="menu"
+                            iconSize={22}
+                            onPress={() => setMenuOpen(true)}
+                            accessibilityLabel="Open navigation menu"
+                        />
                     </View>
                 </View>
 
@@ -257,6 +267,7 @@ export default function AnalyticsScreen() {
                 </LinearGradient>
 
                 <View style={{ height: 100 }} />
+                </Animated.View>
             </ScrollView>
 
             <StoreDrawer
@@ -311,8 +322,8 @@ const createStyles = (colors: any) => StyleSheet.create({
         backgroundColor: colors.background,
     },
     scrollContent: {
-        paddingTop: Platform.OS === 'ios' ? 60 : 40,
-        paddingHorizontal: Spacing.md,
+        paddingHorizontal: TAB_SCROLL_GUTTER,
+        paddingTop: Spacing.lg,
     },
 
     header: {
@@ -326,32 +337,23 @@ const createStyles = (colors: any) => StyleSheet.create({
         alignItems: 'center',
         gap: 8,
     },
-    headerTitle: {
-        fontSize: Typography.sizes.heading,
-        color: colors.text,
-        fontWeight: Typography.weights.bold,
-    },
     timeToggle: {
         flexDirection: 'row',
-        backgroundColor: colors.surface,
-        borderRadius: BorderRadius.sm,
-        borderWidth: 1,
-        borderColor: colors.border,
-    },
-    menuButton: {
-        width: 38,
-        height: 38,
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: colors.border,
-        backgroundColor: colors.surface,
         alignItems: 'center',
-        justifyContent: 'center',
+        backgroundColor: colors.surfaceLight,
+        borderRadius: BorderRadius.md,
+        borderWidth: 1,
+        borderColor: colors.border,
+        padding: 4,
+        height: 44,
     },
     timeButton: {
+        justifyContent: 'center',
+        alignItems: 'center',
         paddingVertical: 6,
-        paddingHorizontal: 16,
+        paddingHorizontal: 14,
         borderRadius: BorderRadius.sm,
+        minHeight: 36,
     },
     timeButtonActive: {
         backgroundColor: Colors.primary,
@@ -370,9 +372,10 @@ const createStyles = (colors: any) => StyleSheet.create({
     chartCard: {
         borderRadius: BorderRadius.lg,
         padding: Spacing.lg,
-        borderWidth: 1,
+        borderWidth: StyleSheet.hairlineWidth,
         borderColor: colors.border,
         marginBottom: Spacing.lg,
+        ...Shadows.card,
     },
     chartTitle: {
         fontSize: Typography.sizes.subtitle,
@@ -435,6 +438,7 @@ const createStyles = (colors: any) => StyleSheet.create({
         color: colors.text,
         fontWeight: Typography.weights.bold,
         marginBottom: Spacing.md,
+        letterSpacing: -0.2,
     },
     statsGrid: {
         flexDirection: 'row',
@@ -447,11 +451,12 @@ const createStyles = (colors: any) => StyleSheet.create({
         width: '48%',
         borderRadius: BorderRadius.md,
         overflow: 'hidden',
+        ...Shadows.card,
     },
     statCardGradient: {
         padding: Spacing.md,
         borderRadius: BorderRadius.md,
-        borderWidth: 1,
+        borderWidth: StyleSheet.hairlineWidth,
         borderColor: colors.border,
         alignItems: 'center',
     },
@@ -476,9 +481,10 @@ const createStyles = (colors: any) => StyleSheet.create({
     macroCard: {
         borderRadius: BorderRadius.lg,
         padding: Spacing.lg,
-        borderWidth: 1,
+        borderWidth: StyleSheet.hairlineWidth,
         borderColor: colors.border,
         marginBottom: Spacing.lg,
+        ...Shadows.card,
     },
     macroBar: {
         flexDirection: 'row',
@@ -513,9 +519,10 @@ const createStyles = (colors: any) => StyleSheet.create({
     insightCard: {
         borderRadius: BorderRadius.lg,
         padding: Spacing.lg,
-        borderWidth: 1,
+        borderWidth: StyleSheet.hairlineWidth,
         borderColor: colors.border,
         marginBottom: Spacing.md,
+        ...Shadows.card,
     },
     insightRow: {
         flexDirection: 'row',

@@ -13,14 +13,16 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Animated, Platform, LayoutAnimation, UIManager,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, Spacing, BorderRadius, Typography, Shadows } from '@/constants/theme';
+import { Colors, Spacing, BorderRadius, Typography, Shadows, TAB_SCROLL_GUTTER, TAB_SCROLL_BOTTOM_GAP } from '@/constants/theme';
 import { getTutorial } from '@/src/lib/exerciseTutorials';
 import { ExerciseTutorial } from '@/src/types';
 import { useAppStyles } from '@/hooks/useAppStyles';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { ScreenTitleRow } from '@/components/ui/screen-title-row';
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -34,6 +36,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 export default function ExerciseTutorialScreen() {
   const colors = useThemeColors();
   const styles = useAppStyles(createStyles);
+  const insets = useSafeAreaInsets();
   const { exerciseId, exerciseName } = useLocalSearchParams<{
     exerciseId: string;
     exerciseName?: string;
@@ -55,7 +58,7 @@ export default function ExerciseTutorialScreen() {
       setTutorial(t);
     }
     Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
-  }, [exerciseId]);
+  }, [exerciseId, fadeAnim]);
 
   // Breathing animation loop
   useEffect(() => {
@@ -69,6 +72,8 @@ export default function ExerciseTutorialScreen() {
       setTimeout(() => setBreathPhase('in'), 7000);
     };
     runCycle();
+    // Single mount: parallel breath cycle; adding breathAnim would restart without cancel cleanup.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Phase card entrance animation
@@ -81,7 +86,10 @@ export default function ExerciseTutorialScreen() {
   if (!tutorial) {
     return (
       <View style={styles.container}>
-        <TouchableOpacity style={styles.backBtnAbsolute} onPress={() => router.back()}>
+        <TouchableOpacity
+          style={[styles.backBtnAbsolute, { top: insets.top + Spacing.sm }]}
+          onPress={() => router.back()}
+        >
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -104,14 +112,18 @@ export default function ExerciseTutorialScreen() {
       {/* Header */}
       <LinearGradient
         colors={['#2A1A60', '#0A0A1A']}
-        style={styles.header}
+        style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
       >
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color="#FFF" />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerTitle}>{exerciseName ?? exerciseId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</Text>
+          <ScreenTitleRow
+            title={exerciseName ?? exerciseId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+            icon="barbell-outline"
+            color="#FFF"
+          />
           <Text style={styles.headerSub}>Exercise Tutorial</Text>
         </View>
         <View style={styles.headerRight}>
@@ -121,7 +133,10 @@ export default function ExerciseTutorialScreen() {
 
       <Animated.ScrollView
         style={{ opacity: fadeAnim }}
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[
+          styles.scroll,
+          { paddingBottom: insets.bottom + TAB_SCROLL_BOTTOM_GAP },
+        ]}
         showsVerticalScrollIndicator={false}
       >
 
@@ -293,7 +308,7 @@ export default function ExerciseTutorialScreen() {
             start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
           >
             <Ionicons name="checkmark-circle" size={22} color="#FFF" />
-            <Text style={styles.startCtaText}>Got it — I'm ready!</Text>
+            <Text style={styles.startCtaText}>Got it — I{"'"}m ready!</Text>
           </LinearGradient>
         </TouchableOpacity>
 
@@ -313,21 +328,18 @@ const createStyles = (colors: any) => StyleSheet.create({
   // Header
   header: {
     flexDirection: 'row', alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 56 : 44,
-    paddingHorizontal: Spacing.md, paddingBottom: Spacing.md,
+    paddingHorizontal: TAB_SCROLL_GUTTER, paddingBottom: Spacing.md,
     gap: Spacing.sm,
   },
   backBtn: { padding: 6 },
   backBtnAbsolute: {
-    position: 'absolute', top: Platform.OS === 'ios' ? 56 : 44,
-    left: Spacing.md, zIndex: 10, padding: 6,
+    position: 'absolute', left: TAB_SCROLL_GUTTER, zIndex: 10, padding: 6,
   },
   headerText: { flex: 1 },
-  headerTitle: { fontSize: Typography.sizes.subtitle, fontWeight: '800', color: '#FFF' },
   headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
   headerRight: { padding: 6 },
 
-  scroll: { paddingHorizontal: Spacing.md, paddingTop: Spacing.md },
+  scroll: { paddingHorizontal: TAB_SCROLL_GUTTER, paddingTop: Spacing.md },
 
   sectionTitle: {
     fontSize: Typography.sizes.bodyLarge, fontWeight: '700',

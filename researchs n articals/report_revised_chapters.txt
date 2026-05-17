@@ -1,0 +1,358 @@
+<<<CH03>>>
+3.1 Introduction
+
+This chapter narrates the journey from concept to working prototype across an Agile sprint cadence combined with Design Science Research (DSR), constructing and reflecting upon an artefact (Hevner et al., 2004). Scrum-style iterations preserved responsiveness while maintaining thesis-grade traceability between literature claims and engineered modules.
+
+3.2 High-Level Architecture
+
+The solution adopts a three-tier Client–Server–AI architecture grounded in the shipped codebase.
+
+The Client tier is an Expo / React Native application responsible for navigation, capture pipelines (camera / gallery), gamification UI, and deterministic wellness engines implemented in TypeScript.
+
+Persistent interaction state uses Expo SQLite as the authoritative store during demonstration and offline-first flows: onboarding snapshots, meal logs, workout sessions, rewards, and coach conversation turns include synchronisation metadata suitable for incremental mirroring.
+
+The Server tier uses Supabase PostgreSQL with authentication hooks (where configured) and Row Level Security policies isolating user-owned tuples — aligning privacy posture with GDPR-oriented expectations for sensitive wellness narratives.
+
+The AI tier is deliberately hybrid rather than monolithic: (1) multimodal meal estimation uses OpenAI GPT-4o Vision through chat completions with JSON shaping prompts for reproducible parsing; (2) conversational coaching uses GPT-4o-mini with streak-aware conditioning drawn from SQLite aggregates and guarded refusal pathways for crisis language; (3) optional Gemini 2.0 Flash vision supports auxiliary body-photo commentary behind feature flags; (4) a parallel ViT Food-101 fine-tuning stack lives under calorie-tracker/model with scripts for dataset preparation, fine-tuning, evaluate_model.py metrics export, optional ONNX export, and FastAPI inference_server.py for reproducible classification benchmarking distinct from the multimodal meal UX path.
+
+This separation documents an academically honest engineering compromise: dense convolutional / transformer classifiers excel at closed-set benchmarks, whereas multimodal LLMs trade calibrated taxonomy constraints for descriptive specificity on culturally heterogeneous plates — the artefact presents both.
+
+3.3 Dataset and Data Collection
+
+Food-101 (Bossard et al., 2014) remains the backbone supervised corpus for the ViT pathway owing to scale and citation-grade comparability.
+
+Regional realism for Sri Lanka is pursued along two complementary axes aligned with repository artefacts: (i) catalogue-oriented enrichment via scripted nutrition seeds suitable for manual logging fidelity (seed-srilankan-foods.mjs pattern); (ii) multimodal prompting emphasising South Asian dish specificity within scan.service.ts rather than relying solely on Western-centric label vocabularies.
+
+Onboarding captures extend across biological markers, lifestyle rhythms, dietary preference vectors, stress proxies, family histories, and circumferences — intentionally exceeding shallow calorie-apps demographics to operationalise literature-motivated metabolic nuance.
+
+Requirements elicitation combined structured interviews, competitor audits (MyFitnessPal, Fitbit-class ecosystems), and survey snapshots consistent with IEEE SRS guidance (IEEE, 2014).
+
+3.4 Data Pre-Processing (ViT Track)
+
+Training augmentations follow established ViT transfer protocols implemented in model/prepare_dataset.py orientation: stochastic resized crops, flips, mild rotations, photometric jitter, light affine perturbations, and occasional greyscale drops supporting domestic lighting variability.
+
+Evaluation retains deterministic resize + centre crop consistent with ViT processor geometry.
+
+3.5 Exploratory Signals
+
+Survey-derived motivational friction narratives corroborated prioritisation of rapid logging affordances (scanner + offline diary resilience) and emotionally supportive coaching alongside numerical dashboards — aligning development sequencing with observed abandonment curves from literature without overstating precision unavailable here.
+
+3.6 Model and Logic Development
+
+ViT selection rationale persists: global self-attention supports spatial mixing cues theorised as advantageous on heterogeneous food plating relative to strictly local convolution inductive biases (Dosovitskiy et al., 2020; Liu et al., 2025). Hyper-parameters documented previously remain representative design defaults executed inside Google Colab GPU notebooks bundled as reproducible scripts/notebooks.
+
+The Metabolic Intelligence Engine remains the symbolic-regression-style fusion emphasised academically: Layer 1 structural ectomorphy via Heath–Carter height–weight ratio transforms; Layer 2 composition via Hodgdon–Beckett US Navy circumference body-fat estimation augmented by wrist-to-height frame biasing when measurements exist; Layer 3 lifestyle classification scoring driven by activity, occupational demand, and exercise cadence; Layer 4 metabolic modulation integrating diet archetype, sleep debt proxies, stress sliders, blood marker flags, and family risk motifs.
+
+Absent waist + neck circumferences, weights honourably degrade composition contribution while reallocating influence across structural, lifestyle, and metabolic strata — documented inline within src/lib/bodyTypeEngine.ts as the Implemented analogue of earlier prose weights.
+
+Calorie logic chains Mifflin–St Jeor basal metabolic rate through composite total daily energy expenditure multipliers before clamped recommendation ceilings consistent with conservative wellness tooling defaults.
+
+Meal ideas synthesise through deterministic template allocation inside dietPlanEngine.ts: macro envelopes derive from personalised calorie targets and diet archetypes (ketogenic bias, plant-forward splits, allergy tagging), while cuisine affinity blends nationality heuristics with explicit preference arrays — yielding inspectable textual rationales suitable for academic critique unlike opaque unconstrained text-only generation.
+
+Workouts instantiate templated weekly structures filtered by equipment declarations and conservative pregnancy/injury avoidance tagging consistent with responsible MVP framing.
+
+3.7 Validation Strategy
+
+ViT accuracy claims must cite outputs emitted by evaluate_model.py once trained_model weights exist — Top-1 / Top-5 / confusion diagnostics constitute primary quantitative ML evidence.
+
+Multimodal scanning validates along usability dimensions: structured JSON integrity, alternative hypothesis enumeration, graceful deterministic demo fallback without secrets for graders, and qualitative reviewer judgement on culturally labelled plates.
+
+Somatotype logic validates through deterministic recomputation checks against Navy reference calculators on synthetic measurement tuples plus regression awareness when circumferences absent.
+
+Future strengthened evaluation could incorporate labelled regional imagery corpus extension and prospective IRB-governed anthropometric correlation studies — explicitly out of scope unless ethically cleared.
+
+3.8 System Development Timeline
+
+Sprints progressed requirements → modelling → implementation → testing → documentation mirroring earlier narrative.
+
+Architectural pivot justification emphasises Expo iteration velocity, Supabase relational ergonomics for rich profiles, and pragmatic multimodal API orchestration from TypeScript while preserving standalone ViT reproducibility for scholarly benchmarking.
+
+
+<<<CH04>>>
+4.1 Requirements Elicitation Methods
+
+Unchanged methodology quartet (interviews, trainers / peers, surveys, competitor synthesis, literature anchoring).
+
+4.2 Functional Requirements
+
+• Secure registration / authentication via Supabase Auth where remote backend engaged.
+
+• Nine-step onboarding capturing holistic wellness determinants persisted incrementally to SQLite.
+
+• Body-type fusion via four-layer Metabolic Intelligence Engine with explicit confidence labels.
+
+• Deterministic personalised diet scaffolding referencing calorie/macros templates adaptive to cuisine preferences.
+
+• Adaptive workout weekly scaffolding respecting equipment and conservative contraindications.
+
+• Dual-mode calorie tracking: manual SQLite-backed catalogue plus multimodal scan via GPT-4o Vision with demo parity mode absent credentials.
+
+• Conversational Evolve Coach powered by GPT-4o-mini with humane offline templates and crisis routing bypass.
+
+• SVG milestone simulation storytelling weight/deficit trajectories responsibly labelled illustrative.
+
+• Historical intake / workout progress analytics surfaces.
+
+• Gamified progression scaffolding with XP / levels consistent with engagement literature hypotheses.
+
+• Offline-first persistence with Supabase synchronisation hooks exemplifying outbox thinking.
+
+4.3 Non-Functional Requirements
+
+• ViT Food-101 evaluation targets ≥85% Top-1 contingent upon completed fine-tune artefacts — evidenced only via exported metrics files.
+
+• Multimodal scanning framed via perceived usefulness / qualitative UX criteria rather than mistaken closed-set accuracy parity.
+
+• Interaction latency targets remain aspirational measurements captured with stopwatch tooling during demonstration builds.
+
+• Row Level Security enforced for mirrored remote tuples.
+
+• Availability contingent on managed Supabase tier selections.
+
+• GDPR-aligned narrative minimisation guidance surfaced within onboarding disclaimers.
+
+
+<<<CH05>>>
+5.1 Technology Stack Table (Updated)
+
+TABLE_ROW:Component | Original | Implemented | Rationale
+TABLE_ROW:Frontend | Flutter | React Native / Expo | Rapid iteration on-device without heavy native rebuild loops for coursework demos.
+TABLE_ROW:Persistence | Firebase NoSQL | SQLite primary + Supabase mirror | Offline diary resilience plus relational joins / policies for richer schemas.
+TABLE_ROW:Food imaging AI | CNN-class baseline | GPT-4o Vision primary UX + ViT pipeline optional FastAPI/HF | Multimodal naming flexibility alongside reproducible classifier trajectory for dissertation ML rigour.
+TABLE_ROW:Coach LLM | Generic GPT-class narrative | GPT-4o-mini (+ structured prompting & offline guardrails) | Cost-aware conversational empathy integrated with streak context queries.
+TABLE_ROW:Body imaging insights | — | Optional Gemini 2.0 Flash | Separate modality from nutrition scanning; configurable behind keys.
+TABLE_ROW:Auth / policies | Firebase Auth | Supabase Auth + RLS | Fine-grained tuple isolation suitable for sensitive narratives.
+
+5.2 Database Schema Narrative
+
+Canonical OLTP during coursework demos emphasises SQLite entities enumerated across database.ts migrations — replicated subsets elevate to Supabase meal_entries and companions synchronously where networking permits.
+
+Outbox columns record pending versus synced transitions enabling eventual consistency storytelling academically fashionable yet pragmatic.
+
+5.3 Core Algorithms
+
+Subsections 5.3.1–5.3.2 retain mathematical detail aligning line-by-line with calorieEngine.ts and bodyTypeEngine.ts implementations including Navy logarithmic formulations and blend thresholds within eighteen percentage points.
+
+5.3.3 Dual Food Intelligence Narratives
+
+Path A — ViT classifier: Patch embeddings traverse twelve transformer encoder stacks projecting onto Food-101 logits; inference optionally hosted locally via FastAPI inference_server.py after weights materialise — aligning lecture-ready reproducibility.
+
+Path B — Multimodal shipped scanner: Base64 stills traverse GPT-4o Vision prompting enforcing strict JSON schema for calories, macros, confidence, and ranked alternatives — enabling culturally granular naming absent enumerated western-centric ontology traps inherent to classifier-only stacks.
+
+
+<<<CH06>>>
+6.1 Development Environment
+
+Visual Studio Code, Expo toolchain, TypeScript strictness benefits, Supabase dashboard utilities, Colab GPU training notebooks, Git branching discipline preserved.
+
+6.2 Authentication and Onboarding
+
+Supabase Auth context integrates guarded routing and resilient SQLite staged onboarding preventing partial-data loss upon interruptions culminating migrateTempOnboardingProfileToUser synchronisation bridge triggering detectBodyType initial computation event.
+
+6.3 Food Recognition System (Production Path)
+
+Expo camera surfaces capture or gallery ingestion converting imagery into base64 payloads consumed by recognizeFood which POSTs OpenAI chat completions using vision parts, parses assistant JSON stripping incidental Markdown fences, and gracefully rotates deterministic DEMO_FOODS catalogue whenever secrets absent — guaranteeing graders reproducible vertical slice demonstrations without credential leakage during vivas.
+
+Manual pathways query seeded SQLite nutrition tuples aligning catalogue realism with Food-101 nutrition companion datasets plus regional augmentation scripts.
+
+Optional ViT HTTP endpoint remains integration-ready for engineering comparisons though not hard-coded into Expo dependency surface reducing fragile coupling during coursework timelines.
+
+6.4 Body Simulation Engine
+
+SVG silhouette morphing parameters interpolate milestone projections blending motivational storytelling with transparent disclaimers concerning illustrative—not clinically predictive—render fidelity.
+
+6.5 Workout Generation Engine
+
+Template stratification rotates thematic strength / cardio / recovery arcs adjusting volumes consistent with declared fitness bands.
+
+6.6 Offline-First Synchronisation
+
+sync.ts orchestrates NetInfo gated pushes / pulls with conflict avoidance leaning last-write-wins timestamps pragmatically suitable for single-user primary scenarios dominant in MVP evaluations.
+
+
+<<<CH07>>>
+7.1 Testing Strategy
+
+Four-tier narrative persists — emphasising deterministic nutrition maths regression suites, integration probes hitting guarded AI endpoints using sanitised fixtures, exploratory manual journeys mirroring marking rubrics, and qualitative pilot debrief notes.
+
+7.2 AI Evaluation Dual Lens
+
+Quantitative ViT evaluation awaits authoritative metrics export post-training — cite notebook artefacts transparently.
+
+Qualitative multimodal scanning emphasises schema conformance tests plus heuristic reviewer judgement — academically framing complementary strengths vs taxonomy-only models without inventing benchmark percentages contradictory to artefact provenance.
+
+7.3 Body-Type Logic Verification
+
+Layer recomputation spot-checks against Navy calculators using curated synthetic circumferences; blend classification sanity exercised via scripted onboarding personas spanning extremes.
+
+7.4 Integration Highlights
+
+Regression patches addressed duplicate onboarding migration hazards under latency, null-safe demographic defaults for BMR edge triggers, and tightened Supabase RLS demonstrations preventing cross-tenant meal leakage.
+
+Representative counts should mirror appendix matrices once reconciled — maintain singular factual ledger internally.
+
+7.5 User Acceptance Testing
+
+Pilot cohort exercises structured tasks (registration flow, logging cadence, scan comprehension, coach empathy prompts).
+
+Where formal System Usability Scale instruments administered, aggregate statistics belong verbatim from scored spreadsheets — otherwise summarise thematic qualitative positives / friction clusters honestly.
+
+
+<<<CH08>>>
+8.1 Mapping Objectives to Delivered Artefact
+
+Objective 1 satisfied via expansive onboarding + interpretable somatotype fusion.
+
+Objective 2 satisfied via deterministic cuisine-aware dietPlanEngine outputs anchored on personalised calorie envelopes — explicitly not Gemini-authored opaque menus.
+
+Objective 3 satisfied via templated progressive overload respecting conservative modifiers.
+
+Objective 4 satisfied pairing SQLite manual catalogue with multimodal scanning pathway plus offline diary continuity.
+
+Objective 5 satisfied combining milestone illustration, rewards scaffolding, and coach conversational modes including offline empathy continuity.
+
+Objective 6 satisfied where formative evaluation artefacts archived — emphasise transparent methodology over speculative numeric embellishment.
+
+8.2 Quantitative Summary (Integrity-forward Template)
+
+TABLE_ROW:Metric | Target | Evidence mechanism | Status
+TABLE_ROW:ViT Food-101 Top-1 | ≥85% design objective | evaluate_model.py export once weights trained | Populate after run
+TABLE_ROW:Scan JSON validity | 100% schema parses on fixture suite | Automated parsing tests | Track locally
+TABLE_ROW:BMR sanity sweep | Matches reference calculator grid | Deterministic unit harness | Track locally
+TABLE_ROW:SUS (optional) | ≥75 aspiration | Questionnaire spreadsheet | Populate if collected
+
+8.3 Discussion
+
+Hybrid AI stance strengthens dissertation narrative: reproducible ViT branch satisfies examiner expectation of measurable ML engineering while multimodal deployment confronts real-world label openness emphasised in emerging food computing reviews.
+
+Transparent deterministic planners mitigate legal / ethical critique surrounding unconstrained generative nutrition hallucinations.
+
+
+<<<CH09>>>
+9.1 Project Summary
+
+Evolve delivers culturally mindful wellness tooling merging symbolic metabolic reasoning with contemporary transformer-era interfaces — packaged responsibly as prototype within Agile + DSR scholarly framing.
+
+9.2 Evaluation Against Objectives
+
+All six objectives substantively addressed with explicit clarification that diet synthesis transparency derives from engineered templates rather than unconstrained generative menus — improving auditability.
+
+9.3 Changes During Development
+
+Flutter/Firebase pivot to Expo/Supabase preserved relational agility.
+
+CNN-first ML story matured toward ViT benchmarking narrative plus multimodal pragmatic scanning integration acknowledging coursework credential logistics.
+
+Optional Gemini modality spun up for body imagery analytics distinct from meal pathway reducing single-vendor concentration rhetorically attractive in critique lenses.
+
+9.4 Business Outlook
+
+Freemium monetisation hypotheticals remain credible citing underserved South Asian adoption friction versus western-first UX defaults — grounded ethically only post clinical governance maturity.
+
+
+<<<CH10>>>
+10.1 Objectives Retrospective
+
+Formative evaluation inclusion strengthened reflective rigour.
+
+10.2 Specification Prudence
+
+Separate classifier benchmark promises from open-world scanning qualitative criteria.
+
+10.3 Process Fit
+
+Agile cadence absorbed pivots without catastrophic drift — retrospectives valuable.
+
+10.4 Technology Fit
+
+Stack synergy validated; residual regret remains networking dependence for AI-rich modes despite diary offline resilience — partially mitigated via offline coach templates.
+
+10.5 Personal Performance
+
+Scope orchestration lessons emphasise dataset realism timelines when claiming regional ML superiority.
+
+10.6 Lessons Learnt
+
+• Dataset realism dominates claimed regional AI efficacy timelines — schedule buffers.
+
+• Architectural choices benefit weighted matrices balancing reproducibility vs UX openness.
+
+• Earlier embedded usability pilots accelerate friction discovery.
+
+• Maintain single quantitative ledger crossing chapters / appendices avoiding contradictory totals.
+
+
+<<<CH11>>>
+Evolve contributes: (1) transparent multi-layer somatotype fusion leveraging classical anthropometric formulae under mobile constraints; (2) academically documented hybrid AI coupling reproducible ViT engineering with multimodal meal estimation addressing label openness; (3) offline-aware SQLite-first engineering posture resonant with LMIC intermittent connectivity realities paired with modern relational cloud policies.
+
+Future work emphasises prospective ethically cleared anthropometric validation, expanded labelled regional imagery corpora feeding ViT fine-tunes, backend-secret proxy architecture retiring device-embedded API keys, depth-aware volumetric inference literature adoption, and longitudinal behavioural RCT-scale trials measuring adherence deltas versus passive diary controls.
+
+
+<<<ETHICS>>>
+Evolve surfaces wellness estimates — not diagnoses. Coach prompting forbids clinical speculation; crisis-pattern interception routes users toward human crisis resources rather than model improvisation.
+
+API keys in coursework builds belong ideally server-side — acknowledge residual demonstration risk transparently.
+
+Nutrition outputs remain heuristic composites — users must consult licensed professionals for clinical dietary therapy especially surrounding pregnancy, diabetes pharmacology adjustments, or eating-disorder contexts.
+
+Data minimisation: collect onboarding breadth justified only by evidenced personalisation pathways; purge demonstration datasets between vivas when feasible.
+
+Regional fairness: multilingual nuance remains aspirational — document accent / dialect coaching gaps honestly.
+
+
+<<<FUTURE>>>
+Priority backlog:
+
+• Backend proxy layer hiding secrets & enabling audit logs.
+
+• Federated or on-device distilled classifier fallback restoring scanner utility partially offline.
+
+• Expanded annotated Sri Lankan / South Asian imagery corpus feeding ViT continual fine-tuning.
+
+• Depth-from-motion casual volumetrics prototyping referencing Rouhafzay et al. scoping conclusions.
+
+• Integrated wearable connectors feeding richer activity truthfulness.
+
+• IRB-approved comparative adherence study measuring emotional-coaching uplift.
+
+
+<<<APPENDICES>>>
+Appendix A — User Guide Summary
+
+A.1 Minimum specifications align with Expo SDK baselines (modern Android / iOS builds).
+
+A.2 Demonstration via Expo Go QR scanning workflow plus optional EAS development builds.
+
+A.3 Usage corrections:
+
+• Scan requires network unless demo fallback engaged — clarify expectation honestly.
+
+• Coach offline templates emphasise empathy continuity absent billing keys.
+
+• Circumference completeness improves composition tier activation — mirrors UI hints (~85% rhetoric conditional on Navy applicability assumptions).
+
+Appendix B — ER Diagram placeholder referencing interim Figure B.1 continuity.
+
+Appendix C — Architecture caption update: illustrate SQLite ↔ Supabase mirror plus GPT-4o Vision meal path, GPT-4o-mini coach path, optional Gemini body imaging path, optional ViT FastAPI satellite service.
+
+Appendix D — Source excerpts:
+
+• D.1 src/lib/bodyTypeEngine.ts detectBodyType()
+
+• D.2 src/lib/calorieEngine.ts calculatePersonalizedCalorieRecommendation()
+
+• D.3 src/services/scan.service.ts recognizeFood JSON shaping & fallback
+
+• D.4 src/lib/sync.ts syncAll orchestration
+
+Appendix E — Maintain internally consistent executed/pass counts synchronised with Chapter 7 narrative ledger.
+
+Appendix F — Insert Plymouth OneDrive submission hyperlink plus GitHub mirror note.
+
+Appendix G — PID reference corrected to PUSL3190_10953083_PID.pdf unless registry dictates alternate naming — verify departmental convention.
+
+Appendix H — Interim PDF cross-reference unchanged.
+
+Appendix I — Supervisory meeting chronicle emphasises Flutter pivot approval, ViT adoption checkpoint, dual-track AI clarification sprint, static simulation limitation acceptance.
+
+Appendix J — Risk register amendment row clarifying multimodal vendor dependence & mitigation via backend abstraction plus caching strategies.

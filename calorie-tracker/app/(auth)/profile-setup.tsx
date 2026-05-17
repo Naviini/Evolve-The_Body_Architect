@@ -23,7 +23,6 @@ import {
     TextInput,
     Animated,
     Platform,
-    Alert,
     ActivityIndicator,
     KeyboardAvoidingView,
     Modal,
@@ -37,6 +36,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Speech from 'expo-speech';
 import { Spacing, BorderRadius, Typography } from '@/constants/theme';
 import { saveOnboardingProfile, getOnboardingProfile } from '@/src/lib/database';
+import { useThemedAlert } from '@/src/contexts/ThemedAlertContext';
 import {
     BiologicalGender, GenderIdentity, ActivityLevel, WorkType,
     DietType, SnackingHabit, HealthLevel, SmokingStatus,
@@ -60,7 +60,7 @@ type OnboardingPageKey =
     | 'measurements_a'
     | 'review';
 
-const ONBOARDING_PAGES: Array<{ key: OnboardingPageKey; metaIdx: number; sectionIdx: number }> = [
+const ONBOARDING_PAGES: { key: OnboardingPageKey; metaIdx: number; sectionIdx: number }[] = [
     { key: 'basics', metaIdx: 0, sectionIdx: 0 },
     { key: 'routine', metaIdx: 1, sectionIdx: 1 },
     { key: 'diet_a', metaIdx: 2, sectionIdx: 2 },
@@ -92,7 +92,7 @@ const ONBOARDING_THEME = {
 
 const STEP_GRADIENT = ['#5E68FF', '#7C89FF'] as const;
 
-const SELECTABLE_HIGHLIGHT_GRADIENTS: ReadonlyArray<readonly [string, string]> = [
+const SELECTABLE_HIGHLIGHT_GRADIENTS: readonly (readonly [string, string])[] = [
     ['#2C9EEA', '#4DB7F2'],
     ['#F0A54A', '#F7BE67'],
     ['#6C7CFF', '#8A6EF0'],
@@ -144,7 +144,7 @@ function formatConverted(value: number): string {
 }
 
 // ── Step metadata ──────────────────────────────────────────
-const STEP_META: Array<{ icon: keyof typeof Ionicons.glyphMap; title: string; sub: string; gradient: readonly [string, string] }> = [
+const STEP_META: { icon: keyof typeof Ionicons.glyphMap; title: string; sub: string; gradient: readonly [string, string] }[] = [
     { icon: 'person-outline', title: 'About You', sub: 'Let\'s start with the basics', gradient: STEP_GRADIENT },
     { icon: 'walk-outline', title: 'Your Routine', sub: 'Tell us about your daily life', gradient: STEP_GRADIENT },
     { icon: 'restaurant-outline', title: 'Your Diet', sub: 'What does your diet look like?', gradient: STEP_GRADIENT },
@@ -253,6 +253,7 @@ function getBmiZone(bmiValue: string | number): {
 // ════════════════════════════════════════════════════════════
 export default function ProfileSetupScreen() {
     const router = useRouter();
+    const { alert } = useThemedAlert();
     const params = useLocalSearchParams<{ mode?: string; userId?: string }>();
     const isEditMode = params.mode === 'edit';
     const editUserId = params.userId ?? 'onboarding-temp';
@@ -489,7 +490,7 @@ export default function ProfileSetupScreen() {
             if (profile.wrist_cm) setWristCm(String(profile.wrist_cm));
             setLoadingProfile(false);
         }).catch(() => setLoadingProfile(false));
-    }, []);
+    }, [isEditMode, editUserId]);
 
     // ── Navigation ──────────────────────────────────────────
     const animateProgress = useCallback((toStep: number) => {
@@ -604,7 +605,7 @@ export default function ProfileSetupScreen() {
             }
         } catch (e) {
             console.error('Save error', e);
-            Alert.alert('Oops', 'Could not save your profile. Please try again.');
+            alert('Oops', 'Could not save your profile. Please try again.');
         } finally {
             setSaving(false);
         }
@@ -1368,7 +1369,7 @@ function StepMeasurements({ isFemale, waistCm, setWaistCm, hipCm, setHipCm,
 
             <SectionLabel text="Neck" />
             <Text style={s.measureHint}>
-                Just below the Adam's apple (larynx)
+                Just below the Adam{"'"}s apple (larynx)
             </Text>
             <FormInput
                 label="" value={neckCm} onChangeText={setNeckCm}
@@ -1391,7 +1392,7 @@ function StepMeasurements({ isFemale, waistCm, setWaistCm, hipCm, setHipCm,
             />
 
             <TouchableOpacity onPress={onSkip} style={s.skipLink}>
-                <Text style={s.skipLinkText}>Skip for now — I'll add these later</Text>
+                <Text style={s.skipLinkText}>Skip for now — I{"'"}ll add these later</Text>
             </TouchableOpacity>
         </View>
     );

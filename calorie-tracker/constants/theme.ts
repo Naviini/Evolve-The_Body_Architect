@@ -33,16 +33,16 @@ export const Colors = {
 
   // Neutrals (Dark theme focused)
   dark: {
-    background: '#0A0A1A',
-    surface: '#13132B',
-    surfaceLight: '#1E1E3F',
-    card: '#1A1A35',
-    cardElevated: '#222250',
-    border: '#2A2A55',
+    background: '#09091A',
+    surface: '#12122A',
+    surfaceLight: '#1A1B36',
+    card: '#181934',
+    cardElevated: '#202045',
+    border: '#303054',
     text: '#FFFFFF',
     textSecondary: '#A0A0C0',
     textTertiary: '#6B6B8D',
-    tabBar: '#0F0F25',
+    tabBar: '#0E0E22',
     overlay: 'rgba(10, 10, 26, 0.85)',
   },
 
@@ -68,7 +68,42 @@ export const Colors = {
     dark: ['#13132B', '#0A0A1A'] as const,
     card: ['rgba(30, 30, 63, 0.8)', 'rgba(26, 26, 53, 0.6)'] as const,
     success: ['#00E676', '#00D2FF'] as const,
+    /** Home meal rows — muted (low-chroma) variants of warm / sage / dusk / lavender */
+    mealBreakfast: ['#4f4542', '#5d534e'] as const,
+    mealLunch: ['#3e4a48', '#4b5956'] as const,
+    mealDinner: ['#3d3a4f', '#494564'] as const,
+    mealSnack: ['#454051', '#524c60'] as const,
+    /** Body journey — deep indigo / primary-adjacent → steel blue (matches app violet–cyan theme) */
+    bodyTransform: ['#252447', '#1a3352', '#141c34'] as const,
+    /** Transformation compare orb — muted primary → accent */
+    journeyBridge: ['#5b52b8', '#2a9cbd'] as const,
+    /** Vertical hairline behind orb — transparent primary ↔ accent */
+    journeyBridgeHairline: ['rgba(108,99,255,0)', 'rgba(0,210,255,0.36)', 'rgba(108,99,255,0)'] as const,
   },
+
+  /** Transformation preview — cool blue-gray panels; mint green only on goal silhouette + goal copy */
+  journeyDreamAccent: '#72d8ac',
+  /** Unused accent wash — neutral (green only on goal silhouette + text via journeyDreamAccent) */
+  journeyDreamGlow: 'rgba(108, 140, 210, 0.08)',
+  /** Goal panel chrome matches “Now” — no green fill */
+  journeyGoalPanel: 'rgba(108, 140, 210, 0.07)',
+  journeyGlassFill: 'rgba(255,255,255,0.055)',
+  journeyGlassBorder: 'rgba(255,255,255,0.11)',
+  journeyNowAccent: '#94a8c4',
+  journeyNowPanel: 'rgba(108, 140, 210, 0.07)',
+  journeyLinkChevron: '#9eb8e8',
+  /** Outer card rim — very light tint; applies only around Body Transformation on Home */
+  journeyTransformCardBorder: 'rgba(120, 188, 224, 0.10)',
+  journeyPanelBorderNow: 'rgba(130, 158, 205, 0.38)',
+  journeyPanelBorderGoal: 'rgba(130, 158, 205, 0.38)',
+  journeyDeltaChipBg: 'rgba(72, 88, 132, 0.42)',
+  journeyDeltaChipBorder: 'rgba(148, 158, 198, 0.18)',
+  mealPromoChevron: {
+    breakfast: '#8f8078',
+    lunch: '#7f928c',
+    dinner: '#918daa',
+    snack: '#9d96ae',
+  } as const,
 };
 
 // ============================================================
@@ -83,6 +118,10 @@ export const Spacing = {
   xxl: 48,
   xxxl: 64,
 } as const;
+
+/** Tab/stack screens: horizontal gutter; header rhythm uses Spacing.lg; clearance above bottom nav + home indicator. */
+export const TAB_SCROLL_GUTTER = Spacing.md;
+export const TAB_SCROLL_BOTTOM_GAP = Spacing.xxxl + Spacing.xxl;
 
 // ============================================================
 // Border Radius
@@ -133,6 +172,14 @@ export const Typography = {
 // Shadows
 // ============================================================
 export const Shadows = {
+  /** Default depth for bordered cards — softer than legacy `medium`. */
+  card: {
+    shadowColor: '#050510',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 3,
+  },
   small: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -143,9 +190,9 @@ export const Shadows = {
   medium: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 5,
   },
   large: {
     shadowColor: '#6C63FF',
@@ -160,6 +207,14 @@ export const Shadows = {
     shadowOpacity: 0.4,
     shadowRadius: 20,
     elevation: 10,
+  },
+  /** Home Body Transformation outer chrome only — faint shadow so the box stays airy */
+  bodyTransformCard: {
+    shadowColor: '#050814',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 4,
   },
 };
 

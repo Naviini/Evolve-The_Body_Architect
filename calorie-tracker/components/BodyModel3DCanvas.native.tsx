@@ -21,6 +21,7 @@ interface Props {
     size?: number;
     accentColor?: string;
     autoRotate?: boolean;
+    showInteractionHint?: boolean;
 }
 
 interface BodyPartProps {
@@ -89,7 +90,13 @@ function HumanoidBody({ params, gender, accentColor, autoRotate }: {
         const hipScale      = lerp(isFemale ? 0.9 : 0.7, isFemale ? 1.5 : 1.1, hipWidth);
         const armScale      = lerp(0.7, 1.5, armSize);
         const legScale      = lerp(0.8, 1.4, legSize);
-        const bodyColor     = new THREE.Color().setHSL(0.08, lerp(0.3, 0.5, muscleTone), lerp(0.55, 0.45, bodyFatOverlay));
+        const satFemale = lerp(0.14, 0.38, muscleTone);
+        const satMale = lerp(0.3, 0.5, muscleTone);
+        const bodyColor = new THREE.Color().setHSL(
+            isFemale ? 0.56 : 0.08,
+            isFemale ? satFemale : satMale,
+            lerp(0.58, 0.4, bodyFatOverlay),
+        );
         const emissiveColor = new THREE.Color(accentColor).multiplyScalar(0.3);
         const emissiveIntensity = lerp(0, 0.4, muscleTone);
         return { torsoWidthX, torsoWidthZ, shoulderScale, waistScale, hipScale, armScale, legScale, bodyColor, emissiveColor, emissiveIntensity };
@@ -145,10 +152,18 @@ function HumanoidBody({ params, gender, accentColor, autoRotate }: {
     );
 }
 
-export default function BodyModel3DCanvas({ params, gender, size = 340, accentColor = Colors.primary, autoRotate = false }: Props) {
+export default function BodyModel3DCanvas({
+    params,
+    gender,
+    size = 340,
+    accentColor = Colors.primary,
+    autoRotate = false,
+    showInteractionHint = true,
+}: Props) {
     const [loading, setLoading] = useState(true);
     const width  = Math.round(size * 0.75);
     const height = size;
+    const accentThree = useMemo(() => new THREE.Color(accentColor), [accentColor]);
 
     return (
         <View style={[styles.container, { width, height }]}>
@@ -158,25 +173,50 @@ export default function BodyModel3DCanvas({ params, gender, size = 340, accentCo
                 </View>
             )}
             <Canvas
-                camera={{ position: [0, 0.5, 4], fov: 45 }}
+                camera={{ position: [0, 0.35, 4.1], fov: 42 }}
                 style={{ flex: 1 }}
-                onCreated={() => setLoading(false)}
+                gl={{
+                    alpha: true,
+                    antialias: true,
+                    powerPreference: 'high-performance',
+                }}
+                onCreated={({ gl, scene }) => {
+                    gl.setClearColor(0x000000, 0);
+                    scene.background = null;
+                    scene.fog = new THREE.FogExp2(0x070b14, 0.045);
+                    setLoading(false);
+                }}
             >
-                <ambientLight intensity={0.6} />
-                <directionalLight position={[5, 10, 5]} intensity={1.2} />
-                <directionalLight position={[-5, 5, -5]} intensity={0.5} />
-                <pointLight position={[0, 3, 3]} intensity={0.6} color={accentColor} />
+                <ambientLight intensity={0.45} />
+                <hemisphereLight args={['#c8d4e8', '#1a1410', 0.85]} />
+                <directionalLight position={[4, 8, 6]} intensity={1.35} castShadow={false} />
+                <directionalLight position={[-6, 4, -4]} intensity={0.35} color="#8090ff" />
+                <spotLight
+                    position={[0, -0.5, 5]}
+                    angle={0.55}
+                    penumbra={0.85}
+                    intensity={1.1}
+                    color={accentColor}
+                    decay={2}
+                />
+                <pointLight position={[0, 2.2, 2.8]} intensity={0.55} color={accentThree} />
                 <HumanoidBody params={params} gender={gender} accentColor={accentColor} autoRotate={autoRotate} />
                 <OrbitControls
-                    enableZoom enablePan={false}
-                    minDistance={2.5} maxDistance={8}
-                    minPolarAngle={Math.PI / 6} maxPolarAngle={Math.PI / 1.3}
-                    enableDamping dampingFactor={0.05}
+                    enableZoom
+                    enablePan={false}
+                    minDistance={2.4}
+                    maxDistance={8}
+                    minPolarAngle={Math.PI / 7}
+                    maxPolarAngle={Math.PI / 1.35}
+                    enableDamping
+                    dampingFactor={0.06}
                 />
             </Canvas>
-            <View style={styles.hint}>
-                <Text style={styles.hintText}>Drag to rotate • Pinch to zoom</Text>
-            </View>
+            {showInteractionHint ? (
+                <View style={styles.hint}>
+                    <Text style={styles.hintText}>Drag to rotate • Pinch to zoom</Text>
+                </View>
+            ) : null}
         </View>
     );
 }

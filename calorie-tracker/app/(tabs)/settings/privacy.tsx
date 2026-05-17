@@ -12,22 +12,25 @@ import {
     ScrollView,
     TouchableOpacity,
     Switch,
-    Alert,
-    Platform,
     ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
+import { Colors, Spacing, BorderRadius, Typography, TAB_SCROLL_GUTTER, TAB_SCROLL_BOTTOM_GAP } from '@/constants/theme';
 import { useAppStyles } from '@/hooks/useAppStyles';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { ScreenTitleRow } from '@/components/ui/screen-title-row';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useThemedAlert } from '@/src/contexts/ThemedAlertContext';
 import { getUserPreferences, saveUserPreferences, deleteUserData, UserPreferences } from '@/src/lib/database';
 
 export default function PrivacyScreen() {
     const colors = useThemeColors();
     const styles = useAppStyles(createStyles);
     const router = useRouter();
+    const insets = useSafeAreaInsets();
+    const { alert } = useThemedAlert();
     const { user, signOut } = useAuth();
     const [loading, setLoading] = useState(true);
     const [prefs, setPrefs] = useState<UserPreferences | null>(null);
@@ -51,15 +54,15 @@ export default function PrivacyScreen() {
     };
 
     const handleExportData = () => {
-        Alert.alert(
+        alert(
             'Export Data',
             'A copy of your data will be prepared and sent to your email address.',
-            [{ text: 'Cancel', style: 'cancel' }, { text: 'Export', onPress: () => Alert.alert('Request Sent', 'Your data export request is being processed.') }]
+            [{ text: 'Cancel', style: 'cancel' }, { text: 'Export', onPress: () => alert('Request Sent', 'Your data export request is being processed.') }]
         );
     };
 
     const handleDeleteAccount = () => {
-        Alert.alert(
+        alert(
             'Delete Account',
             'This action is permanent and will delete all your calorie logs, health profile, and account settings. Are you sure?',
             [
@@ -88,17 +91,19 @@ export default function PrivacyScreen() {
     }
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { paddingTop: insets.top }]}>
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { paddingTop: Spacing.lg }]}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color={colors.text} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Privacy & Data</Text>
+                <View style={{ flex: 1, alignItems: 'center' }}>
+                    <ScreenTitleRow title="Privacy & Data" icon="lock-closed-outline" />
+                </View>
                 <View style={{ width: 40 }} />
             </View>
 
-            <ScrollView contentContainerStyle={styles.scrollContent}>
+            <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + TAB_SCROLL_BOTTOM_GAP }]}>
                 <Text style={styles.sectionTitle}>Data Permissions</Text>
                 <View style={styles.card}>
                     <View style={styles.row}>
@@ -177,7 +182,6 @@ export default function PrivacyScreen() {
                     Deleting your account is permanent. All your history will be wiped from our servers.
                 </Text>
 
-                <View style={{ height: 40 }} />
             </ScrollView>
         </View>
     );
@@ -196,8 +200,7 @@ const createStyles = (colors: any) => StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingTop: Platform.OS === 'ios' ? 60 : 40,
-        paddingHorizontal: Spacing.md,
+        paddingHorizontal: TAB_SCROLL_GUTTER,
         paddingBottom: Spacing.md,
         backgroundColor: colors.surface,
         borderBottomWidth: 1,
@@ -208,13 +211,9 @@ const createStyles = (colors: any) => StyleSheet.create({
         height: 40,
         justifyContent: 'center',
     },
-    headerTitle: {
-        fontSize: Typography.sizes.title,
-        fontWeight: Typography.weights.bold,
-        color: colors.text,
-    },
     scrollContent: {
-        padding: Spacing.md,
+        paddingHorizontal: TAB_SCROLL_GUTTER,
+        paddingTop: Spacing.md,
     },
     sectionTitle: {
         fontSize: Typography.sizes.body,

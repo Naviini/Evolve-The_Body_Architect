@@ -22,6 +22,8 @@ interface BodyModel3DProps {
     size?: number;
     accentColor?: string;
     autoRotate?: boolean;
+    showGlFallbackBadge?: boolean;
+    showInteractionHint?: boolean;
 }
 
 export default function BodyModel3D({
@@ -29,6 +31,7 @@ export default function BodyModel3D({
     gender,
     size = 340,
     accentColor = Colors.primary,
+    showGlFallbackBadge = false,
 }: BodyModel3DProps) {
     const aspectRatio = 3 / 4;
     const width = size * aspectRatio;
@@ -43,9 +46,11 @@ export default function BodyModel3D({
                 showGlow
                 animated
             />
-            <View style={styles.badge}>
-                <Text style={styles.badgeText}>3D available on dev build</Text>
-            </View>
+            {showGlFallbackBadge ? (
+                <View style={styles.badge}>
+                    <Text style={styles.badgeText}>Interactive 3D needs a dev build with expo-gl</Text>
+                </View>
+            ) : null}
         </View>
     );
 }

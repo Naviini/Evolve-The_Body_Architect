@@ -85,7 +85,7 @@ export default function VerifyEmailScreen() {
                 </View>
             )}
 
-            <Text style={styles.resendPrompt}>Didn't receive the email?</Text>
+            <Text style={styles.resendPrompt}>Didn{"'"}t receive the email?</Text>
 
             <TouchableOpacity
                 style={styles.resendButton}
@@ -111,7 +111,7 @@ export default function VerifyEmailScreen() {
             </TouchableOpacity>
 
             <Text style={styles.spamHint}>
-                Check your spam or junk folder if you don't see it within a few minutes.
+                Check your spam or junk folder if you don{"'"}t see it within a few minutes.
             </Text>
 
             {/* Divider */}

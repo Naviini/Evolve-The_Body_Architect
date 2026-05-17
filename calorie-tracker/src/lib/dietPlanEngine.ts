@@ -132,7 +132,6 @@ function macroSplitForProfile(profile: Partial<OnboardingProfile>): { proteinPct
       proteinPct = clamp(proteinPct + 5, 25, 40);
       carbsPct = clamp(carbsPct - 3, 10, 55);
       fatPct = clamp(100 - proteinPct - carbsPct, 15, 45);
-      notes.push('Weight-loss target detected: higher protein to protect muscle.');
     } else if (dw > w + 2) {
       carbsPct = clamp(carbsPct + 5, 20, 60);
       proteinPct = clamp(proteinPct + 2, 25, 40);
