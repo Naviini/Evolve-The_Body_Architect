@@ -50,7 +50,7 @@ import {
 import * as Haptics from 'expo-haptics';
 import * as Speech from 'expo-speech';
 import { VoiceRecordingOverlay } from '@/components/coach/VoiceRecordingOverlay';
-import { FitBotCoachCompanion } from '@/components/fitbot/FitBotCoachCompanion';
+import { FitBotCoachCompanion, FitBotComposerMascot } from '@/components/fitbot/FitBotCoachCompanion';
 import { pickBestCoachVoice, type CoachSpeechVoice } from '@/src/lib/coachVoiceSpeech';
 
 /** Enables native metering for voice-reactive UI + haptics */
@@ -139,6 +139,8 @@ export default function CoachScreen() {
     /** Speak assistant replies aloud */
     const [voiceReplyEnabled, setVoiceReplyEnabled] = useState(true);
     const [ttsVoiceId, setTtsVoiceId] = useState<string | undefined>(undefined);
+    /** Coach TTS is actively playing (Fit-BOT “talking” animation). */
+    const [coachSpeaking, setCoachSpeaking] = useState(false);
     /** Hidden after dismiss until user leaves Coach and opens it again (or app returns foreground). */
     const [coachDisclaimerHidden, setCoachDisclaimerHidden] = useState(false);
 
@@ -156,6 +158,13 @@ export default function CoachScreen() {
             .then((list) => setTtsVoiceId(pickBestCoachVoice(list as CoachSpeechVoice[])))
             .catch(() => {});
     }, []);
+
+    useEffect(() => {
+        if (!voiceReplyEnabled) {
+            void Speech.stop();
+            setCoachSpeaking(false);
+        }
+    }, [voiceReplyEnabled]);
 
     const dismissCoachDisclaimer = useCallback(() => {
         setCoachDisclaimerHidden(true);
@@ -279,6 +288,10 @@ export default function CoachScreen() {
                 voice: ttsVoiceId,
                 rate: Platform.OS === 'ios' ? 0.92 : 1.02,
                 pitch: 1,
+                onStart: () => setCoachSpeaking(true),
+                onDone: () => setCoachSpeaking(false),
+                onStopped: () => setCoachSpeaking(false),
+                onError: () => setCoachSpeaking(false),
             });
         },
         [voiceReplyEnabled, ttsVoiceId]
@@ -709,7 +722,12 @@ export default function CoachScreen() {
             </ScrollView>
 
             <View style={styles.messagesPane}>
-                <FitBotCoachCompanion active={messages.length > 0 || sending} paused={isRecording} />
+                <FitBotCoachCompanion
+                    active={messages.length > 0 || sending}
+                    paused={isRecording}
+                    thinking={sending}
+                    speaking={coachSpeaking}
+                />
                 <ScrollView
                     ref={scrollRef}
                     style={styles.messagesScroll}
@@ -861,6 +879,12 @@ export default function CoachScreen() {
                         )}
                     </LinearGradient>
                 </TouchableOpacity>
+                <FitBotComposerMascot
+                    active={messages.length > 0 || sending}
+                    paused={isRecording}
+                    thinking={sending}
+                    speaking={coachSpeaking}
+                />
             </View>
         </KeyboardAvoidingView>
     );
@@ -1058,6 +1082,7 @@ const createStyles = (colors: any) =>
             borderTopWidth: StyleSheet.hairlineWidth,
             borderTopColor: colors.border,
             backgroundColor: colors.background,
+            position: 'relative',
         },
         voiceMicBtn: {
             width: 46,
