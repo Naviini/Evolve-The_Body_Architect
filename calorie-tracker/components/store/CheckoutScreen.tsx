@@ -4,9 +4,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCart } from './CartContext';
 import { storeProductImageSource } from './productImages';
-import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
+import { BorderRadius, Colors, Shadows, Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAppStyles } from '@/hooks/useAppStyles';
+import { HeaderIconButton } from '@/components/ui/header-icon-button';
 
 interface CheckoutScreenProps {
   onBack: () => void;
@@ -51,9 +52,12 @@ export default function CheckoutScreen({ onBack, onMenuPress, onPlaceOrder }: Ch
           <Ionicons name="arrow-back" size={20} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Checkout</Text>
-        <TouchableOpacity style={styles.headerBtn} onPress={onMenuPress}>
-          <Ionicons name="menu" size={20} color={colors.text} />
-        </TouchableOpacity>
+        <HeaderIconButton
+          icon="menu"
+          iconSize={22}
+          onPress={onMenuPress}
+          accessibilityLabel="Open navigation menu"
+        />
       </View>
 
       <FlatList
@@ -197,42 +201,46 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceLight,
+    ...Shadows.card,
   },
   headerTitle: { fontSize: Typography.sizes.title, fontWeight: Typography.weights.bold, color: colors.text },
   listContent: { paddingHorizontal: Spacing.md, paddingBottom: 120 },
   card: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.card,
     borderRadius: BorderRadius.md,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     padding: 12,
     marginBottom: 10,
+    ...Shadows.card,
   },
   promoCard: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.card,
     borderRadius: BorderRadius.md,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     padding: 10,
     marginBottom: 6,
     flexDirection: 'row',
     alignItems: 'center',
+    ...Shadows.card,
   },
   promoInput: {
     flex: 1,
     height: 42,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     borderRadius: BorderRadius.sm,
     paddingHorizontal: 12,
     marginRight: 8,
     color: colors.text,
     fontSize: Typography.sizes.bodyLarge,
+    backgroundColor: colors.surfaceLight,
   },
   applyBtn: {
     height: 42,
@@ -264,19 +272,20 @@ const createStyles = (colors: any) => StyleSheet.create({
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.card,
     borderRadius: BorderRadius.md,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     padding: 10,
     marginBottom: 8,
+    ...Shadows.card,
   },
   itemImage: { width: 70, height: 70, borderRadius: 12, marginRight: 10 },
   thumbPlaceholder: {
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surfaceLight,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
   itemInfo: { flex: 1 },
@@ -286,11 +295,12 @@ const createStyles = (colors: any) => StyleSheet.create({
   muted: { color: colors.textTertiary, fontSize: Typography.sizes.caption, marginTop: 4 },
   amount: { color: colors.text, fontSize: Typography.sizes.subtitle, fontWeight: Typography.weights.bold },
   summaryCard: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.card,
     borderRadius: BorderRadius.md,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     padding: 12,
+    ...Shadows.card,
   },
   summaryLabel: { color: colors.textSecondary, fontSize: Typography.sizes.bodyLarge, marginBottom: 8 },
   summaryValue: { color: colors.textSecondary, fontSize: Typography.sizes.bodyLarge },
@@ -302,9 +312,9 @@ const createStyles = (colors: any) => StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.cardElevated,
     paddingHorizontal: 16,
     paddingTop: 12,
   },

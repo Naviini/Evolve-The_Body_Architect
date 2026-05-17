@@ -20,6 +20,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import 'react-native-reanimated';
 
 import { AuthProvider, useAuth } from '@/src/contexts/AuthContext';
+import { ThemedAlertProvider } from '@/src/contexts/ThemedAlertContext';
 import { ThemeProvider } from '@/src/contexts/ThemeContext';
 import { initDatabase } from '@/src/lib/database';
 import { startAutoSync } from '@/src/lib/sync';
@@ -48,7 +49,7 @@ function useProtectedRoute(
         setOnboardingDone(true);
       }
     });
-  }, [segments]);
+  }, [segments, onboardingDone, setOnboardingDone]);
 
   useEffect(() => {
     if (loading) return;
@@ -87,7 +88,7 @@ function useProtectedRoute(
     if (inAuthGroup) {
       router.replace('/(tabs)');
     }
-  }, [user, loading, isEmailVerified, segments, onboardingDone]);
+  }, [user, loading, isEmailVerified, segments, onboardingDone, router]);
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -166,9 +167,11 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <InnerLayout onboardingDone={onboardingDone} setOnboardingDone={setOnboardingDone} />
-      </AuthProvider>
+      <ThemedAlertProvider>
+        <AuthProvider>
+          <InnerLayout onboardingDone={onboardingDone} setOnboardingDone={setOnboardingDone} />
+        </AuthProvider>
+      </ThemedAlertProvider>
     </ThemeProvider>
   );
 }

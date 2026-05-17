@@ -13,8 +13,6 @@ import {
   WorkoutExercise,
   WorkoutCategory,
   DifficultyLevel,
-  MuscleGroup,
-  Equipment,
 } from '@/src/types';
 
 // ════════════════════════════════════════════════════════════

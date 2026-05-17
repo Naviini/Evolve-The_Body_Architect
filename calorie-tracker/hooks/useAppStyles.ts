@@ -4,9 +4,9 @@ import { Colors } from '@/constants/theme';
 
 export function useAppStyles<T>(styleFactory: (colors: any) => T): T {
   const theme = useColorScheme() ?? 'dark';
-  const activeColors = theme === 'dark' ? Colors.dark : Colors.light;
-  const mergedColors = { ...Colors, ...activeColors };
-
-  // Use theme as dependency because styleFactory is a global constant
-  return useMemo(() => styleFactory(mergedColors), [theme, styleFactory]);
+  const mergedColors = useMemo(
+    () => ({ ...Colors, ...(theme === 'dark' ? Colors.dark : Colors.light) }),
+    [theme],
+  );
+  return useMemo(() => styleFactory(mergedColors), [mergedColors, styleFactory]);
 }

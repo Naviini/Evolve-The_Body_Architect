@@ -12,14 +12,15 @@ import {
     ScrollView,
     TouchableOpacity,
     Switch,
-    Platform,
     ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
+import { Colors, Spacing, BorderRadius, Typography, TAB_SCROLL_GUTTER, TAB_SCROLL_BOTTOM_GAP } from '@/constants/theme';
 import { useAppStyles } from '@/hooks/useAppStyles';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { ScreenTitleRow } from '@/components/ui/screen-title-row';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { getUserPreferences, saveUserPreferences, UserPreferences } from '@/src/lib/database';
 
@@ -27,6 +28,7 @@ export default function NotificationsScreen() {
     const colors = useThemeColors();
     const styles = useAppStyles(createStyles);
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const { user } = useAuth();
     const [loading, setLoading] = useState(true);
     const [prefs, setPrefs] = useState<UserPreferences | null>(null);
@@ -58,17 +60,19 @@ export default function NotificationsScreen() {
     }
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { paddingTop: insets.top }]}>
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { paddingTop: Spacing.lg }]}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color={colors.text} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Notifications</Text>
+                <View style={{ flex: 1, alignItems: 'center' }}>
+                    <ScreenTitleRow title="Notifications" icon="notifications-outline" />
+                </View>
                 <View style={{ width: 40 }} />
             </View>
 
-            <ScrollView contentContainerStyle={styles.scrollContent}>
+            <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + TAB_SCROLL_BOTTOM_GAP }]}>
                 <Text style={styles.sectionTitle}>Reminders</Text>
                 <View style={styles.card}>
                     <View style={[styles.row, styles.border]}>
@@ -135,10 +139,9 @@ export default function NotificationsScreen() {
                 </View>
                 
                 <Text style={styles.footer}>
-                    You can also manage notifications in your device's system settings.
+                    You can also manage notifications in your device{"'"}s system settings.
                 </Text>
 
-                <View style={{ height: 40 }} />
             </ScrollView>
         </View>
     );
@@ -157,8 +160,7 @@ const createStyles = (colors: any) => StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingTop: Platform.OS === 'ios' ? 60 : 40,
-        paddingHorizontal: Spacing.md,
+        paddingHorizontal: TAB_SCROLL_GUTTER,
         paddingBottom: Spacing.md,
         backgroundColor: colors.surface,
         borderBottomWidth: 1,
@@ -169,13 +171,9 @@ const createStyles = (colors: any) => StyleSheet.create({
         height: 40,
         justifyContent: 'center',
     },
-    headerTitle: {
-        fontSize: Typography.sizes.title,
-        fontWeight: Typography.weights.bold,
-        color: colors.text,
-    },
     scrollContent: {
-        padding: Spacing.md,
+        paddingHorizontal: TAB_SCROLL_GUTTER,
+        paddingTop: Spacing.md,
     },
     sectionTitle: {
         fontSize: Typography.sizes.body,

@@ -264,7 +264,7 @@ export default function RegisterScreen() {
                             </TouchableOpacity>
                         </View>
                         {confirmPassword.length > 0 && confirmPassword !== password && (
-                            <Text style={styles.matchError}>Passwords don't match</Text>
+                            <Text style={styles.matchError}>Passwords don{"'"}t match</Text>
                         )}
                     </View>
 

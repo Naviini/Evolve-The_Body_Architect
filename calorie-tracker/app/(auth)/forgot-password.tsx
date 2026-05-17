@@ -100,7 +100,7 @@ export default function ForgotPasswordScreen() {
                         <Text style={styles.successBody}>
                             We sent a password reset link to{'\n'}
                             <Text style={styles.successEmail}>{email}</Text>
-                            {'\n\n'}Open your email and follow the link to reset your password. Check your spam folder if you don't see it.
+                            {'\n\n'}Open your email and follow the link to reset your password. Check your spam folder if you don{"'"}t see it.
                         </Text>
                         <TouchableOpacity
                             style={styles.primaryButton}
@@ -134,7 +134,7 @@ export default function ForgotPasswordScreen() {
                             </LinearGradient>
                             <Text style={styles.title}>Reset password</Text>
                             <Text style={styles.subtitle}>
-                                Enter your email and we'll send you a link to reset your password.
+                                Enter your email and we{"'"}ll send you a link to reset your password.
                             </Text>
                         </View>
 

@@ -13,7 +13,6 @@ import {
     ScrollView,
     TouchableOpacity,
     Platform,
-    Alert,
     RefreshControl,
     ActivityIndicator,
     Modal,
@@ -22,10 +21,13 @@ import {
     Animated,
     Pressable,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import StoreDrawer from '@/components/store/StoreDrawer';
+import { HeaderIconButton } from '@/components/ui/header-icon-button';
+import { ScreenTitleRow } from '@/components/ui/screen-title-row';
 import {
     Colors,
     Spacing,
@@ -34,6 +36,8 @@ import {
     Shadows,
     MealIcons,
     MealLabels,
+    TAB_SCROLL_GUTTER,
+    TAB_SCROLL_BOTTOM_GAP,
 } from '@/constants/theme';
 import {
     getMealEntriesByDate,
@@ -44,9 +48,11 @@ import {
     getDailyDietPlanForUser,
 } from '@/src/lib/database';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useThemedAlert } from '@/src/contexts/ThemedAlertContext';
 import { MealEntry, MealType } from '@/src/types';
 import { useAppStyles } from '@/hooks/useAppStyles';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useTabEntranceAnimation } from '@/hooks/useTabEntranceAnimation';
 import type { DailyDietPlan } from '@/src/lib/dietPlanEngine';
 
 // ── constants ────────────────────────────────────────────────
@@ -62,7 +68,10 @@ type HistoryAction =
 export default function DiaryScreen() {
   const colors = useThemeColors();
   const styles = useAppStyles(createStyles);
+    const insets = useSafeAreaInsets();
+    const { entranceStyle } = useTabEntranceAnimation();
     const { user } = useAuth();
+    const { alert } = useThemedAlert();
     const router = useRouter();
 
     const [selectedDate, setSelectedDate] = useState(new Date());
@@ -75,9 +84,8 @@ export default function DiaryScreen() {
     const [refreshing, setRefreshing] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
 
-    // undo / redo
+    // undo stack (toast still offers Undo after delete/edit revert)
     const [past, setPast] = useState<HistoryAction[]>([]);
-    const [future, setFuture] = useState<HistoryAction[]>([]);
 
     // edit modal
     const [editEntry, setEditEntry] = useState<MealEntry | null>(null);
@@ -166,7 +174,6 @@ export default function DiaryScreen() {
     // ── history ───────────────────────────────────────────────
     const pushHistory = (action: HistoryAction) => {
         setPast(p => [...p, action]);
-        setFuture([]);
     };
 
     // ── DELETE — no Alert, executes immediately ───────────────
@@ -202,30 +209,9 @@ export default function DiaryScreen() {
                 showToast('Edit reverted');
             }
             setPast(p => p.slice(0, -1));
-            setFuture(f => [action, ...f]);
             await loadMeals();
         } catch (e) {
             console.error('undo error:', e);
-        }
-    };
-
-    // ── REDO ──────────────────────────────────────────────────
-    const handleRedo = async () => {
-        const action = future[0];
-        if (!action) return;
-        try {
-            if (action.kind === 'delete') {
-                await deleteMealEntry(action.entry.id, userId);
-                showToast('Deleted again');
-            } else {
-                await updateMealEntry(action.before.id, userId, action.after);
-                showToast('Edit re-applied');
-            }
-            setFuture(f => f.slice(1));
-            setPast(p => [...p, action]);
-            await loadMeals();
-        } catch (e) {
-            console.error('redo error:', e);
         }
     };
 
@@ -244,7 +230,7 @@ export default function DiaryScreen() {
     const handleSaveEdit = async () => {
         if (!editEntry) return;
         if (!editName.trim() || !editCals) {
-            Alert.alert('Missing fields', 'Food name and calories are required.');
+            alert('Missing fields', 'Food name and calories are required.');
             return;
         }
         setEditSaving(true);
@@ -263,8 +249,8 @@ export default function DiaryScreen() {
             await loadMeals();
             setEditEntry(null);
             showToast('Entry updated ✓');
-        } catch (e) {
-            Alert.alert('Error', 'Could not save changes.');
+        } catch {
+            alert('Error', 'Could not save changes.');
         } finally {
             setEditSaving(false);
         }
@@ -287,60 +273,50 @@ export default function DiaryScreen() {
     // RENDER
     // ════════════════════════════════════════════════════════
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { paddingTop: insets.top }]}>
 
             {/* ── Header ──────────────────────────────────── */}
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>Food Diary</Text>
+            <View style={[styles.header, { paddingTop: Spacing.lg }]}>
+                <ScreenTitleRow title="Food Diary" icon="book-outline" />
                 <View style={styles.headerRight}>
-                    <TouchableOpacity
-                        style={styles.historyBtn}
-                        onPress={() => setMenuOpen(true)}
-                    >
-                        <Ionicons name="menu" size={18} color={colors.text} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.historyBtn, past.length === 0 && styles.historyBtnOff]}
-                        onPress={handleUndo}
-                        disabled={past.length === 0}
-                    >
-                        <Ionicons name="arrow-undo" size={18}
-                            color={past.length > 0 ? Colors.primary : colors.textTertiary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.historyBtn, future.length === 0 && styles.historyBtnOff]}
-                        onPress={handleRedo}
-                        disabled={future.length === 0}
-                    >
-                        <Ionicons name="arrow-redo" size={18}
-                            color={future.length > 0 ? Colors.primary : colors.textTertiary} />
-                    </TouchableOpacity>
                     <Text style={styles.headerCals}>{Math.round(totalCals)} kcal</Text>
+                    <HeaderIconButton
+                        icon="menu"
+                        iconSize={22}
+                        onPress={() => setMenuOpen(true)}
+                        accessibilityLabel="Open navigation menu"
+                    />
                 </View>
             </View>
 
             {/* ── Date nav ────────────────────────────────── */}
             <View style={styles.dateNav}>
-                <TouchableOpacity onPress={() => navigateDate(-1)} style={styles.dateBtn}>
-                    <Ionicons name="chevron-back" size={24} color={colors.text} />
-                </TouchableOpacity>
+                <HeaderIconButton
+                    icon="chevron-back"
+                    iconSize={22}
+                    onPress={() => navigateDate(-1)}
+                    accessibilityLabel="Previous day"
+                />
                 <View style={styles.dateCenter}>
                     <Ionicons name="calendar-outline" size={18} color={Colors.primary} />
                     <Text style={styles.dateText}>{formatDate(selectedDate)}</Text>
                 </View>
-                <TouchableOpacity
+                <HeaderIconButton
+                    icon="chevron-forward"
+                    iconSize={22}
                     onPress={() => navigateDate(1)}
-                    style={styles.dateBtn}
                     disabled={isToday}
-                >
-                    <Ionicons name="chevron-forward" size={24}
-                        color={isToday ? colors.textTertiary : colors.text} />
-                </TouchableOpacity>
+                    accessibilityLabel="Next day"
+                    iconColor={isToday ? colors.textTertiary : colors.text}
+                />
             </View>
 
             {/* ── Scroll body ─────────────────────────────── */}
             <ScrollView
-                contentContainerStyle={styles.scroll}
+                contentContainerStyle={[
+                  styles.scroll,
+                  { paddingBottom: insets.bottom + TAB_SCROLL_BOTTOM_GAP },
+                ]}
                 showsVerticalScrollIndicator={false}
                 refreshControl={
                     <RefreshControl
@@ -351,6 +327,7 @@ export default function DiaryScreen() {
                     />
                 }
             >
+                <Animated.View style={entranceStyle}>
                 {/* Summary card */}
                 <LinearGradient
                     colors={[colors.surfaceLight, colors.card]}
@@ -413,7 +390,7 @@ export default function DiaryScreen() {
                                 <Text style={{ fontSize: 40 }}>🍽️</Text>
                                 <Text style={styles.emptyDayTitle}>Nothing logged yet</Text>
                                 <Text style={styles.emptyDayText}>
-                                    Tap an "Add" button below to log your first meal.
+                                    Tap an {'"'}Add{'"'} button below to log your first meal.
                                 </Text>
                             </View>
                         )}
@@ -502,6 +479,7 @@ export default function DiaryScreen() {
                 )}
 
                 <View style={{ height: 130 }} />
+                </Animated.View>
             </ScrollView>
 
             {/* ── Toast ────────────────────────────────────── */}
@@ -572,7 +550,6 @@ function EntryRow({
     onEdit: () => void;
     onDelete: () => void;
 }) {
-    const colors = useThemeColors();
     const er = useAppStyles(createErStyles);
     return (
         <View style={er.row}>
@@ -666,7 +643,6 @@ const createErStyles = (colors: any) => StyleSheet.create({
 function MacroBar({ label, value, goal, color }: {
     label: string; value: number; goal: number; color: string;
 }) {
-  const colors = useThemeColors();
   const mb = useAppStyles(createMbStyles);
     const pct = Math.min(value / goal, 1);
     return (
@@ -1026,43 +1002,24 @@ const createStyles = (colors: any) => StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingTop: Platform.OS === 'ios' ? 60 : 40,
-        paddingHorizontal: Spacing.md,
+        paddingHorizontal: TAB_SCROLL_GUTTER,
         paddingBottom: Spacing.sm,
     },
-    headerTitle: {
-        fontSize: Typography.sizes.heading,
-        color: colors.text,
-        fontWeight: Typography.weights.bold,
-    },
-    headerRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    historyBtn: {
-        width: 34, height: 34,
-        borderRadius: 17,
-        backgroundColor: colors.surfaceLight,
-        justifyContent: 'center', alignItems: 'center',
-        borderWidth: 1, borderColor: colors.border,
-    },
-    historyBtnOff: { opacity: 0.35 },
+    headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     headerCals: {
         fontSize: Typography.sizes.bodyLarge,
         color: Colors.primary,
         fontWeight: Typography.weights.bold,
-        marginLeft: 4,
     },
 
     dateNav: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        marginHorizontal: Spacing.md,
+        marginHorizontal: TAB_SCROLL_GUTTER,
         marginVertical: Spacing.sm,
-        backgroundColor: colors.surface,
-        borderRadius: BorderRadius.md,
-        borderWidth: 1,
-        borderColor: colors.border,
+        paddingVertical: 2,
     },
-    dateBtn: { padding: 12 },
     dateCenter: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -1074,16 +1031,16 @@ const createStyles = (colors: any) => StyleSheet.create({
         fontWeight: Typography.weights.semibold,
     },
 
-    scroll: { paddingHorizontal: Spacing.md, paddingTop: 4 },
+    scroll: { paddingHorizontal: TAB_SCROLL_GUTTER, paddingTop: Spacing.md },
 
     // Summary
     summaryCard: {
         borderRadius: BorderRadius.lg,
         padding: Spacing.md,
         marginBottom: Spacing.md,
-        borderWidth: 1,
+        borderWidth: StyleSheet.hairlineWidth,
         borderColor: colors.border,
-        ...Shadows.medium,
+        ...Shadows.card,
     },
     summaryRow: {
         flexDirection: 'row',
@@ -1106,7 +1063,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     summaryCircleLbl: { fontSize: 10, color: colors.textTertiary },
     progressTrack: {
         height: 7, borderRadius: 4,
-        backgroundColor: colors.border,
+        backgroundColor: colors.surfaceLight,
         overflow: 'hidden',
         marginBottom: 4,
     },
@@ -1123,6 +1080,8 @@ const createStyles = (colors: any) => StyleSheet.create({
         fontSize: Typography.sizes.caption,
         color: colors.textSecondary,
         lineHeight: 16,
+        textAlign: 'center',
+        alignSelf: 'stretch',
     },
 
     // Loading
@@ -1147,7 +1106,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     section: {
         backgroundColor: colors.surface,
         borderRadius: BorderRadius.md,
-        borderWidth: 1,
+        borderWidth: StyleSheet.hairlineWidth,
         borderColor: colors.border,
         marginBottom: 10,
         overflow: 'hidden',
@@ -1204,11 +1163,11 @@ const createStyles = (colors: any) => StyleSheet.create({
         gap: 8,
         backgroundColor: colors.card,
         borderRadius: BorderRadius.md,
-        borderWidth: 1,
+        borderWidth: StyleSheet.hairlineWidth,
         borderColor: colors.border,
         paddingHorizontal: 14,
         paddingVertical: 12,
-        ...Shadows.large,
+        ...Shadows.medium,
     },
     toastText: { flex: 1, fontSize: 14, color: colors.text, fontWeight: '500' },
     undoBtn: {

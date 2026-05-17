@@ -16,29 +16,31 @@ import {
     Modal,
     Platform,
     ActivityIndicator,
-    Alert,
-    ScrollView,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, Spacing, BorderRadius, Typography, Shadows } from '@/constants/theme';
+import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
 import { recognizeFood, prepareImageForScan } from '@/src/services/scan.service';
 import { addMealEntry } from '@/src/lib/database';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useThemedAlert } from '@/src/contexts/ThemedAlertContext';
 import { FoodRecognitionResponse, MealType } from '@/src/types';
 import { useAppStyles } from '@/hooks/useAppStyles';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import StoreDrawer from '@/components/store/StoreDrawer';
+import { HeaderIconButton } from '@/components/ui/header-icon-button';
+import { ScreenTitleRow } from '@/components/ui/screen-title-row';
 
 export default function ScanScreen() {
   const colors = useThemeColors();
   const styles = useAppStyles(createStyles);
   const insets = useSafeAreaInsets();
     const { user } = useAuth();
+    const { alert } = useThemedAlert();
     const router = useRouter();
     const cameraRef = useRef<CameraView>(null);
     const [menuOpen, setMenuOpen] = useState(false);
@@ -64,7 +66,7 @@ export default function ScanScreen() {
             }
         } catch (e) {
             console.error('Camera capture failed:', e);
-            Alert.alert('Error', 'Failed to capture photo. Please try again.');
+            alert('Error', 'Failed to capture photo. Please try again.');
         }
     };
 
@@ -90,7 +92,7 @@ export default function ScanScreen() {
             setShowResult(true);
         } catch (e) {
             console.error('Scan failed:', e);
-            Alert.alert('Scan Failed', 'Could not recognize food. Please try again or add manually.');
+            alert('Scan Failed', 'Could not recognize food. Please try again or add manually.');
         } finally {
             setIsScanning(false);
         }
@@ -114,11 +116,11 @@ export default function ScanScreen() {
                 logged_at: new Date().toISOString().split('T')[0],
             });
 
-            Alert.alert('Added!', `${scanResult.food_name} added to your ${selectedMealType}.`, [
+            alert('Added!', `${scanResult.food_name} added to your ${selectedMealType}.`, [
                 { text: 'OK', onPress: () => resetScan() },
             ]);
-        } catch (e) {
-            Alert.alert('Error', 'Failed to save meal entry.');
+        } catch {
+            alert('Error', 'Failed to save meal entry.');
         }
     };
 
@@ -157,12 +159,13 @@ export default function ScanScreen() {
 
     return (
         <View style={styles.container}>
-            <TouchableOpacity
-                style={[styles.menuButton, { top: insets.top + 8 }]}
+            <HeaderIconButton
+                icon="menu"
+                iconSize={22}
                 onPress={() => setMenuOpen(true)}
-            >
-                <Ionicons name="menu" size={20} color={colors.text} />
-            </TouchableOpacity>
+                accessibilityLabel="Open navigation menu"
+                style={[styles.menuButton, { top: insets.top + Spacing.sm }]}
+            />
             {/* Camera or captured image */}
             {capturedImage ? (
                 <View style={styles.previewContainer}>
@@ -219,8 +222,17 @@ export default function ScanScreen() {
                     />
                     {/* Camera overlay — renders on top via absolute positioning */}
                     <View style={styles.cameraOverlay}>
-                        <View style={styles.cameraHeader}>
-                            <Text style={styles.cameraTitle}>Scan Your Food</Text>
+                        <View style={[styles.cameraHeader, { paddingTop: insets.top + Spacing.lg }]}>
+                            <ScreenTitleRow
+                                title="Scan Your Food"
+                                icon="scan-outline"
+                                color="#FFF"
+                                titleStyle={{
+                                    textShadowColor: 'rgba(0,0,0,0.5)',
+                                    textShadowOffset: { width: 0, height: 1 },
+                                    textShadowRadius: 4,
+                                }}
+                            />
                             <Text style={styles.cameraSubtitle}>
                                 Point your camera at the food item
                             </Text>
@@ -421,15 +433,6 @@ const createStyles = (colors: any) => StyleSheet.create({
         position: 'absolute',
         right: Spacing.md,
         zIndex: 20,
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: colors.border,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: colors.surface,
-        ...Shadows.small,
     },
 
     // Permission
@@ -534,15 +537,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     },
     cameraHeader: {
         alignItems: 'center',
-        paddingTop: Platform.OS === 'ios' ? 70 : 50,
-    },
-    cameraTitle: {
-        fontSize: Typography.sizes.title,
-        color: '#FFF',
-        fontWeight: Typography.weights.bold,
-        textShadowColor: 'rgba(0,0,0,0.5)',
-        textShadowOffset: { width: 0, height: 1 },
-        textShadowRadius: 4,
     },
     cameraSubtitle: {
         fontSize: Typography.sizes.body,

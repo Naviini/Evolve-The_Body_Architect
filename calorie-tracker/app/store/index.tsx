@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -9,13 +9,17 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
+  Platform,
+  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAppStyles } from '@/hooks/useAppStyles';
 import { useThemeColors } from '@/hooks/useThemeColors';
-import { BorderRadius, Colors, Shadows, Spacing, Typography } from '@/constants/theme';
+import { useTabEntranceAnimation } from '@/hooks/useTabEntranceAnimation';
+import { BorderRadius, Colors, Shadows, Spacing, Typography, TAB_SCROLL_GUTTER, TAB_SCROLL_BOTTOM_GAP } from '@/constants/theme';
 import { CartProvider, useCart } from '../../components/store/CartContext';
 import { OrderProvider, useOrders } from '../../components/store/OrderContext';
 import OrderHistoryScreen from '../../components/store/OrderHistoryScreen';
@@ -25,6 +29,7 @@ import WishlistScreen from '../../components/store/WishlistScreen';
 import OrderStatusScreen from '../../components/store/OrderStatusScreen';
 import AccountScreen from '../../components/store/AccountScreen';
 import StoreDrawer from '../../components/store/StoreDrawer';
+import { HeaderIconButton } from '@/components/ui/header-icon-button';
 import { StoreProduct } from '../../components/store/products';
 import { storeProductImageSource } from '../../components/store/productImages';
 import { getPersonalizedRecommendations } from '../../src/services/recommendationService';
@@ -32,20 +37,52 @@ import { getAllProducts } from '../../src/services/storeService';
 import { getDailyLog, getStoreWishlistItems, getUserHealthProfileForProcessing, initDatabase, removeStoreWishlistItem, upsertStoreWishlistItem } from '../../src/lib/database';
 import { useAuth } from '../../src/contexts/AuthContext';
 
-const categories = [
-  { id: 'all', name: 'All', icon: 'https://img.icons8.com/color/96/shop.png' },
-  { id: 'Healthy Meals', name: 'Meals', icon: 'https://img.icons8.com/color/96/restaurant-table.png' },
-  { id: 'Supplements', name: 'Supplements', icon: 'https://img.icons8.com/color/96/pill.png' },
-  { id: 'Food & Drink', name: 'Food', icon: 'https://img.icons8.com/color/96/salad.png' },
-  { id: 'Gear', name: 'Gear', icon: 'https://img.icons8.com/color/96/dumbbell.png' },
-  { id: 'Accessories', name: 'Accessories', icon: 'https://img.icons8.com/color/96/water-bottle.png' },
-  { id: 'Health', name: 'Health', icon: 'https://img.icons8.com/color/96/heart-with-pulse.png' },
-  { id: 'Body Care', name: 'Body Care', icon: 'https://img.icons8.com/color/96/cream-tube.png' },
+/** Matches Analytics / Diary elevated blocks — surfaceLight → card */
+function fitstoreBlockGradient(colors: { surfaceLight: string; card: string }) {
+  return [colors.surfaceLight, colors.card] as const;
+}
+
+export type FitStoreBrowseTab =
+  | 'Browse All'
+  | 'For You'
+  | 'Restaurants'
+  | 'Deals'
+  | 'Top Rated'
+  | 'New';
+
+/** Single ordered chip strip — tab + catalogue category per tile (Healthy Meals intentionally omitted per product spec). */
+type StoreChipDef = {
+  key: string;
+  label: string;
+  icon: string;
+  tab: FitStoreBrowseTab;
+  categoryId: string;
+};
+
+const STORE_CHIPS_ORDERED: StoreChipDef[] = [
+  { key: 'all', label: 'All', icon: 'https://img.icons8.com/color/96/shop.png', tab: 'Browse All', categoryId: 'all' },
+  { key: 'for_you', label: 'For You', icon: 'https://img.icons8.com/color/96/sparkling.png', tab: 'For You', categoryId: 'all' },
+  { key: 'restaurants', label: 'Restaurants', icon: 'https://img.icons8.com/color/96/food-and-wine.png', tab: 'Restaurants', categoryId: 'all' },
+  { key: 'supplements', label: 'Supplement', icon: 'https://img.icons8.com/color/96/pill.png', tab: 'For You', categoryId: 'Supplements' },
+  { key: 'body_care', label: 'Body Care', icon: 'https://img.icons8.com/color/96/cream-tube.png', tab: 'For You', categoryId: 'Body Care' },
+  { key: 'food', label: 'Food', icon: 'https://img.icons8.com/color/96/salad.png', tab: 'For You', categoryId: 'Food & Drink' },
+  { key: 'health', label: 'Health', icon: 'https://img.icons8.com/color/96/heart-with-pulse.png', tab: 'For You', categoryId: 'Health' },
+  { key: 'top', label: 'Top', icon: 'https://img.icons8.com/color/96/christmas-star.png', tab: 'Top Rated', categoryId: 'all' },
+  { key: 'deals', label: 'Deals', icon: 'https://img.icons8.com/color/96/discount.png', tab: 'Deals', categoryId: 'all' },
+  { key: 'new', label: 'New', icon: 'https://img.icons8.com/color/96/new.png', tab: 'New', categoryId: 'all' },
+  { key: 'gear', label: 'Gear', icon: 'https://img.icons8.com/color/96/dumbbell.png', tab: 'For You', categoryId: 'Gear' },
+  { key: 'accessories', label: 'Accessories', icon: 'https://img.icons8.com/color/96/water-bottle.png', tab: 'For You', categoryId: 'Accessories' },
 ];
 
-const tabs = ['For You', 'Restaurants', 'Deals', 'Top Rated', 'New'] as const;
+const CATEGORY_LABEL_FALLBACK: Record<string, string> = {
+  'Food & Drink': 'Food',
+  Supplements: 'Supplement',
+  'Body Care': 'Body Care',
+  Health: 'Health',
+  Gear: 'Gear',
+  Accessories: 'Accessories',
+};
 
-/** Extra display fields for Uber Eats–style partner rows (kitchens mapped from meal SKUs). */
 const RESTAURANT_SHOW: Record<
   string,
   { cuisine: string; eta: string }
@@ -73,6 +110,7 @@ function StoreScreenInner() {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const styles = useAppStyles(createStyles);
+  const fitstoreGrad = fitstoreBlockGradient(colors);
   const { user } = useAuth();
   const { addToCart, cart, clearCart } = useCart();
   const { addOrder, orders, updateOrderStatus } = useOrders();
@@ -85,10 +123,17 @@ function StoreScreenInner() {
   const [selectedProduct, setSelectedProduct] = useState<StoreProduct | null>(null);
   const [wishlist, setWishlist] = useState<StoreProduct[]>([]);
   const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>('For You');
+  const [activeTab, setActiveTab] = useState<FitStoreBrowseTab>('Browse All');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [menuOpen, setMenuOpen] = useState(false);
   const [orderStatusText, setOrderStatusText] = useState('No active orders');
+
+  const entranceReplayKey = loading
+    ? 'loading'
+    : `${screenMode}:${screenMode === 'details' && selectedProduct ? selectedProduct.id : '_'}`;
+  const { entranceStyle } = useTabEntranceAnimation({
+    replayDeps: [entranceReplayKey],
+  });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -159,6 +204,7 @@ function StoreScreenInner() {
   useEffect(() => {
     if (typeof params.tab === 'string' && params.tab === 'Restaurants') {
       setActiveTab('Restaurants');
+      setSelectedCategory('all');
       setScreenMode('store');
     }
   }, [params.tab]);
@@ -203,11 +249,16 @@ function StoreScreenInner() {
     return list;
   }, [activeTab, recommended, catalog, search, selectedCategory]);
 
+  const pickStoreChip = useCallback((chip: StoreChipDef) => {
+    setActiveTab(chip.tab);
+    setSelectedCategory(chip.categoryId);
+  }, []);
+
   /** Meal SKUs grouped by partner kitchen — Uber Eats style list (Restaurants tab only). */
   const restaurantClusters = useMemo(() => {
     if (activeTab !== 'Restaurants') return [];
 
-    if (selectedCategory !== 'all' && selectedCategory !== 'Healthy Meals') {
+    if (selectedCategory !== 'all') {
       return [];
     }
 
@@ -250,6 +301,20 @@ function StoreScreenInner() {
     () => catalog.find(product => product.onSale && product.previousPrice),
     [catalog]
   );
+
+  const catalogueHeading = useMemo(() => {
+    let title = 'Shop catalogue';
+    if (activeTab === 'Deals') title = 'Deals';
+    else if (activeTab === 'Top Rated') title = 'Top rated picks';
+    else if (activeTab === 'New') title = 'New arrivals';
+    else if (activeTab === 'For You' && recommended.length > 0) title = 'Recommended for you';
+    else if (selectedCategory !== 'all') {
+      title = CATEGORY_LABEL_FALLBACK[selectedCategory] ?? selectedCategory;
+    }
+    const sub =
+      filteredProducts.length === 1 ? '1 item' : `${filteredProducts.length} items`;
+    return { title, sub };
+  }, [activeTab, recommended.length, selectedCategory, filteredProducts.length]);
 
   const handlePlaceOrder = async ({
     subtotal,
@@ -363,8 +428,15 @@ function StoreScreenInner() {
   if (loading) {
     return (
       <View style={[styles.loaderContainer, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.loaderText}>Loading your personalized store...</Text>
+        <Animated.View
+          style={[
+            { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center' },
+            entranceStyle,
+          ]}
+        >
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loaderText}>Loading your personalized store...</Text>
+        </Animated.View>
       </View>
     );
   }
@@ -372,6 +444,7 @@ function StoreScreenInner() {
   if (screenMode === 'details' && selectedProduct) {
     return (
       <>
+        <Animated.View style={[{ flex: 1 }, entranceStyle]}>
         <ProductDetailScreen
           product={selectedProduct}
           onBack={() => setScreenMode('store')}
@@ -381,6 +454,7 @@ function StoreScreenInner() {
           onAddToCart={(product, quantity) => addToCart(product, quantity)}
           onCheckoutNow={handleCheckoutNowFromDetails}
         />
+        </Animated.View>
         <StoreDrawer
           open={menuOpen}
           statusText={orderStatusText}
@@ -395,7 +469,7 @@ function StoreScreenInner() {
             closeMenu();
           }}
           onResetFilters={() => {
-            setActiveTab('For You');
+            setActiveTab('Browse All');
             setSelectedCategory('all');
             closeMenu();
           }}
@@ -407,11 +481,13 @@ function StoreScreenInner() {
   if (screenMode === 'checkout') {
     return (
       <>
+        <Animated.View style={[{ flex: 1 }, entranceStyle]}>
         <CheckoutScreen
           onBack={() => setScreenMode('store')}
           onMenuPress={() => setMenuOpen(true)}
           onPlaceOrder={handlePlaceOrder}
         />
+        </Animated.View>
         <StoreDrawer
           open={menuOpen}
           statusText={orderStatusText}
@@ -422,7 +498,7 @@ function StoreScreenInner() {
           onOrderStatus={openOrderStatusFromMenu}
           onOrderHistory={openOrdersFromMenu}
           onClearSearch={() => { setSearch(''); closeMenu(); }}
-          onResetFilters={() => { setActiveTab('For You'); setSelectedCategory('all'); closeMenu(); }}
+          onResetFilters={() => { setActiveTab('Browse All'); setSelectedCategory('all'); closeMenu(); }}
         />
       </>
     );
@@ -431,7 +507,9 @@ function StoreScreenInner() {
   if (screenMode === 'orders') {
     return (
       <>
+        <Animated.View style={[{ flex: 1 }, entranceStyle]}>
         <OrderHistoryScreen onBack={() => setScreenMode('store')} onMenuPress={() => setMenuOpen(true)} />
+        </Animated.View>
         <StoreDrawer
           open={menuOpen}
           statusText={orderStatusText}
@@ -442,7 +520,7 @@ function StoreScreenInner() {
           onOrderStatus={openOrderStatusFromMenu}
           onOrderHistory={openOrdersFromMenu}
           onClearSearch={() => { setSearch(''); closeMenu(); }}
-          onResetFilters={() => { setActiveTab('For You'); setSelectedCategory('all'); closeMenu(); }}
+          onResetFilters={() => { setActiveTab('Browse All'); setSelectedCategory('all'); closeMenu(); }}
         />
       </>
     );
@@ -451,6 +529,7 @@ function StoreScreenInner() {
   if (screenMode === 'wishlist') {
     return (
       <>
+        <Animated.View style={[{ flex: 1 }, entranceStyle]}>
         <WishlistScreen
           items={wishlist}
           onBack={() => setScreenMode('store')}
@@ -461,6 +540,7 @@ function StoreScreenInner() {
           }}
           onAddToCart={(product) => addToCart(product, 1)}
         />
+        </Animated.View>
         <StoreDrawer
           open={menuOpen}
           statusText={orderStatusText}
@@ -471,7 +551,7 @@ function StoreScreenInner() {
           onOrderStatus={openOrderStatusFromMenu}
           onOrderHistory={openOrdersFromMenu}
           onClearSearch={() => { setSearch(''); closeMenu(); }}
-          onResetFilters={() => { setActiveTab('For You'); setSelectedCategory('all'); closeMenu(); }}
+          onResetFilters={() => { setActiveTab('Browse All'); setSelectedCategory('all'); closeMenu(); }}
         />
       </>
     );
@@ -480,12 +560,14 @@ function StoreScreenInner() {
   if (screenMode === 'status') {
     return (
       <>
+        <Animated.View style={[{ flex: 1 }, entranceStyle]}>
         <OrderStatusScreen
           orders={orders}
           onBack={() => setScreenMode('store')}
           onMenuPress={() => setMenuOpen(true)}
           onAdvanceStatus={advanceOrderStatus}
         />
+        </Animated.View>
         <StoreDrawer
           open={menuOpen}
           statusText={orderStatusText}
@@ -496,7 +578,7 @@ function StoreScreenInner() {
           onOrderStatus={openOrderStatusFromMenu}
           onOrderHistory={openOrdersFromMenu}
           onClearSearch={() => { setSearch(''); closeMenu(); }}
-          onResetFilters={() => { setActiveTab('For You'); setSelectedCategory('all'); closeMenu(); }}
+          onResetFilters={() => { setActiveTab('Browse All'); setSelectedCategory('all'); closeMenu(); }}
         />
       </>
     );
@@ -505,7 +587,9 @@ function StoreScreenInner() {
   if (screenMode === 'account') {
     return (
       <>
+        <Animated.View style={[{ flex: 1 }, entranceStyle]}>
         <AccountScreen onBack={() => setScreenMode('store')} onMenuPress={() => setMenuOpen(true)} />
+        </Animated.View>
         <StoreDrawer
           open={menuOpen}
           statusText={orderStatusText}
@@ -516,7 +600,7 @@ function StoreScreenInner() {
           onOrderStatus={openOrderStatusFromMenu}
           onOrderHistory={openOrdersFromMenu}
           onClearSearch={() => { setSearch(''); closeMenu(); }}
-          onResetFilters={() => { setActiveTab('For You'); setSelectedCategory('all'); closeMenu(); }}
+          onResetFilters={() => { setActiveTab('Browse All'); setSelectedCategory('all'); closeMenu(); }}
         />
       </>
     );
@@ -524,16 +608,26 @@ function StoreScreenInner() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      <Animated.View style={[{ flex: 1 }, entranceStyle]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 120 }]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: insets.bottom + TAB_SCROLL_BOTTOM_GAP },
+        ]}
       >
         <View style={styles.topBar}>
-          <Text style={styles.logo}>FitStore</Text>
+          <View style={styles.logoRow}>
+            <Text style={styles.logo}>FitStore</Text>
+            <Ionicons name="bag" size={24} color={colors.text} />
+          </View>
           <View style={styles.topActions}>
-            <TouchableOpacity style={styles.iconButton} onPress={() => setMenuOpen(true)}>
-              <Ionicons name="menu" size={24} color={colors.text} />
-            </TouchableOpacity>
+            <HeaderIconButton
+              icon="menu"
+              iconSize={22}
+              onPress={() => setMenuOpen(true)}
+              accessibilityLabel="Open navigation menu"
+            />
           </View>
         </View>
 
@@ -551,54 +645,164 @@ function StoreScreenInner() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.locationRow}>
-          <Ionicons name="location-outline" size={16} color={colors.primary} />
-          <Text style={styles.locationText}>Delivering to your fitness profile — gear, supplements & healthy meals</Text>
-        </View>
-
-        <View style={[styles.mealsInfoCard, { borderColor: colors.border, backgroundColor: colors.surface }]}>
-          <View style={[styles.mealsInfoIconWrap, { backgroundColor: Colors.primary + '22' }]}>
-            <Ionicons name="restaurant-outline" size={22} color={Colors.primary} />
-          </View>
-          <View style={styles.mealsInfoTextWrap}>
-            <Text style={[styles.mealsInfoTitle, { color: colors.text }]}>Restaurant-style healthy meals</Text>
-            <Text style={[styles.mealsInfoSub, { color: colors.textSecondary }]}>
-              Order macro-friendly bowls, local plates, and breakfast options from partner kitchens—same FitStore checkout and delivery flow as the rest of your basket.
-            </Text>
-          </View>
-        </View>
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
-          {categories.map(category => {
-            const isActive = selectedCategory === category.id;
-            return (
-              <TouchableOpacity
-                key={category.id}
-                style={[
-                  styles.categoryChip,
-                  { backgroundColor: isActive ? Colors.primary : colors.surface },
-                ]}
-                onPress={() => setSelectedCategory(category.id)}
-              >
-                <View style={styles.categoryIconWrap}>
-                  <Image source={{ uri: category.icon }} style={styles.categoryIcon} />
-                </View>
-                <Text
-                  numberOfLines={1}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.browseChipScroll}
+          contentContainerStyle={styles.browseChipScrollContent}
+        >
+          {STORE_CHIPS_ORDERED.map(chip => {
+            const isActive = activeTab === chip.tab && selectedCategory === chip.categoryId;
+            /** Selected: same primary → accent ramp as charts / CTAs; idle: same block fill as catalogue cards */
+            const activeFaceColors = [...Colors.gradients.primary] as readonly [string, string];
+            const sheenColors = (
+              ['rgba(255,255,255,0.28)', 'rgba(255,255,255,0.14)', 'rgba(255,255,255,0.06)', 'rgba(255,255,255,0)'] as const
+            );
+            const sheenIdle = (
+              ['rgba(255,255,255,0.10)', 'rgba(255,255,255,0.045)', 'rgba(255,255,255,0.012)', 'rgba(255,255,255,0)'] as const
+            );
+            const rimTop = 'rgba(255,255,255,0.38)';
+            const rimLeft = 'rgba(255,255,255,0.22)';
+            const rimRight = `${Colors.primaryDark}8C`;
+            const rimBottom = `${Colors.accent}55`;
+            const idleRimTop = 'rgba(255,255,255,0.16)';
+            const idleRimLeft = 'rgba(255,255,255,0.10)';
+            const idleRimRight = 'rgba(0,0,0,0.22)';
+            const idleRimBottom = 'rgba(0,0,0,0.36)';
+            const iconBgActive = 'rgba(255,255,255,0.28)';
+            const iconTopActive = 'rgba(255,255,255,0.48)';
+            const iconBottomActive = `${Colors.primaryDark}66`;
+            const iconBgIdle = colors.surface;
+            const iconTopIdle = 'rgba(255,255,255,0.12)';
+            const iconBottomIdle = 'rgba(0,0,0,0.32)';
+            const chipInner = (
+              <View style={styles.browseChipInner}>
+                <View
                   style={[
-                    styles.categoryLabel,
-                    { color: isActive ? '#FFFFFF' : colors.text },
+                    styles.browseChipIconCircle,
+                    isActive
+                      ? {
+                          backgroundColor: iconBgActive,
+                          borderTopColor: iconTopActive,
+                          borderBottomColor: iconBottomActive,
+                          borderLeftColor: iconTopActive,
+                          borderRightColor: iconBottomActive,
+                          transform: [{ scale: 1.05 }],
+                        }
+                      : {
+                          backgroundColor: iconBgIdle,
+                          borderWidth: 1,
+                          borderTopColor: iconTopIdle,
+                          borderLeftColor: iconTopIdle,
+                          borderBottomColor: iconBottomIdle,
+                          borderRightColor: iconBottomIdle,
+                          transform: [{ scale: 1 }],
+                        },
                   ]}
                 >
-                  {category.name}
+                  <Image source={{ uri: chip.icon }} style={styles.browseChipIcon} />
+                </View>
+                <Text
+                  numberOfLines={2}
+                  style={[
+                    styles.browseChipLabel,
+                    { color: isActive ? '#FFFFFF' : colors.text },
+                    isActive ? styles.browseChipLabelActive : null,
+                  ]}
+                >
+                  {chip.label}
                 </Text>
+                {isActive ? (
+                  <LinearGradient
+                    colors={[Colors.accent, Colors.primaryLight]}
+                    start={{ x: 0, y: 0.5 }}
+                    end={{ x: 1, y: 0.5 }}
+                    style={styles.browseChipActiveBar}
+                  />
+                ) : (
+                  <View style={styles.browseChipInactiveBarSpacer} />
+                )}
+              </View>
+            );
+            return (
+              <TouchableOpacity
+                key={chip.key}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isActive }}
+                accessibilityLabel={`${chip.label}. ${isActive ? 'Selected.' : ''}`}
+                activeOpacity={0.88}
+                style={styles.browseChipTouchable}
+                onPress={() => pickStoreChip(chip)}
+              >
+                <View style={[styles.browseChipElevated, isActive ? styles.browseChipElevatedActive : styles.browseChipElevatedIdle]}>
+                  {isActive ? (
+                    <LinearGradient
+                      colors={activeFaceColors}
+                      locations={[0, 1]}
+                      start={{ x: 0.12, y: 0 }}
+                      end={{ x: 0.88, y: 1 }}
+                      style={[
+                        styles.browseChipFace,
+                        {
+                          borderTopColor: rimTop,
+                          borderLeftColor: rimLeft,
+                          borderRightColor: rimRight,
+                          borderBottomColor: rimBottom,
+                        },
+                      ]}
+                    >
+                      <LinearGradient
+                        pointerEvents="none"
+                        colors={[...sheenColors]}
+                        locations={[0, 0.36, 0.68, 1]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.browseChipSheen}
+                      />
+                      {chipInner}
+                    </LinearGradient>
+                  ) : (
+                    <LinearGradient
+                      colors={fitstoreGrad}
+                      locations={[0, 1]}
+                      start={{ x: 0.12, y: 0 }}
+                      end={{ x: 0.88, y: 1 }}
+                      style={[
+                        styles.browseChipFace,
+                        {
+                          borderTopColor: idleRimTop,
+                          borderLeftColor: idleRimLeft,
+                          borderRightColor: idleRimRight,
+                          borderBottomColor: idleRimBottom,
+                        },
+                      ]}
+                    >
+                      <LinearGradient
+                        pointerEvents="none"
+                        colors={[...sheenIdle]}
+                        locations={[0, 0.36, 0.68, 1]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.browseChipSheen}
+                      />
+                      {chipInner}
+                    </LinearGradient>
+                  )}
+                </View>
               </TouchableOpacity>
             );
           })}
         </ScrollView>
 
-        {topDeal && activeTab !== 'Restaurants' ? (
-          <View style={styles.bannerCard}>
+        <View style={styles.locationRow}>
+          <Ionicons name="location-outline" size={16} color={colors.primary} />
+          <Text style={styles.locationText}>Delivering to your fitness profile — gear, supplements & healthy meals</Text>
+        </View>
+
+        {topDeal &&
+        (activeTab === 'Browse All' || activeTab === 'For You') &&
+        selectedCategory === 'all' ? (
+          <LinearGradient colors={fitstoreGrad} style={styles.bannerCard}>
             {(() => {
               const src = storeProductImageSource(topDeal.id, topDeal.image);
               return src ? (
@@ -622,28 +826,8 @@ function StoreScreenInner() {
                 <Text style={styles.bannerButtonText}>Shop Now</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </LinearGradient>
         ) : null}
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabScroll}>
-          {tabs.map(tab => {
-            const isActive = tab === activeTab;
-            return (
-              <TouchableOpacity
-                key={tab}
-                style={[
-                  styles.tabChip,
-                  { backgroundColor: isActive ? colors.primary : colors.card },
-                ]}
-                onPress={() => setActiveTab(tab)}
-              >
-                <Text style={[styles.tabText, { color: isActive ? '#FFFFFF' : colors.textSecondary }]}>
-                  {tab}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
 
         {activeTab === 'Restaurants' ? (
           <>
@@ -657,14 +841,13 @@ function StoreScreenInner() {
             </View>
 
             {restaurantClusters.length === 0 ? (
-              <View style={styles.emptyState}>
+              <LinearGradient colors={fitstoreGrad} style={styles.emptyState}>
                 <Text style={styles.emptyTitle}>No restaurants to show.</Text>
                 <Text style={styles.emptySubtitle}>
-                  Switch category to{' '}
-                  <Text style={{ fontWeight: '700', color: colors.text }}>All</Text> or{' '}
-                  <Text style={{ fontWeight: '700', color: colors.text }}>Meals</Text>, then try again—or clear your search.
+                  Keep <Text style={{ fontWeight: '700', color: colors.text }}>Restaurants</Text> selected and choose{' '}
+                  <Text style={{ fontWeight: '700', color: colors.text }}>All</Text> above—or clear your search.
                 </Text>
-              </View>
+              </LinearGradient>
             ) : (
               restaurantClusters.map(({ partnerName, items, heroProduct, avgRating }) => {
                 const meta = restaurantDisplayMeta(partnerName);
@@ -672,8 +855,9 @@ function StoreScreenInner() {
                 const heroSrc = storeProductImageSource(heroProduct.id, heroProduct.image);
 
                 return (
-                  <View
+                  <LinearGradient
                     key={partnerName}
+                    colors={fitstoreGrad}
                     style={[styles.restaurantBlock, { borderColor: colors.border }]}
                   >
                     <View style={styles.restaurantHero}>
@@ -720,7 +904,11 @@ function StoreScreenInner() {
                       {items.map(item => {
                         const thumb = storeProductImageSource(item.id, item.image);
                         return (
-                          <View key={item.id} style={[styles.restaurantDishCard, { borderColor: colors.border }]}>
+                          <LinearGradient
+                            key={item.id}
+                            colors={fitstoreGrad}
+                            style={[styles.restaurantDishCard, { borderColor: colors.border }]}
+                          >
                             <TouchableOpacity activeOpacity={0.9} onPress={() => openProductDetails(item)}>
                               {thumb ? (
                                 <Image source={thumb} style={styles.restaurantDishImage} resizeMode="cover" />
@@ -756,7 +944,7 @@ function StoreScreenInner() {
                                 <Ionicons
                                   name={wishlistIdSet.has(item.id) ? 'heart' : 'heart-outline'}
                                   size={16}
-                                  color={wishlistIdSet.has(item.id) ? '#ff4d6d' : colors.textSecondary}
+                                  color={wishlistIdSet.has(item.id) ? Colors.protein : colors.textSecondary}
                                 />
                               </TouchableOpacity>
                               <TouchableOpacity
@@ -766,11 +954,11 @@ function StoreScreenInner() {
                                 <Text style={styles.restaurantQuickAddText}>Add</Text>
                               </TouchableOpacity>
                             </View>
-                          </View>
+                          </LinearGradient>
                         );
                       })}
                     </ScrollView>
-                  </View>
+                  </LinearGradient>
                 );
               })
             )}
@@ -778,8 +966,8 @@ function StoreScreenInner() {
         ) : (
           <>
             <View style={styles.sectionRow}>
-              <Text style={styles.sectionTitle}>Flash Sale</Text>
-              <Text style={styles.sectionCount}>{filteredProducts.length} items</Text>
+              <Text style={styles.sectionTitle}>{catalogueHeading.title}</Text>
+              <Text style={styles.sectionCount}>{catalogueHeading.sub}</Text>
             </View>
 
             <FlatList
@@ -790,17 +978,18 @@ function StoreScreenInner() {
               columnWrapperStyle={styles.productRow}
               contentContainerStyle={styles.productList}
               ListEmptyComponent={
-                <View style={styles.emptyState}>
+                <LinearGradient colors={fitstoreGrad} style={styles.emptyState}>
                   <Text style={styles.emptyTitle}>No products match this filter.</Text>
                   <Text style={styles.emptySubtitle}>Try another category, tab, or search term.</Text>
-                </View>
+                </LinearGradient>
               }
               renderItem={({ item }) => (
                 <TouchableOpacity
                   activeOpacity={0.9}
-                  style={styles.productCard}
+                  style={styles.productCardWrap}
                   onPress={() => openProductDetails(item)}
                 >
+                  <LinearGradient colors={fitstoreGrad} style={styles.productCard}>
                   {(() => {
                     const thumb = storeProductImageSource(item.id, item.image);
                     return thumb ? (
@@ -816,7 +1005,9 @@ function StoreScreenInner() {
                     {item.isNew ? <Text style={styles.newBadge}>NEW</Text> : null}
                   </View>
                   <Text numberOfLines={2} style={styles.productName}>{item.name}</Text>
-                  <Text style={styles.productCategory}>{item.category}</Text>
+                  <Text style={styles.productCategory}>
+                    {CATEGORY_LABEL_FALLBACK[item.category] ?? item.category}
+                  </Text>
                   <View style={styles.priceRow}>
                     <Text style={styles.productPrice}>{formatCurrency(item.price)}</Text>
                     {item.previousPrice ? (
@@ -833,7 +1024,7 @@ function StoreScreenInner() {
                         <Ionicons
                           name={wishlistIdSet.has(item.id) ? 'heart' : 'heart-outline'}
                           size={15}
-                          color={wishlistIdSet.has(item.id) ? '#ff4d6d' : colors.textSecondary}
+                          color={wishlistIdSet.has(item.id) ? Colors.protein : colors.textSecondary}
                         />
                       </TouchableOpacity>
                       <TouchableOpacity
@@ -844,6 +1035,7 @@ function StoreScreenInner() {
                       </TouchableOpacity>
                     </View>
                   </View>
+                  </LinearGradient>
                 </TouchableOpacity>
               )}
             />
@@ -851,10 +1043,23 @@ function StoreScreenInner() {
         )}
       </ScrollView>
 
-      <TouchableOpacity style={styles.cartFab} onPress={() => setScreenMode('checkout')}>
-        <Ionicons name="cart" size={16} color="#FFFFFF" />
-        <Text style={styles.cartFabText}>{cartItemCount}</Text>
+      <TouchableOpacity
+        activeOpacity={0.88}
+        style={[styles.cartFabOuter, { bottom: Math.max(insets.bottom, Spacing.sm) + Spacing.md }]}
+        onPress={() => setScreenMode('checkout')}
+      >
+        <LinearGradient
+          colors={[Colors.primaryLight, Colors.primary, Colors.primaryDark]}
+          locations={[0, 0.48, 1]}
+          start={{ x: 0.2, y: 0 }}
+          end={{ x: 0.8, y: 1 }}
+          style={styles.cartFabGradient}
+        >
+          <Ionicons name="cart" size={16} color="#FFFFFF" />
+          <Text style={styles.cartFabText}>{cartItemCount}</Text>
+        </LinearGradient>
       </TouchableOpacity>
+      </Animated.View>
 
       <StoreDrawer
         open={menuOpen}
@@ -866,7 +1071,7 @@ function StoreScreenInner() {
         onOrderStatus={openOrderStatusFromMenu}
         onOrderHistory={openOrdersFromMenu}
         onClearSearch={() => { setSearch(''); closeMenu(); }}
-        onResetFilters={() => { setActiveTab('For You'); setSelectedCategory('all'); closeMenu(); }}
+        onResetFilters={() => { setActiveTab('Browse All'); setSelectedCategory('all'); closeMenu(); }}
       />
     </View>
   );
@@ -900,20 +1105,27 @@ const createStyles = (colors: any) =>
       fontSize: Typography.sizes.body,
     },
     scrollContent: {
-      paddingHorizontal: Spacing.md,
-      paddingTop: Spacing.md,
-      paddingBottom: 140,
+      paddingHorizontal: TAB_SCROLL_GUTTER,
+      paddingTop: Spacing.lg,
     },
     topBar: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      marginBottom: Spacing.sm,
+      marginBottom: Spacing.md,
+    },
+    logoRow: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginRight: Spacing.sm,
     },
     logo: {
       fontSize: Typography.sizes.heading,
       fontWeight: Typography.weights.bold,
       color: colors.text,
+      letterSpacing: -0.4,
     },
     topActions: {
       flexDirection: 'row',
@@ -921,45 +1133,32 @@ const createStyles = (colors: any) =>
       gap: Spacing.sm,
     },
     historyButton: {
-      backgroundColor: '#1C2460',
-      borderRadius: 14,
+      backgroundColor: colors.surfaceLight,
+      borderRadius: BorderRadius.md,
       paddingHorizontal: 16,
       paddingVertical: 9,
-      borderWidth: 1.3,
-      borderColor: '#5865F2',
-      shadowColor: '#5865F2',
-      shadowOpacity: 0.35,
-      shadowRadius: 10,
-      shadowOffset: { width: 0, height: 2 },
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: Colors.primary,
+      ...Shadows.card,
     },
     historyButtonText: {
-      color: '#F3F6FF',
+      color: colors.text,
       fontSize: 15,
-      fontWeight: '800',
-    },
-    iconButton: {
-      width: 42,
-      height: 42,
-      borderRadius: BorderRadius.md,
-      backgroundColor: colors.surface,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderWidth: 1,
-      borderColor: colors.border,
-      ...Shadows.small,
+      fontWeight: Typography.weights.bold,
     },
     searchRow: {
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: colors.surface,
       borderRadius: BorderRadius.md,
-      paddingHorizontal: 10,
-      marginBottom: Spacing.sm,
-      borderWidth: 1,
+      paddingHorizontal: Spacing.sm,
+      marginBottom: Spacing.md,
+      borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.border,
+      ...Shadows.card,
     },
     searchIcon: {
-      marginRight: 8,
+      marginRight: Spacing.sm,
     },
     searchInput: {
       flex: 1,
@@ -978,95 +1177,158 @@ const createStyles = (colors: any) =>
     locationRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 4,
-      marginBottom: Spacing.sm,
+      gap: Spacing.xs,
+      marginBottom: Spacing.md,
     },
     locationText: {
       color: colors.textSecondary,
       fontSize: Typography.sizes.body,
     },
-    mealsInfoCard: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 12,
-      padding: Spacing.sm,
-      marginBottom: Spacing.sm,
-      borderRadius: BorderRadius.md,
-      borderWidth: 1,
+    browseChipScroll: {
+      marginBottom: Spacing.md,
+      flexGrow: 0,
     },
-    mealsInfoIconWrap: {
-      width: 44,
-      height: 44,
-      borderRadius: 12,
+    browseChipScrollContent: {
       alignItems: 'center',
-      justifyContent: 'center',
+      paddingVertical: Spacing.sm,
+      paddingHorizontal: Spacing.sm,
     },
-    mealsInfoTextWrap: { flex: 1 },
-    mealsInfoTitle: {
-      fontSize: Typography.sizes.body,
-      fontWeight: Typography.weights.bold,
-      marginBottom: 4,
-    },
-    mealsInfoSub: {
-      fontSize: Typography.sizes.caption,
-      lineHeight: 18,
-    },
-    categoryScroll: {
-      marginBottom: Spacing.sm,
-    },
-    categoryChip: {
-      width: 94,
+    browseChipTouchable: {
       marginRight: Spacing.sm,
+    },
+    browseChipElevated: {
+      width: 94,
       borderRadius: BorderRadius.md,
+      backgroundColor: 'transparent',
+      ...Platform.select({
+        ios: {
+          shadowColor: '#050510',
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.4,
+          shadowRadius: 8,
+        },
+        android: { elevation: 10 },
+        default: {
+          shadowColor: '#050510',
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.4,
+          shadowRadius: 8,
+        },
+      }),
+    },
+    browseChipElevatedActive: Platform.select({
+      ios: {
+        shadowColor: Colors.primaryDark,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.42,
+        shadowRadius: 14,
+      },
+      android: { elevation: 14 },
+      default: {
+        shadowColor: Colors.primaryDark,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.42,
+        shadowRadius: 14,
+      },
+    }),
+    browseChipElevatedIdle: Platform.select({
+      ios: {
+        shadowOffset: { width: 0, height: 5 },
+        shadowOpacity: 0.34,
+        shadowRadius: 7,
+      },
+      android: { elevation: 9 },
+      default: {
+        shadowOffset: { width: 0, height: 5 },
+        shadowOpacity: 0.34,
+        shadowRadius: 7,
+      },
+    }),
+    browseChipFace: {
+      width: '100%',
+      minHeight: 104,
+      borderRadius: BorderRadius.md,
+      borderWidth: StyleSheet.hairlineWidth + 1,
       paddingVertical: 10,
-      paddingHorizontal: 8,
+      paddingHorizontal: 6,
+      overflow: 'hidden',
+      justifyContent: 'center',
+    },
+    browseChipSheen: {
+      ...StyleSheet.absoluteFillObject,
+      borderRadius: BorderRadius.md - 1,
+    },
+    browseChipInner: {
+      flex: 1,
+      width: '100%',
+      minHeight: 84,
       alignItems: 'center',
       justifyContent: 'center',
-      minHeight: 102,
-      borderWidth: 1,
-      borderColor: colors.border,
+      paddingHorizontal: 2,
+      zIndex: 1,
     },
-    categoryIconWrap: {
+    browseChipIconCircle: {
       width: 48,
       height: 48,
       borderRadius: 24,
-      backgroundColor: colors.background,
       alignItems: 'center',
       justifyContent: 'center',
-      marginBottom: 8,
+      marginBottom: 6,
+      borderWidth: 1,
     },
-    categoryIcon: {
+    browseChipIcon: {
       width: 30,
       height: 30,
     },
-    categoryLabel: {
-      fontSize: 13,
-      fontWeight: '800',
+    browseChipLabel: {
+      fontSize: 11,
+      fontWeight: Typography.weights.heavy,
       textAlign: 'center',
-      lineHeight: 16,
+      lineHeight: 14,
+      maxWidth: '100%',
+      letterSpacing: 0.15,
+    },
+    browseChipLabelActive: {
+      textShadowColor: 'rgba(0,0,0,0.45)',
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 3,
+      letterSpacing: 0.25,
+    },
+    browseChipActiveBar: {
+      marginTop: 6,
+      width: 30,
+      height: 3,
+      borderRadius: 2,
+      opacity: 0.95,
+    },
+    browseChipInactiveBarSpacer: {
+      marginTop: 6,
+      height: 3,
+      width: 30,
+      opacity: 0,
     },
     bannerCard: {
       flexDirection: 'row',
-      backgroundColor: colors.surface,
-      borderRadius: BorderRadius.md,
-      padding: 10,
-      marginBottom: Spacing.sm,
+      borderRadius: BorderRadius.lg,
+      padding: Spacing.md,
+      marginBottom: Spacing.md,
       alignItems: 'center',
-      borderWidth: 1,
+      borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.border,
-      ...Shadows.small,
+      overflow: 'hidden',
+      ...Shadows.card,
     },
     bannerImage: {
       width: 74,
       height: 74,
-      borderRadius: 10,
-      marginRight: 12,
+      borderRadius: BorderRadius.sm + 2,
+      marginRight: Spacing.md,
     },
     imagePlaceholderTiny: {
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.surface,
-      borderWidth: 1,
+      backgroundColor: colors.surfaceLight,
+      borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.border,
     },
     bannerInfo: {
@@ -1076,13 +1338,13 @@ const createStyles = (colors: any) =>
       color: colors.text,
       fontSize: Typography.sizes.bodyLarge,
       fontWeight: Typography.weights.bold,
-      marginBottom: 2,
+      marginBottom: Spacing.xs,
     },
     bannerSubtitle: {
       color: Colors.success,
       fontSize: Typography.sizes.caption,
       fontWeight: Typography.weights.semibold,
-      marginBottom: 8,
+      marginBottom: Spacing.sm,
     },
     bannerButton: {
       backgroundColor: Colors.primary,
@@ -1096,31 +1358,17 @@ const createStyles = (colors: any) =>
       fontWeight: '700',
       fontSize: 12,
     },
-    tabScroll: {
-      marginBottom: Spacing.sm,
-    },
-    tabChip: {
-      marginRight: 8,
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-      borderRadius: 999,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    tabText: {
-      fontSize: 15,
-      fontWeight: '800',
-    },
     sectionRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      marginBottom: Spacing.sm,
+      marginBottom: Spacing.md,
     },
     sectionTitle: {
       fontSize: Typography.sizes.subtitle,
       color: colors.text,
       fontWeight: Typography.weights.bold,
+      letterSpacing: -0.2,
     },
     sectionCount: {
       color: colors.textSecondary,
@@ -1128,54 +1376,59 @@ const createStyles = (colors: any) =>
       fontWeight: Typography.weights.medium,
     },
     productList: {
-      paddingBottom: 8,
-      gap: 10,
+      paddingBottom: Spacing.md,
+      gap: Spacing.md,
     },
     productRow: {
       justifyContent: 'space-between',
     },
-    productCard: {
+    productCardWrap: {
       width: '48%',
-      backgroundColor: colors.surface,
+    },
+    productCard: {
+      flex: 1,
+      minHeight: 1,
       borderRadius: BorderRadius.md,
-      padding: 10,
-      borderWidth: 1,
+      padding: Spacing.md,
+      borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.border,
+      overflow: 'hidden',
+      ...Shadows.card,
     },
     productImage: {
       width: '100%',
       height: 100,
-      borderRadius: 10,
-      marginBottom: 8,
+      borderRadius: BorderRadius.sm + 2,
+      marginBottom: Spacing.sm,
     },
     productImagePlaceholder: {
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.surface,
-      borderWidth: 1,
+      backgroundColor: colors.surfaceLight,
+      borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.border,
     },
     badgeRow: {
       flexDirection: 'row',
-      gap: 6,
-      marginBottom: 4,
+      gap: Spacing.xs + 2,
+      marginBottom: Spacing.xs,
       minHeight: 20,
     },
     saleBadge: {
-      backgroundColor: '#ef4444',
+      backgroundColor: Colors.error,
       color: '#fff',
       fontSize: 10,
-      fontWeight: '800',
+      fontWeight: Typography.weights.heavy,
       borderRadius: 999,
       paddingHorizontal: 8,
       paddingVertical: 2,
       overflow: 'hidden',
     },
     newBadge: {
-      backgroundColor: '#22c55e',
+      backgroundColor: Colors.success,
       color: '#fff',
       fontSize: 10,
-      fontWeight: '800',
+      fontWeight: Typography.weights.heavy,
       borderRadius: 999,
       paddingHorizontal: 8,
       paddingVertical: 2,
@@ -1190,13 +1443,13 @@ const createStyles = (colors: any) =>
     productCategory: {
       color: colors.textSecondary,
       fontSize: Typography.sizes.caption,
-      marginBottom: 4,
+      marginBottom: Spacing.xs,
     },
     priceRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 6,
-      marginBottom: 8,
+      gap: Spacing.xs + 2,
+      marginBottom: Spacing.sm,
     },
     productPrice: {
       color: Colors.success,
@@ -1233,7 +1486,7 @@ const createStyles = (colors: any) =>
       width: 30,
       height: 30,
       borderRadius: BorderRadius.sm,
-      borderWidth: 1,
+      borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.border,
       backgroundColor: colors.surfaceLight,
       alignItems: 'center',
@@ -1246,53 +1499,84 @@ const createStyles = (colors: any) =>
     },
     emptyState: {
       width: '100%',
-      backgroundColor: colors.surface,
-      borderRadius: BorderRadius.md,
-      padding: 16,
-      marginTop: 6,
+      borderRadius: BorderRadius.lg,
+      padding: Spacing.md,
+      marginTop: Spacing.sm,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+      overflow: 'hidden',
+      ...Shadows.card,
     },
     emptyTitle: {
       color: colors.text,
       fontSize: Typography.sizes.bodyLarge,
       fontWeight: Typography.weights.semibold,
-      marginBottom: 4,
+      marginBottom: Spacing.xs,
     },
     emptySubtitle: {
       color: colors.textSecondary,
       fontSize: Typography.sizes.caption,
     },
-    cartFab: {
+    cartFabOuter: {
       position: 'absolute',
-      right: 18,
-      bottom: 34,
+      right: Spacing.md + 2,
+      borderRadius: 999,
+      ...Platform.select({
+        ios: {
+          shadowColor: Colors.primaryDark,
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.48,
+          shadowRadius: 12,
+        },
+        android: { elevation: 14 },
+        default: {
+          shadowColor: Colors.primaryDark,
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.48,
+          shadowRadius: 12,
+        },
+      }),
+    },
+    cartFabGradient: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
-      backgroundColor: Colors.primary,
       borderRadius: 999,
       paddingVertical: 10,
       paddingHorizontal: 16,
-      ...Shadows.glow,
+      borderTopWidth: 1,
+      borderLeftWidth: 1,
+      borderBottomWidth: 3,
+      borderRightWidth: 2,
+      borderTopColor: 'rgba(255,255,255,0.38)',
+      borderLeftColor: 'rgba(255,255,255,0.26)',
+      borderBottomColor: 'rgba(28,22,92,0.88)',
+      borderRightColor: 'rgba(38,30,118,0.72)',
+      overflow: 'hidden',
     },
     cartFabText: {
       color: '#FFFFFF',
       fontSize: 16,
       fontWeight: '800',
+      textShadowColor: 'rgba(0,0,0,0.35)',
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 2,
     },
     restaurantBlock: {
-      marginBottom: Spacing.md,
-      borderRadius: BorderRadius.md,
-      borderWidth: 1,
+      marginBottom: Spacing.lg,
+      borderRadius: BorderRadius.lg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
       overflow: 'hidden',
-      backgroundColor: colors.surface,
-      ...Shadows.small,
+      paddingBottom: Spacing.md,
+      ...Shadows.card,
     },
     restaurantHero: {
       height: 154,
       borderRadius: BorderRadius.md,
       overflow: 'hidden',
       position: 'relative',
-      marginBottom: 10,
+      marginBottom: Spacing.md,
     },
     restaurantHeroImage: {
       ...StyleSheet.absoluteFillObject,
@@ -1303,7 +1587,7 @@ const createStyles = (colors: any) =>
       ...StyleSheet.absoluteFillObject,
       justifyContent: 'flex-end',
       padding: 12,
-      backgroundColor: 'rgba(17,24,39,0.52)',
+      backgroundColor: 'rgba(9, 9, 26, 0.52)',
     },
     restaurantHeroTopRow: {
       position: 'absolute',
@@ -1315,7 +1599,7 @@ const createStyles = (colors: any) =>
       alignItems: 'center',
     },
     fitstorePartnerBadge: {
-      backgroundColor: 'rgba(139,92,246,0.92)',
+      backgroundColor: `${Colors.primary}E6`,
       paddingHorizontal: 10,
       paddingVertical: 4,
       borderRadius: 999,
@@ -1384,11 +1668,12 @@ const createStyles = (colors: any) =>
     },
     restaurantDishCard: {
       width: 156,
-      backgroundColor: colors.surface,
       borderRadius: BorderRadius.sm,
-      borderWidth: 1,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
       overflow: 'hidden',
       paddingBottom: 10,
+      ...Shadows.small,
     },
     restaurantDishImage: {
       width: '100%',
@@ -1434,7 +1719,8 @@ const createStyles = (colors: any) =>
       width: 34,
       height: 34,
       borderRadius: BorderRadius.sm,
-      borderWidth: 1,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
       alignItems: 'center',
       justifyContent: 'center',
     },

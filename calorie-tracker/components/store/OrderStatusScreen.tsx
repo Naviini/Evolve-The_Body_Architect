@@ -1,9 +1,10 @@
 import React from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
+import { BorderRadius, Colors, Shadows, Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAppStyles } from '@/hooks/useAppStyles';
+import { HeaderIconButton } from '@/components/ui/header-icon-button';
 
 interface OrderItem {
   id: string;
@@ -21,9 +22,9 @@ interface OrderStatusScreenProps {
 }
 
 function getStatusColor(status: 'paid' | 'pending' | 'processing') {
-  if (status === 'paid') return '#16a34a';
-  if (status === 'processing') return '#2563eb';
-  return '#ea580c';
+  if (status === 'paid') return Colors.success;
+  if (status === 'processing') return Colors.primary;
+  return Colors.warning;
 }
 
 function getNextStatus(status: 'paid' | 'pending' | 'processing') {
@@ -42,9 +43,12 @@ export default function OrderStatusScreen({ orders, onBack, onMenuPress, onAdvan
           <Ionicons name="arrow-back" size={20} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Order Status</Text>
-        <TouchableOpacity style={styles.headerBtn} onPress={onMenuPress}>
-          <Ionicons name="menu" size={20} color={colors.text} />
-        </TouchableOpacity>
+        <HeaderIconButton
+          icon="menu"
+          iconSize={22}
+          onPress={onMenuPress}
+          accessibilityLabel="Open navigation menu"
+        />
       </View>
 
       <FlatList
@@ -101,31 +105,34 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceLight,
+    ...Shadows.card,
   },
   headerTitle: { fontSize: Typography.sizes.title, fontWeight: Typography.weights.bold, color: colors.text },
   list: { padding: Spacing.md, paddingBottom: Spacing.lg },
   emptyWrap: {
     marginTop: 80,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.card,
     borderRadius: BorderRadius.md,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     padding: Spacing.md,
+    ...Shadows.card,
   },
   emptyTitle: { fontSize: Typography.sizes.bodyLarge, fontWeight: Typography.weights.bold, color: colors.text, marginBottom: 4 },
   emptySubtitle: { fontSize: Typography.sizes.body, color: colors.textSecondary },
   card: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.card,
     borderRadius: BorderRadius.md,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     padding: 12,
     marginBottom: 10,
+    ...Shadows.card,
   },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   orderId: { color: colors.text, fontWeight: Typography.weights.bold, fontSize: Typography.sizes.body },

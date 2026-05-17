@@ -14,7 +14,7 @@
  *   - Optional photo upload
  */
 
-import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
     View,
     Text,
@@ -22,26 +22,26 @@ import {
     ScrollView,
     TouchableOpacity,
     Animated,
-    Platform,
     ActivityIndicator,
     Dimensions,
-    Alert,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
-import { Colors, Spacing, BorderRadius, Typography, Shadows } from '@/constants/theme';
+import { Colors, Spacing, BorderRadius, TAB_SCROLL_GUTTER, TAB_SCROLL_BOTTOM_GAP } from '@/constants/theme';
+import { ScreenTitleRow } from '@/components/ui/screen-title-row';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useThemedAlert } from '@/src/contexts/ThemedAlertContext';
 import { getUserHealthProfileForProcessing } from '@/src/lib/database';
 import { generateBodySimulation, inferDreamBodyStyle } from '@/src/lib/bodySimulationEngine';
-import BodySilhouette, { BodySilhouetteMini } from '@/components/BodySilhouette';
+import BodySilhouette from '@/components/BodySilhouette';
 import BodyModel3D from '@/components/BodyModel3D';
+import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { MilestonePhase, OnboardingProfile } from '@/src/types';
 import { useAppStyles } from '@/hooks/useAppStyles';
-import { useThemeColors } from '@/hooks/useThemeColors';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+import { useTabEntranceAnimation } from '@/hooks/useTabEntranceAnimation';
 
 // ─── Phase accent colors ────────────────────────────────────
 const PHASE_COLORS = [
@@ -62,15 +62,19 @@ const PHASE_GRADIENTS: readonly [string, string][] = [
     ['#059669', '#10B981'],
 ];
 
+const HERO_GLOW_ID = 'transformationHeroGlow';
+const windowWidth = Dimensions.get('window').width;
+
 // ════════════════════════════════════════════════════════════
 // Main Screen
 // ════════════════════════════════════════════════════════════
 
 export default function BodySimulationScreen() {
-  const colors = useThemeColors();
   const styles = useAppStyles(createStyles);
+    const insets = useSafeAreaInsets();
     const router = useRouter();
     const { user } = useAuth();
+    const { alert } = useThemedAlert();
     const [loading, setLoading] = useState(true);
     const [phases, setPhases] = useState<MilestonePhase[]>([]);
     const [selectedPhase, setSelectedPhase] = useState(0);
@@ -80,6 +84,7 @@ export default function BodySimulationScreen() {
     const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
     const slideAnim = useRef(new Animated.Value(0)).current;
     const timelineRef = useRef<ScrollView>(null);
+    const { entranceStyle } = useTabEntranceAnimation();
 
     const gender = profile?.biological_gender === 'female' ? 'female' : 'male';
 
@@ -101,7 +106,7 @@ export default function BodySimulationScreen() {
                 setLoading(false);
             })
             .catch(() => setLoading(false));
-    }, []);
+    }, [user?.id]);
 
     // ── Phase transitions ───────────────────────────────────
     const selectPhase = useCallback((idx: number) => {
@@ -118,7 +123,7 @@ export default function BodySimulationScreen() {
     const handlePickPhoto = async () => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
-            Alert.alert('Permission needed', 'Grant gallery access to upload your body photo.');
+            alert('Permission needed', 'Grant gallery access to upload your body photo.');
             return;
         }
         const result = await ImagePicker.launchImageLibraryAsync({
@@ -135,7 +140,7 @@ export default function BodySimulationScreen() {
     const handleTakePhoto = async () => {
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
         if (status !== 'granted') {
-            Alert.alert('Permission needed', 'Grant camera access to take a body photo.');
+            alert('Permission needed', 'Grant camera access to take a body photo.');
             return;
         }
         const result = await ImagePicker.launchCameraAsync({
@@ -148,49 +153,45 @@ export default function BodySimulationScreen() {
         }
     };
 
-    // ── Current phase data ──────────────────────────────────
-    const currentPhaseData = phases[selectedPhase];
-    const phase0Data = phases[0];
-    const accentColor = PHASE_COLORS[selectedPhase] ?? Colors.primary;
-    const gradientPair = PHASE_GRADIENTS[selectedPhase] ?? ['#374151', '#1F2937'];
-
-    // ── Loading / empty states ──────────────────────────────
-    if (loading) {
-        return (
-            <View style={[styles.container, styles.center]}>
-                <ActivityIndicator size="large" color={Colors.primary} />
-                <Text style={styles.loadingText}>Generating your body simulation...</Text>
-            </View>
-        );
-    }
-
-    if (!phases.length || !profile) {
-        return (
-            <View style={[styles.container, styles.center, { padding: Spacing.xl }]}>
-                <Text style={{ fontSize: 56 }}>🏋️</Text>
-                <Text style={styles.emptyTitle}>Complete Your Profile</Text>
-                <Text style={styles.emptyBody}>
-                    We need your body measurements and goals to generate your transformation simulation.
-                </Text>
-                <TouchableOpacity
-                    style={styles.emptyBtn}
-                    onPress={() => router.push(`/(auth)/profile-setup?mode=edit&userId=${user?.id ?? 'onboarding-temp'}` as any)}
-                >
-                    <Text style={styles.emptyBtnText}>Set Up Profile</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.backLink} onPress={() => router.back()}>
-                    <Text style={styles.backLinkText}>← Go Back</Text>
-                </TouchableOpacity>
-            </View>
-        );
-    }
+    const showMain = !loading && phases.length > 0 && !!profile;
+    const currentPhaseData = showMain ? phases[selectedPhase] : undefined;
+    const phase0Data = showMain ? phases[0] : undefined;
+    const accentColor = showMain ? (PHASE_COLORS[selectedPhase] ?? Colors.primary) : Colors.primary;
+    const gradientPair = showMain ? (PHASE_GRADIENTS[selectedPhase] ?? ['#374151', '#1F2937']) : ['#374151', '#1F2937'];
+    const heroStageWidth = windowWidth - TAB_SCROLL_GUTTER * 2;
+    const heroStageHeight = compareMode ? 400 : 380;
 
     return (
         <View style={styles.container}>
+            <Animated.View style={[{ flex: 1 }, entranceStyle]}>
+            {loading ? (
+                <View style={[styles.center, { flex: 1 }]}>
+                    <ActivityIndicator size="large" color={Colors.primary} />
+                    <Text style={styles.loadingText}>Generating your body simulation...</Text>
+                </View>
+            ) : !phases.length || !profile ? (
+                <View style={[styles.center, { flex: 1, padding: Spacing.xl }]}>
+                    <Text style={{ fontSize: 56 }}>🏋️</Text>
+                    <Text style={styles.emptyTitle}>Complete Your Profile</Text>
+                    <Text style={styles.emptyBody}>
+                        We need your body measurements and goals to generate your transformation simulation.
+                    </Text>
+                    <TouchableOpacity
+                        style={styles.emptyBtn}
+                        onPress={() => router.push(`/(auth)/profile-setup?mode=edit&userId=${user?.id ?? 'onboarding-temp'}` as any)}
+                    >
+                        <Text style={styles.emptyBtnText}>Set Up Profile</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.backLink} onPress={() => router.back()}>
+                        <Text style={styles.backLinkText}>← Go Back</Text>
+                    </TouchableOpacity>
+                </View>
+            ) : (
+                <>
             {/* ── Header ──────────────────────────────────────── */}
             <LinearGradient
                 colors={gradientPair as [string, string]}
-                style={styles.header}
+                style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
             >
@@ -198,7 +199,7 @@ export default function BodySimulationScreen() {
                     <Ionicons name="arrow-back" size={24} color="#FFF" />
                 </TouchableOpacity>
                 <View style={styles.headerCenter}>
-                    <Text style={styles.headerTitle}>Your Transformation</Text>
+                    <ScreenTitleRow title="Your Transformation" icon="body-outline" color="#FFF" />
                     <Text style={styles.headerSubtitle}>
                         {currentPhaseData?.label ?? 'Journey'}
                     </Text>
@@ -229,7 +230,10 @@ export default function BodySimulationScreen() {
 
             <ScrollView
                 style={styles.body}
-                contentContainerStyle={styles.bodyContent}
+                contentContainerStyle={[
+                  styles.bodyContent,
+                  { paddingBottom: insets.bottom + TAB_SCROLL_BOTTOM_GAP },
+                ]}
                 showsVerticalScrollIndicator={false}
             >
                 {/* ── Phase Timeline ──────────────────────────── */}
@@ -274,39 +278,108 @@ export default function BodySimulationScreen() {
                     </Text>
                 </View>
 
-                {/* ── Body Silhouette ─────────────────────────── */}
-                <View style={styles.silhouetteSection}>
+                {/* ── Body preview (2D silhouette or interactive 3D) ─────────── */}
+                <View
+                    style={[
+                        styles.heroStage,
+                        {
+                            width: heroStageWidth,
+                            minHeight: heroStageHeight,
+                            borderColor: accentColor + '30',
+                        },
+                    ]}
+                >
+                    <Svg
+                        width={heroStageWidth}
+                        height={heroStageHeight}
+                        style={StyleSheet.absoluteFillObject}
+                        pointerEvents="none"
+                    >
+                        <Defs>
+                            <RadialGradient
+                                id={HERO_GLOW_ID}
+                                cx="50%"
+                                cy="42%"
+                                rx="58%"
+                                ry="52%"
+                                fx="50%"
+                                fy="42%"
+                            >
+                                <Stop offset="0%" stopColor={accentColor} stopOpacity={0.33} />
+                                <Stop offset="45%" stopColor={accentColor} stopOpacity={0.09} />
+                                <Stop offset="100%" stopColor={accentColor} stopOpacity={0} />
+                            </RadialGradient>
+                        </Defs>
+                        <Rect x="0" y="0" width={heroStageWidth} height={heroStageHeight} fill={`url(#${HERO_GLOW_ID})`} />
+                    </Svg>
+                    <View style={styles.heroForeground}>
                     {compareMode && phase0Data ? (
-                        <View style={styles.compareRow}>
-                            <View style={styles.compareItem}>
-                                <Text style={styles.compareLabel}>Current</Text>
-                                <BodySilhouette
-                                    params={phase0Data.bodyParams}
-                                    gender={gender}
-                                    size={220}
-                                    accentColor={PHASE_COLORS[0]}
-                                    showGlow={false}
-                                />
-                                <Text style={styles.compareWeight}>{phase0Data.estimatedWeightKg} kg</Text>
+                        viewMode === '3d' ? (
+                            <View style={styles.compareRow3d}>
+                                <View style={styles.compareItem3d}>
+                                    <Text style={styles.compareLabel}>Current</Text>
+                                    <BodyModel3D
+                                        params={phase0Data.bodyParams}
+                                        gender={gender}
+                                        size={200}
+                                        accentColor={PHASE_COLORS[0]}
+                                        autoRotate={false}
+                                        showInteractionHint={false}
+                                    />
+                                    <Text style={styles.compareWeight}>{phase0Data.estimatedWeightKg} kg</Text>
+                                </View>
+                                <View style={styles.compareDivider}>
+                                    <Ionicons name="arrow-forward" size={20} color={accentColor} />
+                                </View>
+                                <View style={styles.compareItem3d}>
+                                    <Text style={[styles.compareLabel, { color: accentColor }]}>
+                                        {currentPhaseData?.label}
+                                    </Text>
+                                    <BodyModel3D
+                                        params={currentPhaseData?.bodyParams ?? phase0Data.bodyParams}
+                                        gender={gender}
+                                        size={200}
+                                        accentColor={accentColor}
+                                        autoRotate={false}
+                                        showInteractionHint={false}
+                                    />
+                                    <Text style={[styles.compareWeight, { color: accentColor }]}>
+                                        {currentPhaseData?.estimatedWeightKg} kg
+                                    </Text>
+                                </View>
                             </View>
-                            <View style={styles.compareDivider}>
-                                <Ionicons name="arrow-forward" size={20} color={accentColor} />
+                        ) : (
+                            <View style={styles.compareRow}>
+                                <View style={styles.compareItem}>
+                                    <Text style={styles.compareLabel}>Current</Text>
+                                    <BodySilhouette
+                                        params={phase0Data.bodyParams}
+                                        gender={gender}
+                                        size={220}
+                                        accentColor={PHASE_COLORS[0]}
+                                        showGlow={false}
+                                    />
+                                    <Text style={styles.compareWeight}>{phase0Data.estimatedWeightKg} kg</Text>
+                                </View>
+                                <View style={styles.compareDivider}>
+                                    <Ionicons name="arrow-forward" size={20} color={accentColor} />
+                                </View>
+                                <View style={styles.compareItem}>
+                                    <Text style={[styles.compareLabel, { color: accentColor }]}>
+                                        {currentPhaseData?.label}
+                                    </Text>
+                                    <BodySilhouette
+                                        params={currentPhaseData?.bodyParams ?? phase0Data.bodyParams}
+                                        gender={gender}
+                                        size={220}
+                                        accentColor={accentColor}
+                                    />
+                                    <Text style={[styles.compareWeight, { color: accentColor }]}>
+                                        {currentPhaseData?.estimatedWeightKg} kg
+                                    </Text>
+                                </View>
                             </View>
-                            <View style={styles.compareItem}>
-                                <Text style={[styles.compareLabel, { color: accentColor }]}>
-                                    {currentPhaseData?.label}
-                                </Text>
-                                <BodySilhouette
-                                    params={currentPhaseData?.bodyParams ?? phase0Data.bodyParams}
-                                    gender={gender}
-                                    size={220}
-                                    accentColor={accentColor}
-                                />
-                                <Text style={[styles.compareWeight, { color: accentColor }]}>
-                                    {currentPhaseData?.estimatedWeightKg} kg
-                                </Text>
-                            </View>
-                        </View>
+                        )
                     ) : (
                         <View style={styles.singleSilhouette}>
                             {viewMode === '3d' ? (
@@ -317,8 +390,10 @@ export default function BodySimulationScreen() {
                                         muscleTone: 0.3, bodyFatOverlay: 0.3,
                                     }}
                                     gender={gender}
-                                    size={320}
+                                    size={340}
                                     accentColor={accentColor}
+                                    autoRotate
+                                    showInteractionHint
                                 />
                             ) : (
                                 <BodySilhouette
@@ -334,6 +409,7 @@ export default function BodySimulationScreen() {
                             )}
                         </View>
                     )}
+                    </View>
                 </View>
 
                 {/* ── Stats Row ───────────────────────────────── */}
@@ -471,6 +547,9 @@ export default function BodySimulationScreen() {
 
                 <View style={{ height: 120 }} />
             </ScrollView>
+                </>
+            )}
+            </Animated.View>
         </View>
     );
 }
@@ -483,7 +562,6 @@ function StatCard({ label, value, unit, icon, color }: {
     label: string; value: string; unit: string;
     icon: string; color: string;
 }) {
-  const colors = useThemeColors();
   const styles = useAppStyles(createStyles);
     return (
         <View style={styles.statCard}>
@@ -498,7 +576,6 @@ function StatCard({ label, value, unit, icon, color }: {
 function ChangeItem({ label, from, to, unit, color }: {
     label: string; from: number; to: number; unit: string; color: string;
 }) {
-  const colors = useThemeColors();
   const styles = useAppStyles(createStyles);
     const diff = to - from;
     const sign = diff >= 0 ? '+' : '';
@@ -534,15 +611,13 @@ const createStyles = (colors: any) => StyleSheet.create({
 
     // ── Header
     header: {
-        paddingTop: Platform.OS === 'ios' ? 58 : 40,
         paddingBottom: Spacing.md,
-        paddingHorizontal: Spacing.md,
+        paddingHorizontal: TAB_SCROLL_GUTTER,
         flexDirection: 'row',
         alignItems: 'center',
     },
     headerBack: { padding: 8, marginRight: 8 },
     headerCenter: { flex: 1 },
-    headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
     headerSubtitle: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
     headerButtons: { flexDirection: 'row', gap: 8 },
     compareToggle: {
@@ -554,7 +629,7 @@ const createStyles = (colors: any) => StyleSheet.create({
 
     // ── Body
     body: { flex: 1 },
-    bodyContent: { paddingHorizontal: Spacing.md, paddingTop: Spacing.md },
+    bodyContent: { paddingHorizontal: TAB_SCROLL_GUTTER, paddingTop: Spacing.md },
 
     // ── Timeline
     Timeline: { marginBottom: Spacing.md },
@@ -588,11 +663,33 @@ const createStyles = (colors: any) => StyleSheet.create({
         lineHeight: 22, textAlign: 'center',
     },
 
-    // ── Silhouette
-    silhouetteSection: { alignItems: 'center', marginBottom: Spacing.lg },
+    // ── Hero body stage (2D / 3D)
+    heroStage: {
+        alignSelf: 'center',
+        borderRadius: BorderRadius.lg,
+        borderWidth: 1,
+        backgroundColor: colors.surface,
+        marginBottom: Spacing.lg,
+        overflow: 'hidden',
+    },
+    heroForeground: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: Spacing.md,
+        width: '100%',
+    },
     singleSilhouette: { alignItems: 'center' },
     compareRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    compareRow3d: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        justifyContent: 'center',
+        width: '100%',
+        gap: 6,
+        paddingHorizontal: 4,
+    },
     compareItem: { alignItems: 'center', flex: 1 },
+    compareItem3d: { alignItems: 'center', flex: 1, minWidth: 0 },
     compareLabel: { fontSize: 13, fontWeight: '700', color: colors.textSecondary, marginBottom: 8 },
     compareWeight: { fontSize: 14, fontWeight: '700', color: colors.text, marginTop: 8 },
     compareDivider: { padding: 8 },

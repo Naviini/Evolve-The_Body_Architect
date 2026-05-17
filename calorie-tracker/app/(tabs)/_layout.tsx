@@ -89,12 +89,8 @@ export default function TabLayout() {
         name="analytics"
         options={{
           title: 'Stats',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'stats-chart' : 'stats-chart-outline'}
-              size={24}
-              color={color}
-            />
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="stats-chart" size={24} color={color} />
           ),
         }}
       />
@@ -102,12 +98,8 @@ export default function TabLayout() {
         name="store"
         options={{
           title: 'Store',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'bag' : 'bag-outline'}
-              size={24}
-              color={color}
-            />
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="bag" size={24} color={color} />
           ),
         }}
       />
@@ -115,17 +107,16 @@ export default function TabLayout() {
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'person' : 'person-outline'}
-              size={24}
-              color={color}
-            />
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="person" size={24} color={color} />
           ),
         }}
       />
       {/* Hide the old explore screen */}
       <Tabs.Screen name="explore" options={{ href: null }} />
+
+      {/* Mindset coach (opened from Home / Profile — keeps tab bar uncluttered) */}
+      <Tabs.Screen name="coach" options={{ href: null }} />
 
       {/* Full-screen helpers under tabs so bottom navigation stays visible */}
       <Tabs.Screen name="workout-session" options={{ href: null }} />
@@ -142,11 +133,15 @@ export default function TabLayout() {
 
 const createStyles = (colors: any) => StyleSheet.create({
   tabBar: {
-    borderTopWidth: 1,
-    minHeight: Platform.OS === 'ios' ? 88 : 70,
-    paddingTop: 8,
-    paddingBottom: Platform.OS === 'ios' ? 28 : 12,
-    ...Shadows.medium,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    minHeight: Platform.OS === 'ios' ? 84 : 66,
+    paddingTop: Platform.OS === 'ios' ? 6 : 4,
+    paddingBottom: Platform.OS === 'ios' ? 26 : 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -1 },
+    shadowOpacity: Platform.OS === 'ios' ? 0.12 : 0,
+    shadowRadius: 6,
+    elevation: Platform.OS === 'android' ? 12 : 0,
   },
   tabBarLabel: {
     fontSize: 11,
@@ -157,17 +152,17 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingTop: 4,
   },
   scanButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    transform: [{ translateY: -15 }],
+    transform: [{ translateY: -12 }],
     ...Shadows.glow,
   },
   scanButtonActive: {
     backgroundColor: Colors.primaryLight,
-    transform: [{ translateY: -15 }, { scale: 1.05 }],
+    transform: [{ translateY: -12 }, { scale: 1.03 }],
   },
 });

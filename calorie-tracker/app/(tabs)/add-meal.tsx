@@ -21,17 +21,19 @@ import {
     Modal,
     Pressable,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
-import { addMealEntry, searchFoodItems, insertFoodItem } from '@/src/lib/database';
-import { generateId } from '@/src/lib/database';
+import { Colors, Spacing, BorderRadius, Typography, TAB_SCROLL_GUTTER, TAB_SCROLL_BOTTOM_GAP } from '@/constants/theme';
+import { addMealEntry, searchFoodItems, insertFoodItem , generateId } from '@/src/lib/database';
+
 import { useAuth } from '@/src/contexts/AuthContext';
 import { MealType, FoodItem } from '@/src/types';
 import { useAppStyles } from '@/hooks/useAppStyles';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { syncFoodCatalog, getCatalogStatus, CatalogStatus } from '@/src/lib/foodCatalogSync';
+import { ScreenTitleRow } from '@/components/ui/screen-title-row';
 
 /** g / ml — user enters how much they actually ate using the catalog's scale. */
 function portionMode(unit: string): 'weight' | 'servings' {
@@ -110,6 +112,7 @@ function round1(n: number) {
 export default function AddMealScreen() {
   const colors = useThemeColors();
   const styles = useAppStyles(createStyles);
+    const insets = useSafeAreaInsets();
     const { user } = useAuth();
     const router = useRouter();
     const params = useLocalSearchParams<{ mealType?: string; date?: string }>();
@@ -156,7 +159,7 @@ export default function AddMealScreen() {
             if (!cancelled) setCatalogStatus(status);
 
             if (status.needsSync) {
-                const result = await syncFoodCatalog(false, (done, total) => {
+                await syncFoodCatalog(false, (done, total) => {
                     if (!cancelled) setSyncProgress({ done, total });
                 });
                 if (!cancelled) {
@@ -340,7 +343,7 @@ export default function AddMealScreen() {
             setSessionCount(c => c + 1);
             resetCustomForm();                      // clear form, collapse it
             showToast(`"${foodName}" added!`, true);
-        } catch (e) {
+        } catch {
             showToast('Failed to add — please try again.', false);
         } finally {
             setAdding(false);
@@ -375,18 +378,18 @@ export default function AddMealScreen() {
 
     return (
         <KeyboardAvoidingView
-            style={styles.container}
+            style={[styles.container, { paddingTop: insets.top }]}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { paddingTop: Spacing.lg }]}>
                 {/* Close — go back without Done */}
                 <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
                     <Ionicons name="close" size={24} color={colors.text} />
                 </TouchableOpacity>
 
                 <View style={styles.headerCenter}>
-                    <Text style={styles.headerTitle}>Add Meal</Text>
+                    <ScreenTitleRow title="Add Meal" icon="restaurant-outline" />
                     {sessionCount > 0 && (
                         <View style={styles.sessionBadge}>
                             <Text style={styles.sessionBadgeText}>{sessionCount} added</Text>
@@ -430,7 +433,10 @@ export default function AddMealScreen() {
             </View>
 
             <ScrollView
-                contentContainerStyle={styles.scrollContent}
+                contentContainerStyle={[
+                  styles.scrollContent,
+                  { paddingBottom: insets.bottom + TAB_SCROLL_BOTTOM_GAP },
+                ]}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
             >
@@ -478,7 +484,7 @@ export default function AddMealScreen() {
                 {searchQuery.length >= 2 && !searching && searchResults.length === 0 && (
                     <View style={styles.emptySearch}>
                         <Text style={styles.emptySearchText}>
-                            No results for "{searchQuery}" — try a shorter word or add a custom entry below.
+                            No results for {'"'}{searchQuery}{'"'} — try a shorter word or add a custom entry below.
                         </Text>
                     </View>
                 )}
@@ -663,7 +669,6 @@ export default function AddMealScreen() {
                     </TouchableOpacity>
                 ))}
 
-                <View style={{ height: 40 }} />
             </ScrollView>
 
             {/* ── Toast notification (same style as diary screen) ── */}
@@ -790,8 +795,7 @@ const createStyles = (colors: any) => StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingTop: Platform.OS === 'ios' ? 60 : 40,
-        paddingHorizontal: Spacing.md,
+        paddingHorizontal: TAB_SCROLL_GUTTER,
         paddingBottom: Spacing.sm,
     },
     closeButton: {
@@ -806,11 +810,6 @@ const createStyles = (colors: any) => StyleSheet.create({
         flex: 1,
         alignItems: 'center',
         gap: 4,
-    },
-    headerTitle: {
-        fontSize: Typography.sizes.title,
-        color: colors.text,
-        fontWeight: Typography.weights.bold,
     },
     sessionBadge: {
         backgroundColor: Colors.primary + '28',
@@ -849,7 +848,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     mealTypeRow: {
         flexDirection: 'row',
         gap: Spacing.sm,
-        paddingHorizontal: Spacing.md,
+        paddingHorizontal: TAB_SCROLL_GUTTER,
         marginBottom: Spacing.md,
     },
     mealTypeButton: {
@@ -875,7 +874,8 @@ const createStyles = (colors: any) => StyleSheet.create({
     },
 
     scrollContent: {
-        paddingHorizontal: Spacing.md,
+        paddingHorizontal: TAB_SCROLL_GUTTER,
+        paddingTop: Spacing.md,
     },
 
     // Catalog status bar

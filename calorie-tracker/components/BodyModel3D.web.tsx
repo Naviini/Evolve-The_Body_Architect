@@ -1,17 +1,13 @@
 /**
- * BodyModel3D — Web platform version
+ * BodyModel3D — Web platform
  *
- * Three.js / @react-three/fiber requires a native WebGL canvas context that
- * isn't reliably available in Expo's Metro web bundle. Importing those packages
- * at the top level crashes the route during expo-router's startup `getRoutes()`
- * scan, which blanks the entire app.
- *
- * Solution: on web we render the animated SVG silhouette (same quality as the
- * Expo Go fallback). The full 3D model is available on native dev builds / EAS.
+ * Full WebGL body uses Three.js, loaded with dynamic import() so it is not
+ * evaluated during expo-router’s static route discovery (which was crashing
+ * when @react-three/fiber was imported at the top level).
  */
 
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import React, { useEffect, useState, ComponentType } from 'react';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import BodySilhouette from '@/components/BodySilhouette';
 import { BodySimulationParams } from '@/src/types';
 import { Colors } from '@/constants/theme';
@@ -22,7 +18,11 @@ interface BodyModel3DProps {
     size?: number;
     accentColor?: string;
     autoRotate?: boolean;
+    showGlFallbackBadge?: boolean;
+    showInteractionHint?: boolean;
 }
+
+type CanvasProps = BodyModel3DProps;
 
 export default function BodyModel3D({
     params,
@@ -30,18 +30,64 @@ export default function BodyModel3D({
     size = 340,
     accentColor = Colors.primary,
     autoRotate = false,
+    showGlFallbackBadge = false,
+    showInteractionHint = true,
 }: BodyModel3DProps) {
+    const [WebCanvas, setWebCanvas] = useState<ComponentType<CanvasProps> | null>(null);
+    const [loadFailed, setLoadFailed] = useState(false);
+    const width = Math.round(size * 0.75);
+
+    useEffect(() => {
+        let cancelled = false;
+        import('./BodyModel3DCanvas.web')
+            .then((mod) => {
+                if (!cancelled) setWebCanvas(() => mod.default);
+            })
+            .catch(() => {
+                if (!cancelled) setLoadFailed(true);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    if (loadFailed) {
+        return (
+            <View style={[styles.container, { width }]}>
+                <BodySilhouette
+                    params={params}
+                    gender={gender}
+                    size={size}
+                    accentColor={accentColor}
+                    showGlow
+                    animated={autoRotate}
+                />
+                {showGlFallbackBadge ? (
+                    <View style={styles.badge}>
+                        <Text style={styles.badgeText}>3D viewer failed to load — showing silhouette</Text>
+                    </View>
+                ) : null}
+            </View>
+        );
+    }
+
+    if (!WebCanvas) {
+        return (
+            <View style={[styles.loaderWrap, { width, height: size }]}>
+                <ActivityIndicator size="small" color={accentColor} />
+            </View>
+        );
+    }
+
     return (
-        <View style={styles.container}>
-            <BodySilhouette
-                params={params}
-                gender={gender}
-                size={size}
-                accentColor={accentColor}
-                showGlow
-                animated={autoRotate}
-            />
-        </View>
+        <WebCanvas
+            params={params}
+            gender={gender}
+            size={size}
+            accentColor={accentColor}
+            autoRotate={autoRotate}
+            showInteractionHint={showInteractionHint}
+        />
     );
 }
 
@@ -63,10 +109,28 @@ export function BodyModel3DMini({
             size={size}
             accentColor={accentColor}
             autoRotate
+            showInteractionHint={false}
         />
     );
 }
 
 const styles = StyleSheet.create({
     container: { alignItems: 'center' },
+    loaderWrap: {
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: 16,
+        overflow: 'hidden',
+    },
+    badge: {
+        marginTop: 6,
+        backgroundColor: 'rgba(0,0,0,0.25)',
+        borderRadius: 10,
+        paddingHorizontal: 10,
+        paddingVertical: 3,
+    },
+    badgeText: {
+        fontSize: 11,
+        color: 'rgba(255,255,255,0.6)',
+    },
 });

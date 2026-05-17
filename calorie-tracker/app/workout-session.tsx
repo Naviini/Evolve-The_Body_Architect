@@ -17,14 +17,16 @@
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  Animated, Platform, Alert, Easing, ActivityIndicator,
+  Animated, Platform, ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Video, ResizeMode } from 'expo-av';
+import { useEventListener } from 'expo';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from '@/constants/theme';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useThemedAlert } from '@/src/contexts/ThemedAlertContext';
 import {
   saveWorkoutSession, getUserRewards, addXP, unlockAchievement,
   getWorkoutStreak, getWorkoutHistory, getUserHealthProfileForProcessing,
@@ -36,7 +38,7 @@ import {
 } from '@/src/lib/rewardEngine';
 import { getTutorial, getCoachingCue, MOTIVATIONAL_QUOTES } from '@/src/lib/exerciseTutorials';
 import {
-  getExerciseDemoVideoUrl, FALLBACK_DEMO_VIDEO, posterUriForDemoVideo,
+  getExerciseDemoVideoUrl, FALLBACK_DEMO_VIDEO,
 } from '@/src/lib/exerciseDemoVideos';
 import {
   WorkoutDay, WorkoutExercise, ExerciseLog, WorkoutSession, BodySimulationParams,
@@ -75,6 +77,7 @@ export default function WorkoutSessionScreen() {
   const colors = useThemeColors();
   const styles = useAppStyles(createStyles);
   const { user } = useAuth();
+  const { alert } = useThemedAlert();
   const router = useRouter();
   const params = useLocalSearchParams<{ dayJson?: string; planId?: string }>();
 
@@ -87,7 +90,7 @@ export default function WorkoutSessionScreen() {
   const [elapsedSec, setElapsedSec] = useState(0);
   const [totalCalories, setTotalCalories] = useState(0);
   const [logs, setLogs] = useState<ExerciseLog[]>([]);
-  const [skipTutorials, setSkipTutorials] = useState(false);
+  const [skipTutorials] = useState(false);
   const [startTime] = useState(new Date().toISOString());
   const [saving, setSaving] = useState(false);
   const [activeCountdownSec, setActiveCountdownSec] = useState(0);
@@ -111,7 +114,6 @@ export default function WorkoutSessionScreen() {
   const restRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const cueRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const breathRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const repRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   /** True when rest timer is between sets of the same exercise (not between exercises). */
   const intraSetRestRef = useRef(false);
@@ -283,7 +285,6 @@ export default function WorkoutSessionScreen() {
       // All sets done — log this exercise
       const burnedCals = currentExercise.estimatedCaloriesBurned * totalSets;
       setTotalCalories(tc => tc + burnedCals);
-      const effort = 3 as const; // default effort — summoned by effort buttons at end
 
       const log: ExerciseLog = {
         exerciseId: currentExercise.id,
@@ -593,7 +594,11 @@ export default function WorkoutSessionScreen() {
 
           {/* Motivational quote */}
           <View style={styles.quoteBox}>
-            <Text style={styles.quoteText}>"{quote.quote}"</Text>
+            <Text style={styles.quoteText}>
+              {'\u201C'}
+              {quote.quote}
+              {'\u201D'}
+            </Text>
             <Text style={styles.quoteAuthor}>— {quote.author}</Text>
           </View>
 
@@ -641,7 +646,7 @@ export default function WorkoutSessionScreen() {
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.sessionHeader}>
-          <TouchableOpacity onPress={() => Alert.alert('Quit Workout?', 'Progress will be lost.', [
+          <TouchableOpacity onPress={() => alert('Quit Workout?', 'Progress will be lost.', [
             { text: 'Cancel', style: 'cancel' },
             { text: 'Quit', style: 'destructive', onPress: () => router.back() },
           ])} style={styles.closeBtn}>
@@ -934,32 +939,39 @@ function WorkoutSessionVideo({
   const primary = getExerciseDemoVideoUrl(exerciseId, category);
   const [uri, setUri] = useState(primary);
   const [videoLoading, setVideoLoading] = useState(true);
-  const posterUri = posterUriForDemoVideo(primary);
 
   useEffect(() => {
     setUri(primary);
     setVideoLoading(true);
   }, [primary]);
 
+  const player = useVideoPlayer(uri, (p) => {
+    p.loop = true;
+    p.muted = true;
+  });
+
+  useEventListener(player, 'statusChange', ({ status }) => {
+    if (status === 'loading') setVideoLoading(true);
+    if (status === 'readyToPlay') setVideoLoading(false);
+    if (status === 'error') {
+      setVideoLoading(false);
+      setUri((u) => (u === FALLBACK_DEMO_VIDEO ? u : FALLBACK_DEMO_VIDEO));
+    }
+  });
+
+  useEffect(() => {
+    if (playing) player.play();
+    else player.pause();
+  }, [playing, player]);
+
   return (
     <View style={styles.sessionVideoContainer}>
-      <Video
-        key={uri}
-        source={{ uri }}
+      <VideoView
+        player={player}
         style={styles.sessionVideoFill}
-        resizeMode={ResizeMode.CONTAIN}
-        isLooping
-        shouldPlay={playing}
-        isMuted
-        useNativeControls={false}
-        posterSource={posterUri ? { uri: posterUri } : undefined}
-        onLoadStart={() => setVideoLoading(true)}
-        onLoad={() => setVideoLoading(false)}
-        onReadyForDisplay={() => setVideoLoading(false)}
-        onError={() => {
-          setVideoLoading(false);
-          setUri(u => (u === FALLBACK_DEMO_VIDEO ? u : FALLBACK_DEMO_VIDEO));
-        }}
+        contentFit="contain"
+        nativeControls={false}
+        onFirstFrameRender={() => setVideoLoading(false)}
       />
       <View style={styles.formDemoBadge} pointerEvents="none">
         <Text style={styles.formDemoBadgeText} numberOfLines={1}>
@@ -979,7 +991,6 @@ function WorkoutSessionVideo({
 // Summary Stat card
 // ════════════════════════════════════════════════════════════
 function SummaryStat({ emoji, label, value }: { emoji: string; label: string; value: string }) {
-  const colors = useThemeColors();
   const styles = useAppStyles(createStyles);
   return (
     <View style={styles.summaryStatCard}>

@@ -13,15 +13,17 @@ import {
     ScrollView,
     TouchableOpacity,
     TextInput,
-    Platform,
-    Alert,
+    Animated,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { Colors, Spacing, BorderRadius, Typography, Shadows } from '@/constants/theme';
+import { Colors, Spacing, BorderRadius, Typography, Shadows, TAB_SCROLL_GUTTER, TAB_SCROLL_BOTTOM_GAP } from '@/constants/theme';
 import { useAuth } from '@/src/contexts/AuthContext';
 import StoreDrawer from '@/components/store/StoreDrawer';
+import { HeaderIconButton } from '@/components/ui/header-icon-button';
+import { ScreenTitleRow } from '@/components/ui/screen-title-row';
 import { syncAll, getSyncStatus } from '@/src/lib/sync';
 import {
     getOnboardingProfile,
@@ -35,11 +37,15 @@ import { detectBodyType } from '@/src/lib/bodyTypeEngine';
 import type { BodyTypeResult } from '@/src/types';
 import { useAppStyles } from '@/hooks/useAppStyles';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useTabEntranceAnimation } from '@/hooks/useTabEntranceAnimation';
 import { useAppTheme } from '@/src/contexts/ThemeContext';
+import { useThemedAlert } from '@/src/contexts/ThemedAlertContext';
 
 export default function ProfileScreen() {
     const colors = useThemeColors();
     const styles = useAppStyles(createStyles);
+    const insets = useSafeAreaInsets();
+    const { entranceStyle } = useTabEntranceAnimation();
     const { user, signOut } = useAuth();
     const router = useRouter();
     const [calorieGoal, setCalorieGoal] = useState('2000');
@@ -50,6 +56,7 @@ export default function ProfileScreen() {
     const [lastCloudRefresh, setLastCloudRefresh] = useState<string | null>(null);
     const [menuOpen, setMenuOpen] = useState(false);
     const { isDark, toggleTheme } = useAppTheme();
+    const { alert } = useThemedAlert();
 
     useFocusEffect(
         useCallback(() => {
@@ -87,13 +94,13 @@ export default function ProfileScreen() {
         setIsSyncing(true);
         try {
             const result = await syncAll();
-            Alert.alert(
+            alert(
                 'Sync Complete',
                 `Pushed: ${result.pushed}\nPulled: ${result.pulled}${result.errors.length > 0 ? `\nErrors: ${result.errors.length}` : ''
                 }`
             );
-        } catch (e) {
-            Alert.alert('Sync Failed', 'Please check your connection and try again.');
+        } catch {
+            alert('Sync Failed', 'Please check your connection and try again.');
         } finally {
             setIsSyncing(false);
         }
@@ -101,7 +108,7 @@ export default function ProfileScreen() {
 
     const handleRefreshFromCloud = async () => {
         if (!user?.id) {
-            Alert.alert('Sign in required', 'Please sign in to refresh your profile from cloud.');
+            alert('Sign in required', 'Please sign in to refresh your profile from cloud.');
             return;
         }
 
@@ -120,45 +127,48 @@ export default function ProfileScreen() {
 
             setLastCloudRefresh(new Date().toISOString());
 
-            Alert.alert('Cloud Refresh Complete', 'Your onboarding profile was refreshed from Supabase.');
-        } catch (e) {
-            Alert.alert('Refresh Failed', 'Could not refresh profile from cloud. Please try again.');
+            alert('Cloud Refresh Complete', 'Your onboarding profile was refreshed from Supabase.');
+        } catch {
+            alert('Refresh Failed', 'Could not refresh profile from cloud. Please try again.');
         } finally {
             setIsRefreshingCloud(false);
         }
     };
 
     const handleSignOut = () => {
-        if (Platform.OS === 'web') {
-            if (window.confirm('Are you sure you want to sign out?')) {
-                signOut();
-            }
-        } else {
-            Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Sign Out',
-                    style: 'destructive',
-                    onPress: signOut,
-                },
-            ]);
-        }
+        alert('Sign Out', 'Are you sure you want to sign out?', [
+            { text: 'Cancel', style: 'cancel' },
+            {
+                text: 'Sign Out',
+                style: 'destructive',
+                onPress: signOut,
+            },
+        ]);
     };
 
     const syncStatus = getSyncStatus();
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { paddingTop: insets.top }]}>
             <ScrollView
-                contentContainerStyle={styles.scrollContent}
+                contentContainerStyle={[
+                    styles.scrollContent,
+                    {
+                        paddingBottom: insets.bottom + TAB_SCROLL_BOTTOM_GAP,
+                    },
+                ]}
                 showsVerticalScrollIndicator={false}
             >
+                <Animated.View style={entranceStyle}>
                 {/* Header */}
                 <View style={styles.headerRow}>
-                    <Text style={styles.headerTitle}>Profile</Text>
-                    <TouchableOpacity style={styles.menuButton} onPress={() => setMenuOpen(true)}>
-                        <Ionicons name="menu" size={20} color={colors.text} />
-                    </TouchableOpacity>
+                    <ScreenTitleRow title="Profile" icon="person" />
+                    <HeaderIconButton
+                        icon="menu"
+                        iconSize={22}
+                        onPress={() => setMenuOpen(true)}
+                        accessibilityLabel="Open navigation menu"
+                    />
                 </View>
 
                 {/* User Card */}
@@ -178,6 +188,46 @@ export default function ProfileScreen() {
                         {user?.email || 'demo@calorietracker.app'}
                     </Text>
                 </LinearGradient>
+
+                {/* Body Type Analysis */}
+                {bodyTypeResult ? (
+                    <>
+                        <Text style={styles.sectionTitle}>Body Type Analysis</Text>
+                        <TouchableOpacity
+                            onPress={() => router.push('/body-insights' as any)}
+                            activeOpacity={0.85}
+                        >
+                            <LinearGradient
+                                colors={bodyTypeResult.dominant === 'ectomorph'
+                                    ? ['#00D2FF', '#6C63FF']
+                                    : bodyTypeResult.dominant === 'mesomorph'
+                                        ? ['#FF9F43', '#FF6B81']
+                                        : ['#FF6B6B', '#FFD93D']}
+                                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                                style={styles.bodyTypeCard}
+                            >
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.bodyTypeLabel}>
+                                        {bodyTypeResult.dominant === 'ectomorph' ? '⚡' :
+                                            bodyTypeResult.dominant === 'mesomorph' ? '💪' : '🛡️'}
+                                        {'  '}
+                                        {bodyTypeResult.blend ??
+                                            (bodyTypeResult.dominant.charAt(0).toUpperCase() + bodyTypeResult.dominant.slice(1))}
+                                    </Text>
+                                    <Text style={styles.bodyTypeSub}>
+                                        {bodyTypeResult.scores.ecto}% Ecto · {bodyTypeResult.scores.meso}% Meso · {bodyTypeResult.scores.endo}% Endo
+                                    </Text>
+                                    {bodyTypeResult.estimatedBF !== null && (
+                                        <Text style={styles.bodyTypeBF}>Est. Body Fat: {bodyTypeResult.estimatedBF}%</Text>
+                                    )}
+                                </View>
+                                <View style={styles.bodyTypeArrow}>
+                                    <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.8)" />
+                                </View>
+                            </LinearGradient>
+                        </TouchableOpacity>
+                    </>
+                ) : null}
 
                 {/* Daily Goal */}
                 <Text style={styles.sectionTitle}>Daily Goal</Text>
@@ -261,46 +311,6 @@ export default function ProfileScreen() {
                     </TouchableOpacity>
                 </View>
 
-                {/* Body Type Analysis */}
-                {bodyTypeResult ? (
-                    <>
-                        <Text style={styles.sectionTitle}>Body Type Analysis</Text>
-                        <TouchableOpacity
-                            onPress={() => router.push('/body-insights' as any)}
-                            activeOpacity={0.85}
-                        >
-                            <LinearGradient
-                                colors={bodyTypeResult.dominant === 'ectomorph'
-                                    ? ['#00D2FF', '#6C63FF']
-                                    : bodyTypeResult.dominant === 'mesomorph'
-                                        ? ['#FF9F43', '#FF6B81']
-                                        : ['#FF6B6B', '#FFD93D']}
-                                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                                style={styles.bodyTypeCard}
-                            >
-                                <View style={{ flex: 1 }}>
-                                    <Text style={styles.bodyTypeLabel}>
-                                        {bodyTypeResult.dominant === 'ectomorph' ? '⚡' :
-                                            bodyTypeResult.dominant === 'mesomorph' ? '💪' : '🛡️'}
-                                        {'  '}
-                                        {bodyTypeResult.blend ??
-                                            (bodyTypeResult.dominant.charAt(0).toUpperCase() + bodyTypeResult.dominant.slice(1))}
-                                    </Text>
-                                    <Text style={styles.bodyTypeSub}>
-                                        {bodyTypeResult.scores.ecto}% Ecto · {bodyTypeResult.scores.meso}% Meso · {bodyTypeResult.scores.endo}% Endo
-                                    </Text>
-                                    {bodyTypeResult.estimatedBF !== null && (
-                                        <Text style={styles.bodyTypeBF}>Est. Body Fat: {bodyTypeResult.estimatedBF}%</Text>
-                                    )}
-                                </View>
-                                <View style={styles.bodyTypeArrow}>
-                                    <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.8)" />
-                                </View>
-                            </LinearGradient>
-                        </TouchableOpacity>
-                    </>
-                ) : null}
-
                 {/* Health Profile */}
                 <Text style={styles.sectionTitle}>Health Profile</Text>
                 <View style={styles.settingCard}>
@@ -381,6 +391,7 @@ export default function ProfileScreen() {
 
                 <Text style={styles.footer}>Calorie Tracker v1.0.0</Text>
                 <View style={{ height: 100 }} />
+                </Animated.View>
             </ScrollView>
 
             <StoreDrawer
@@ -436,13 +447,8 @@ const createStyles = (colors: any) => StyleSheet.create({
         backgroundColor: colors.background,
     },
     scrollContent: {
-        paddingTop: Platform.OS === 'ios' ? 60 : 40,
-        paddingHorizontal: Spacing.md,
-    },
-    headerTitle: {
-        fontSize: Typography.sizes.heading,
-        color: colors.text,
-        fontWeight: Typography.weights.bold,
+        paddingHorizontal: TAB_SCROLL_GUTTER,
+        paddingTop: Spacing.lg,
     },
     headerRow: {
         flexDirection: 'row',
@@ -450,23 +456,14 @@ const createStyles = (colors: any) => StyleSheet.create({
         justifyContent: 'space-between',
         marginBottom: Spacing.lg,
     },
-    menuButton: {
-        width: 38,
-        height: 38,
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: colors.border,
-        backgroundColor: colors.surface,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-
     // User Card
     userCard: {
         borderRadius: BorderRadius.lg,
         padding: Spacing.xl,
         alignItems: 'center',
         marginBottom: Spacing.lg,
+        overflow: 'hidden',
+        ...Shadows.card,
     },
     avatar: {
         width: 72,
@@ -501,7 +498,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     settingCard: {
         backgroundColor: colors.surface,
         borderRadius: BorderRadius.md,
-        borderWidth: 1,
+        borderWidth: StyleSheet.hairlineWidth,
         borderColor: colors.border,
         marginBottom: Spacing.md,
         overflow: 'hidden',

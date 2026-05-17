@@ -99,11 +99,11 @@ export interface FoodRecognitionResponse {
   protein_g: number;
   carbs_g: number;
   fat_g: number;
-  alternatives: Array<{
+  alternatives: {
     food_name: string;
     confidence: number;
     calories_per_serving: number;
-  }>;
+  }[];
 }
 
 // ---- Nutrition Summary ----
@@ -442,4 +442,13 @@ export interface BodySimulationResult {
   dreamBodyDescription: string | null;
   targetBFPercent: number | null;
   generatedAt: string;
+}
+
+/** Local-only AI coach chat row (SQLite; not synced to Supabase) */
+export interface CoachChatMessage {
+  id: string;
+  userId: string;
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: string;
 }

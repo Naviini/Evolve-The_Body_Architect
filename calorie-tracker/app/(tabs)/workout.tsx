@@ -10,20 +10,23 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Animated, Platform, RefreshControl, ActivityIndicator,
+  Animated, RefreshControl, ActivityIndicator,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import StoreDrawer from '@/components/store/StoreDrawer';
-import { Colors, Spacing, BorderRadius, Typography, Shadows } from '@/constants/theme';
+import { HeaderIconButton } from '@/components/ui/header-icon-button';
+import { ScreenTitleRow } from '@/components/ui/screen-title-row';
+import { Colors, Spacing, BorderRadius, Typography, Shadows, TAB_SCROLL_GUTTER, TAB_SCROLL_BOTTOM_GAP } from '@/constants/theme';
 import { useAuth } from '@/src/contexts/AuthContext';
 import {
   getUserHealthProfileForProcessing, getDailyLog, getWorkoutPlan, saveWorkoutPlan,
   getWorkoutHistory, getWorkoutStreak, getUserRewards, saveProfileHash, getDailyCalorieGoalForUser,
 } from '@/src/lib/database';
 import { generateWeeklyPlan, getWeekStart } from '@/src/lib/workoutEngine';
-import { hashProfile, getLevelForXP, getAllAchievementsForUser, LEVELS } from '@/src/lib/rewardEngine';
+import { hashProfile, getAllAchievementsForUser, LEVELS } from '@/src/lib/rewardEngine';
 import { WorkoutPlan, WorkoutDay, WorkoutExercise, UserRewards } from '@/src/types';
 import { useAppStyles } from '@/hooks/useAppStyles';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -56,6 +59,9 @@ const DIFF_BADGE: Record<string, { color: string; label: string }> = {
   intense:  { color: '#FF5252', label: 'Intense' },
 };
 
+/** Matches home “Today’s Workout” promo — XP card uses same orangish chrome */
+const XP_CARD_GRADIENT = ['#C2410C', '#EA580C', '#FB923C'] as const;
+
 // ════════════════════════════════════════════════════════════
 // Main Screen
 // ════════════════════════════════════════════════════════════
@@ -63,6 +69,7 @@ const DIFF_BADGE: Record<string, { color: string; label: string }> = {
 export default function WorkoutScreen() {
   const colors = useThemeColors();
   const styles = useAppStyles(createStyles);
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const router = useRouter();
 
@@ -76,7 +83,7 @@ export default function WorkoutScreen() {
   const [rewards, setRewards] = useState<UserRewards | null>(null);
   const [showRefreshBanner, setShowRefreshBanner] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [workoutOverviewExpanded, setWorkoutOverviewExpanded] = useState(true);
+  const [workoutOverviewExpanded, setWorkoutOverviewExpanded] = useState(false);
 
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -84,18 +91,18 @@ export default function WorkoutScreen() {
   const xpBarAnim = useRef(new Animated.Value(0)).current;
   const refreshBannerAnim = useRef(new Animated.Value(0)).current;
 
-  const animate = () => {
+  const animate = useCallback(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
       Animated.timing(slideAnim, { toValue: 0, duration: 500, useNativeDriver: true }),
     ]).start();
-  };
+  }, [fadeAnim, slideAnim]);
 
-  const animateXPBar = (lvlProgress: number) => {
+  const animateXPBar = useCallback((lvlProgress: number) => {
     Animated.timing(xpBarAnim, {
       toValue: lvlProgress, duration: 800, useNativeDriver: false,
     }).start();
-  };
+  }, [xpBarAnim]);
 
   const loadData = useCallback(async () => {
     const uid = user?.id ?? 'demo-user';
@@ -162,7 +169,7 @@ export default function WorkoutScreen() {
       setLoading(false);
       animate();
     }
-  }, [user]);
+  }, [user, animate, animateXPBar, refreshBannerAnim]);
 
   useFocusEffect(
     useCallback(() => {
@@ -171,11 +178,11 @@ export default function WorkoutScreen() {
       xpBarAnim.setValue(0);
       setLoading(true);
       loadData();
-    }, [loadData])
+    }, [loadData, fadeAnim, slideAnim, xpBarAnim])
   );
 
   useEffect(() => {
-    setWorkoutOverviewExpanded(true);
+    setWorkoutOverviewExpanded(false);
     setExpandedExercise(null);
   }, [selectedDay]);
 
@@ -213,9 +220,14 @@ export default function WorkoutScreen() {
   const earnedAchievements = allAchievements.filter(a => a.unlockedAt);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[
+          styles.scroll,
+          {
+            paddingBottom: insets.bottom + TAB_SCROLL_BOTTOM_GAP + Spacing.md,
+          },
+        ]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} colors={[Colors.primary]} />
@@ -224,29 +236,31 @@ export default function WorkoutScreen() {
         {/* ── Header ─────────────────────────────────────────── */}
         <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
           <View style={styles.header}>
-            <View>
-              <Text style={styles.headerSub}>Your Plan This Week</Text>
-              <View style={styles.headerTitleRow}>
-                <Text style={styles.headerTitle}>Workout</Text>
-                <Ionicons name="barbell-outline" size={22} color={colors.text} style={styles.headerTitleIcon} />
-              </View>
-            </View>
-            <View style={styles.headerRight}>
+            <ScreenTitleRow title="Workout" icon="barbell-outline" />
+            <View style={styles.headerActions}>
               {streak > 0 && (
                 <View style={styles.streakBadge}>
                   <Text style={styles.streakEmoji}>🔥</Text>
                   <Text style={styles.streakText}>{streak} day{streak !== 1 ? 's' : ''}</Text>
                 </View>
               )}
-              <TouchableOpacity style={styles.menuButton} onPress={() => setMenuOpen(true)}>
-                <Ionicons name="menu" size={20} color={colors.text} />
-              </TouchableOpacity>
+              <HeaderIconButton
+                icon="menu"
+                iconSize={22}
+                onPress={() => setMenuOpen(true)}
+                accessibilityLabel="Open navigation menu"
+              />
             </View>
           </View>
 
           {/* ── XP Progress Bar ──────────────────────────────── */}
           {rewards && (
-            <View style={styles.xpCard}>
+            <LinearGradient
+              colors={[...XP_CARD_GRADIENT]}
+              style={styles.xpCard}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+            >
               <View style={styles.xpHeader}>
                 <Text style={styles.levelName}>{rewards.levelName}</Text>
                 <Text style={styles.xpTotal}>{rewards.totalXP} XP</Text>
@@ -259,7 +273,7 @@ export default function WorkoutScreen() {
               {rewards.xpToNextLevel > 0 && (
                 <Text style={styles.xpNext}>{rewards.xpToNextLevel} XP to next level</Text>
               )}
-            </View>
+            </LinearGradient>
           )}
 
           {/* ── Dynamic Refresh Banner ───────────────────────── */}
@@ -304,17 +318,12 @@ export default function WorkoutScreen() {
             </>
           )}
 
-          {/* ── Reasoning Pill ───────────────────────────────── */}
-          {plan?.reasoning && (
-            <View style={styles.reasoningPill}>
-              <Ionicons name="sparkles" size={14} color={Colors.primary} />
-              <Text style={styles.reasoningText} numberOfLines={2}>{plan.reasoning}</Text>
-            </View>
-          )}
-
           {/* ── Weekly day selector (equal columns, no emoji) ─ */}
           <View style={styles.weekStripSection}>
-            <Text style={styles.weekStripLabel}>Schedule</Text>
+            <View style={styles.weekStripTitleRow}>
+              <View style={styles.weekStripTitleAccent} />
+              <Text style={styles.weekStripLabel}>Schedule</Text>
+            </View>
             <View style={styles.weekStripRow}>
               {(plan?.days ?? []).map((day, i) => {
                 const isToday = i === todayDayIndex();
@@ -411,7 +420,7 @@ export default function WorkoutScreen() {
                   style={styles.startBtnGradient}
                 >
                   <Ionicons name="play-circle" size={22} color="#FFF" />
-                  <Text style={styles.startBtnText}>Start Today's Workout</Text>
+                  <Text style={styles.startBtnText}>Start Today{"'"}s Workout</Text>
                 </LinearGradient>
               </TouchableOpacity>
             )}
@@ -436,8 +445,8 @@ export default function WorkoutScreen() {
 
         {/* ── Week Stats ─────────────────────────────────────── */}
         {plan && (
-          <Animated.View style={{ opacity: fadeAnim }}>
-            <Text style={styles.sectionTitle}>This Week at a Glance</Text>
+          <Animated.View style={[styles.weekGlanceSection, { opacity: fadeAnim }]}>
+            <Text style={styles.weekGlanceTitle}>This Week at a Glance</Text>
             <View style={styles.weekStats}>
               <WeekStatCard icon="flame-outline" color={Colors.warning}
                 value={`${plan.days.filter(d => !d.isRestDay).length}`} label="Active Days" />
@@ -445,28 +454,6 @@ export default function WorkoutScreen() {
                 value={`${plan.days.reduce((s, d) => s + d.estimatedDurationMin, 0)}`} label="Total Min" />
               <WeekStatCard icon="flash-outline" color={Colors.primary}
                 value={`${plan.days.reduce((s, d) => s + d.estimatedCaloriesBurned, 0)}`} label="Est. kcal" />
-            </View>
-          </Animated.View>
-        )}
-
-        {/* ── Locked Achievements Teaser ────────────────────── */}
-        {allAchievements.filter(a => !a.unlockedAt).length > 0 && (
-          <Animated.View style={{ opacity: fadeAnim }}>
-            <View style={styles.sectionTitleRow}>
-              <Ionicons name="flag-outline" size={18} color={colors.text} />
-              <Text style={styles.sectionTitleInline}>Next Achievements</Text>
-            </View>
-            <View style={styles.nextAchievementsCard}>
-              {allAchievements.filter(a => !a.unlockedAt).slice(0, 3).map((a, i) => (
-                <View key={a.id} style={[styles.nextAchRow, i < 2 && styles.rowBorder]}>
-                  <View style={styles.lockedEmoji}><Text style={{ fontSize: 20, opacity: 0.4 }}>{a.emoji}</Text></View>
-                  <View style={styles.nextAchText}>
-                    <Text style={styles.nextAchName}>{a.name}</Text>
-                    <Text style={styles.nextAchDesc}>{a.description}</Text>
-                  </View>
-                  <Ionicons name="lock-closed-outline" size={16} color={colors.textTertiary} />
-                </View>
-              ))}
             </View>
           </Animated.View>
         )}
@@ -493,8 +480,6 @@ export default function WorkoutScreen() {
             <Text style={styles.emptyBody}>Add your health details to get a personalised workout plan.</Text>
           </View>
         )}
-
-        <View style={{ height: 100 }} />
       </ScrollView>
 
       <StoreDrawer
@@ -553,7 +538,7 @@ function DayWorkoutExpandable({
         accessibilityState={hasExercises ? { expanded } : undefined}
         accessibilityHint={hasExercises ? (expanded ? 'Collapses exercise list' : 'Shows recommended exercises') : undefined}
       >
-        <View style={styles.dayCardContent}>
+        <View style={styles.dayCardMain}>
           <View style={[styles.dayCardIconWrap, { backgroundColor: catColor + '22' }]}>
             <Ionicons
               name={day.isRestDay ? 'moon-outline' : 'barbell-outline'}
@@ -561,7 +546,27 @@ function DayWorkoutExpandable({
               color={catColor}
             />
           </View>
-          <Text style={styles.dayCardTheme} numberOfLines={2}>{day.theme}</Text>
+          <View style={styles.dayCardCenter}>
+            <Text style={styles.dayCardTheme} numberOfLines={2}>
+              {day.theme}
+            </Text>
+            {!day.isRestDay ? (
+              <View style={styles.dayCardStats}>
+                <View style={styles.dayCardStat}>
+                  <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
+                  <Text style={styles.dayCardStatText}>{day.estimatedDurationMin} min</Text>
+                </View>
+                <View style={styles.dayCardStat}>
+                  <Ionicons name="flame-outline" size={14} color={Colors.warning} />
+                  <Text style={styles.dayCardStatText}>{day.estimatedCaloriesBurned} kcal</Text>
+                </View>
+                <View style={styles.dayCardStat}>
+                  <Ionicons name="barbell-outline" size={14} color={Colors.primary} />
+                  <Text style={styles.dayCardStatText}>{day.exercises.length} exercises</Text>
+                </View>
+              </View>
+            ) : null}
+          </View>
           <View style={styles.dayCardHeaderRight}>
             {isToday && (
               <View style={styles.todayTagPill}>
@@ -577,22 +582,6 @@ function DayWorkoutExpandable({
             )}
           </View>
         </View>
-        {!day.isRestDay && (
-          <View style={styles.dayCardStats}>
-            <View style={styles.dayCardStat}>
-              <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
-              <Text style={styles.dayCardStatText}>{day.estimatedDurationMin} min</Text>
-            </View>
-            <View style={styles.dayCardStat}>
-              <Ionicons name="flame-outline" size={14} color={Colors.warning} />
-              <Text style={styles.dayCardStatText}>{day.estimatedCaloriesBurned} kcal</Text>
-            </View>
-            <View style={styles.dayCardStat}>
-              <Ionicons name="barbell-outline" size={14} color={Colors.primary} />
-              <Text style={styles.dayCardStatText}>{day.exercises.length} exercises</Text>
-            </View>
-          </View>
-        )}
       </TouchableOpacity>
 
       {hasExercises && expanded && children ? (
@@ -693,11 +682,10 @@ function ExerciseCard({
 // ════════════════════════════════════════════════════════════
 
 function WeekStatCard({ icon, color, value, label }: { icon: string; color: string; value: string; label: string }) {
-  const colors = useThemeColors();
   const styles = useAppStyles(createStyles);
   return (
     <View style={styles.weekStatCard}>
-      <Ionicons name={icon as any} size={20} color={color} />
+      <Ionicons name={icon as any} size={22} color={color} />
       <Text style={[styles.weekStatValue, { color }]}>{value}</Text>
       <Text style={styles.weekStatLabel}>{label}</Text>
     </View>
@@ -711,25 +699,23 @@ function WeekStatCard({ icon, color, value, label }: { icon: string; color: stri
 const createStyles = (colors: any) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   scroll: {
-    paddingTop: Platform.OS === 'ios' ? 60 : 44,
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: TAB_SCROLL_GUTTER,
+    paddingTop: Spacing.lg,
   },
   loadingText: { color: colors.textSecondary, marginTop: Spacing.md, fontSize: 15 },
 
-  // Header
+  // Header — matches Analytics / Profile tab rhythm
   header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
-    marginBottom: Spacing.sm,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
   },
-  headerRight: {
+  headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  headerSub: { fontSize: Typography.sizes.body, color: colors.textSecondary },
-  headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
-  headerTitle: { fontSize: Typography.sizes.heading, color: colors.text, fontWeight: Typography.weights.bold },
-  headerTitleIcon: { marginTop: 1 },
   streakBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: colors.surface, borderRadius: BorderRadius.round,
@@ -738,35 +724,27 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   streakEmoji: { fontSize: 16 },
   streakText: { fontSize: 13, color: Colors.warning, fontWeight: '700' },
-  menuButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  // XP card
+  // XP card (orangish gradient — text tuned for contrast)
   xpCard: {
-    backgroundColor: colors.surface, borderRadius: BorderRadius.md,
-    borderWidth: 1, borderColor: Colors.primary + '40',
-    padding: Spacing.md, marginBottom: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    marginBottom: Spacing.lg,
   },
   xpHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  levelName: { fontSize: 14, fontWeight: '700', color: colors.text },
-  xpTotal: { fontSize: 13, color: Colors.primary, fontWeight: '700' },
-  xpTrack: { height: 8, backgroundColor: colors.border, borderRadius: 4, overflow: 'hidden' },
-  xpFill: { height: '100%', borderRadius: 4, backgroundColor: Colors.primary },
-  xpNext: { fontSize: 11, color: colors.textTertiary, marginTop: 5 },
+  levelName: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
+  xpTotal: { fontSize: 13, color: '#FFFFFF', fontWeight: '700', opacity: 0.95 },
+  xpTrack: { height: 8, backgroundColor: 'rgba(0,0,0,0.22)', borderRadius: 4, overflow: 'hidden' },
+  xpFill: { height: '100%', borderRadius: 4, backgroundColor: '#FFFFFF' },
+  xpNext: { fontSize: 11, color: 'rgba(255,255,255,0.82)', marginTop: 5 },
 
   // Refresh banner
   refreshBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: Colors.warning + '20', borderRadius: BorderRadius.md,
-    padding: Spacing.sm, marginBottom: Spacing.sm,
+    padding: Spacing.sm, marginBottom: Spacing.md,
     borderWidth: 1, borderColor: Colors.warning + '50',
   },
   refreshBannerText: { flex: 1, fontSize: 13, color: colors.text },
@@ -778,7 +756,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   refreshBtnText: { fontSize: 12, fontWeight: '700', color: Colors.warning },
 
   // Achievements strip
-  badgesStrip: { marginBottom: Spacing.md },
+  badgesStrip: { marginBottom: Spacing.lg },
   badgeChip: {
     alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8,
     backgroundColor: Colors.warning + '15', borderRadius: BorderRadius.md,
@@ -788,36 +766,38 @@ const createStyles = (colors: any) => StyleSheet.create({
   badgeChipEmoji: { fontSize: 22 },
   badgeChipName: { fontSize: 10, fontWeight: '700', color: Colors.warning, marginTop: 3, textAlign: 'center' },
 
-  // Reasoning
-  reasoningPill: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-    backgroundColor: Colors.primary + '15', borderRadius: BorderRadius.md,
-    padding: Spacing.sm, borderWidth: 1, borderColor: Colors.primary + '40',
+  // Week strip (7 equal columns)
+  weekStripSection: { marginTop: Spacing.md, marginBottom: Spacing.lg },
+  weekStripTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
     marginBottom: Spacing.md,
   },
-  reasoningText: { flex: 1, fontSize: 13, color: colors.textSecondary, lineHeight: 18 },
-
-  // Week strip (7 equal columns)
-  weekStripSection: { marginBottom: Spacing.md },
+  weekStripTitleAccent: {
+    width: 4,
+    height: 18,
+    borderRadius: 2,
+    backgroundColor: Colors.primary,
+  },
   weekStripLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.textTertiary,
-    letterSpacing: 0.6,
+    fontSize: 13,
+    fontWeight: '800',
+    color: Colors.primaryLight,
+    letterSpacing: 1,
     textTransform: 'uppercase',
-    marginBottom: 8,
   },
   weekStripRow: {
     flexDirection: 'row',
     alignItems: 'stretch',
-    gap: 6,
+    gap: Spacing.sm,
   },
   weekDayTouchable: { flex: 1, minWidth: 0 },
   weekDayCell: {
     alignItems: 'center',
     paddingTop: 10,
     paddingBottom: 8,
-    paddingHorizontal: 2,
+    paddingHorizontal: 4,
     borderRadius: BorderRadius.md,
     backgroundColor: colors.surface,
     borderWidth: 1,
@@ -856,15 +836,24 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: Spacing.md, overflow: 'hidden', ...Shadows.medium,
   },
   dayCardAccent: { height: 4, width: '100%' },
-  dayCardContent: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
-    paddingHorizontal: Spacing.md, paddingTop: Spacing.md, paddingBottom: Spacing.sm,
+  dayCardMain: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  dayCardCenter: {
+    flex: 1,
+    minWidth: 0,
+    gap: Spacing.md,
   },
   dayCardHeaderRight: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     flexShrink: 0,
+    paddingTop: 2,
   },
   dayCardDropdown: {
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -889,14 +878,30 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dayCardTheme: { flex: 1, fontSize: Typography.sizes.subtitle, fontWeight: '700', color: colors.text },
+  dayCardTheme: {
+    fontSize: Typography.sizes.subtitle,
+    fontWeight: '700',
+    color: colors.text,
+    lineHeight: 22,
+  },
   todayTagPill: {
     backgroundColor: Colors.primary, borderRadius: BorderRadius.round,
     paddingHorizontal: 10, paddingVertical: 3,
   },
   todayTagText: { fontSize: 10, fontWeight: '800', color: '#FFF' },
-  dayCardStats: { flexDirection: 'row', gap: Spacing.lg, paddingHorizontal: Spacing.md, paddingBottom: Spacing.md },
-  dayCardStat: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  dayCardStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    marginTop: 2,
+  },
+  dayCardStat: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    flexShrink: 0,
+  },
   dayCardStatText: { fontSize: 13, color: colors.textSecondary },
 
   // Section
@@ -911,6 +916,18 @@ const createStyles = (colors: any) => StyleSheet.create({
   sectionTitleInline: {
     fontSize: Typography.sizes.bodyLarge, fontWeight: '700',
     color: colors.text,
+  },
+
+  weekGlanceSection: {
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.xs,
+    width: '100%',
+  },
+  weekGlanceTitle: {
+    fontSize: Typography.sizes.bodyLarge,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: Spacing.lg,
   },
 
   // Exercise card
@@ -956,10 +973,16 @@ const createStyles = (colors: any) => StyleSheet.create({
   learnBtnText: { fontSize: 13, color: Colors.primary, fontWeight: '600' },
 
   // Start button
-  startBtn: { borderRadius: BorderRadius.md, overflow: 'hidden', marginTop: Spacing.md, marginBottom: Spacing.md, ...Shadows.glow },
+  startBtn: {
+    borderRadius: BorderRadius.md,
+    overflow: 'hidden',
+    marginTop: Spacing.md,
+    marginBottom: Spacing.md,
+    ...Shadows.glow,
+  },
   startBtnGradient: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 10, paddingVertical: 16,
+    gap: 10, paddingVertical: 14,
   },
   startBtnText: { fontSize: 17, fontWeight: '800', color: '#FFF' },
 
@@ -974,27 +997,34 @@ const createStyles = (colors: any) => StyleSheet.create({
   restBody: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 },
   restOptional: { marginTop: Spacing.sm, fontSize: 13, color: Colors.primary, fontWeight: '600' },
 
-  // Week stats
-  weekStats: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md },
+  weekStats: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
   weekStatCard: {
-    flex: 1, backgroundColor: colors.surface, borderRadius: BorderRadius.md,
-    borderWidth: 1, borderColor: colors.border, padding: Spacing.md, alignItems: 'center', gap: 4,
+    flex: 1,
+    minHeight: 96,
+    backgroundColor: colors.surface,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xs,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    ...Shadows.small,
   },
-  weekStatValue: { fontSize: Typography.sizes.subtitle, fontWeight: '800' },
-  weekStatLabel: { fontSize: 11, color: colors.textTertiary, textAlign: 'center' },
-
-  // Next achievements
-  nextAchievementsCard: {
-    backgroundColor: colors.surface, borderRadius: BorderRadius.md,
-    borderWidth: 1, borderColor: colors.border,
-    marginBottom: Spacing.md, overflow: 'hidden',
+  weekStatValue: { fontSize: 20, fontWeight: '800' },
+  weekStatLabel: {
+    fontSize: 12,
+    color: colors.textTertiary,
+    textAlign: 'center',
+    fontWeight: '600',
+    lineHeight: 16,
   },
-  nextAchRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.md },
-  rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
-  lockedEmoji: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
-  nextAchText: { flex: 1 },
-  nextAchName: { fontSize: 14, fontWeight: '700', color: colors.text },
-  nextAchDesc: { fontSize: 12, color: colors.textTertiary, marginTop: 2 },
 
   // History
   historyCard: {

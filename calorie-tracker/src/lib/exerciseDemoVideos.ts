@@ -1,11 +1,11 @@
 /**
- * In-session form demo clips (HD MP4, streamable in expo-av).
+ * In-session form demo clips (HD MP4, streamable via expo-video).
  *
  * Mixkit (free license): https://mixkit.co/license/#videoFree
  *
  * Important: newer Mixkit uploads (many IDs ≥ ~100000) use `active_storage/...`
  * URLs. The old pattern `.../videos/{id}/{id}-720.mp4` returns 403 for those IDs,
- * which caused `expo-av` to error and swap in the generic fallback (wrong visuals).
+ * which caused playback to fail and swap in the generic fallback (wrong visuals).
  */
 
 /** Full CDN URL when Mixkit does not serve `/videos/{id}/{id}-720.mp4` for an id. */
