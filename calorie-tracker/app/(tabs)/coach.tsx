@@ -50,7 +50,7 @@ import {
 import * as Haptics from 'expo-haptics';
 import * as Speech from 'expo-speech';
 import { VoiceRecordingOverlay } from '@/components/coach/VoiceRecordingOverlay';
-import { FitBotCoachCompanion, FitBotComposerMascot } from '@/components/fitbot/FitBotCoachCompanion';
+import { FitBotCoachCompanion } from '@/components/fitbot/FitBotCoachCompanion';
 import { pickBestCoachVoice, type CoachSpeechVoice } from '@/src/lib/coachVoiceSpeech';
 
 /** Enables native metering for voice-reactive UI + haptics */
@@ -722,12 +722,6 @@ export default function CoachScreen() {
             </ScrollView>
 
             <View style={styles.messagesPane}>
-                <FitBotCoachCompanion
-                    active={messages.length > 0 || sending}
-                    paused={isRecording}
-                    thinking={sending}
-                    speaking={coachSpeaking}
-                />
                 <ScrollView
                     ref={scrollRef}
                     style={styles.messagesScroll}
@@ -798,6 +792,12 @@ export default function CoachScreen() {
                     </View>
                 ) : null}
                 </ScrollView>
+                <FitBotCoachCompanion
+                    active={messages.length > 0 || sending}
+                    paused={isRecording}
+                    thinking={sending}
+                    speaking={coachSpeaking}
+                />
                 <VoiceRecordingOverlay
                     visible={isRecording}
                     audioLevel={voiceUiLevel}
@@ -879,12 +879,6 @@ export default function CoachScreen() {
                         )}
                     </LinearGradient>
                 </TouchableOpacity>
-                <FitBotComposerMascot
-                    active={messages.length > 0 || sending}
-                    paused={isRecording}
-                    thinking={sending}
-                    speaking={coachSpeaking}
-                />
             </View>
         </KeyboardAvoidingView>
     );

@@ -271,10 +271,6 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <View style={styles.fitBotWrap}>
-          <FitBotCharacter caption={fitBotCaption} />
-        </View>
-
         {/* Calorie Ring Card */}
         <LinearGradient
           colors={[colors.surfaceLight, colors.card]}
@@ -577,6 +573,10 @@ export default function HomeScreen() {
           })}
         </View>
 
+        <View style={styles.fitBotWrap}>
+          <FitBotCharacter caption={fitBotCaption} />
+        </View>
+
         {/* Quick Stats */}
         <Text style={styles.sectionTitle}>Quick Stats</Text>
         <LinearGradient
@@ -698,7 +698,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 8,
   },
   fitBotWrap: {
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
   },
   greetingRow: {
     flexDirection: 'row',

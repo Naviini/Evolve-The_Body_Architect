@@ -63,6 +63,8 @@ export const Colors = {
   // Gradients (used as array for LinearGradient)
   gradients: {
     primary: ['#6C63FF', '#00D2FF'] as const,
+    /** Modal / CTA accent — violet → cyan (matches Cloud Refresh-style dialogs) */
+    alertPrimary: ['#7B61FF', '#00D1FF'] as const,
     warm: ['#FF6B6B', '#FFD93D'] as const,
     cool: ['#6C63FF', '#8B83FF'] as const,
     dark: ['#13132B', '#0A0A1A'] as const,
