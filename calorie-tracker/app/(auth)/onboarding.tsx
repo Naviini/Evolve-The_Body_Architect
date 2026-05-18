@@ -2,8 +2,8 @@
  * Onboarding / Welcome Screen
  *
  * A premium 3-page swipeable onboarding flow shown to first-time users.
- * Features smooth page transitions, animated dot indicators, and
- * gradient accent buttons matching the app design system.
+ * Features smooth swipe transitions, per-slide accent gradients, and
+ * CTA styling aligned with the welcome mockups.
  */
 
 import React, { useRef, useState } from 'react';
@@ -16,10 +16,11 @@ import {
     TouchableOpacity,
     NativeSyntheticEvent,
     NativeScrollEvent,
-    Animated,
     Platform,
+    Pressable,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -30,20 +31,24 @@ const SCREEN_WIDTH = Platform.OS === 'web' ? Math.min(windowWidth, 480) : window
 const ONBOARDING_KEY = '@calorie_tracker_onboarding_done';
 
 const ONBOARDING_THEME = {
-    bg: '#050A1D',
-    surface: '#171E3F',
-    border: '#2B366C',
-    accent: '#6664FF',
-    accentStrong: '#8D9BFF',
-    text: '#EEF2FF',
-    textMuted: '#9AA8D7',
-    textSoft: '#7F8BB9',
+    bg: '#060912',
+    surfaceInner: '#0E1424',
+    border: '#2A3555',
+    text: '#FFFFFF',
+    textMuted: '#A8B4D4',
+    textSoft: '#8B97B8',
+    dotInactive: '#303A58',
 };
 
 interface OnboardingPage {
     icon: keyof typeof Ionicons.glyphMap;
     iconColor: string;
-    gradient: readonly [string, string, ...string[]];
+    /** Ring + CTA horizontal gradient */
+    gradient: readonly [string, string];
+    /** Subtitle accent (vibrant, matches reference screens) */
+    subtitleColor: string;
+    /** Large soft orb behind hero (per slide) */
+    ambientOrb: string;
     title: string;
     subtitle: string;
     description: string;
@@ -52,8 +57,10 @@ interface OnboardingPage {
 const PAGES: OnboardingPage[] = [
     {
         icon: 'flame',
-        iconColor: '#A8B6FF',
-        gradient: ['#5E68FF', '#7D8BFF'] as const,
+        iconColor: '#FF9A7B',
+        gradient: ['#FF6B8A', '#FFE566'] as const,
+        subtitleColor: '#FF7B9A',
+        ambientOrb: 'rgba(255, 88, 118, 0.20)',
         title: 'Track Calories',
         subtitle: 'Effortlessly',
         description:
@@ -61,8 +68,10 @@ const PAGES: OnboardingPage[] = [
     },
     {
         icon: 'camera',
-        iconColor: '#9FB0FF',
-        gradient: ['#5C73FF', '#7193FF'] as const,
+        iconColor: '#5CE8FF',
+        gradient: ['#7B61FF', '#00D1FF'] as const,
+        subtitleColor: '#9B8CFF',
+        ambientOrb: 'rgba(115, 92, 255, 0.20)',
         title: 'Scan Your Food',
         subtitle: 'With AI Vision',
         description:
@@ -70,8 +79,10 @@ const PAGES: OnboardingPage[] = [
     },
     {
         icon: 'trophy',
-        iconColor: '#B4BEFF',
-        gradient: ['#6366FF', '#8A93FF'] as const,
+        iconColor: '#3DFF9A',
+        gradient: ['#15E08A', '#00D4FF'] as const,
+        subtitleColor: '#38F0A0',
+        ambientOrb: 'rgba(26, 216, 154, 0.18)',
         title: 'Achieve Goals',
         subtitle: 'Stay Consistent',
         description:
@@ -81,23 +92,24 @@ const PAGES: OnboardingPage[] = [
 
 export default function OnboardingScreen() {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const scrollRef = useRef<ScrollView>(null);
-    const scrollX = useRef(new Animated.Value(0)).current;
     const [currentPage, setCurrentPage] = useState(0);
 
-    const handleScroll = Animated.event(
-        [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-        {
-            useNativeDriver: false,
-            listener: (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-                const page = Math.round(event.nativeEvent.contentOffset.x / SCREEN_WIDTH);
-                setCurrentPage(page);
-            },
-        }
-    );
+    const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+        const page = Math.round(event.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+        const clamped = Math.max(0, Math.min(PAGES.length - 1, page));
+        setCurrentPage((p) => (p === clamped ? p : clamped));
+    };
+
+    const finalizePage = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+        const page = Math.round(event.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+        setCurrentPage(Math.max(0, Math.min(PAGES.length - 1, page)));
+    };
 
     const goToPage = (index: number) => {
         scrollRef.current?.scrollTo({ x: index * SCREEN_WIDTH, animated: true });
+        setCurrentPage(index);
     };
 
     const handleNext = () => {
@@ -123,15 +135,19 @@ export default function OnboardingScreen() {
 
     return (
         <View style={styles.container}>
-            {/* Background glow effect */}
-            <View style={styles.bgGlow} />
+            <View
+                pointerEvents="none"
+                style={[styles.bgGlow, { backgroundColor: PAGES[currentPage].ambientOrb }]}
+            />
 
-            {/* Skip button */}
-            {currentPage < PAGES.length - 1 && (
-                <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
-                    <Text style={styles.skipText}>Skip</Text>
-                </TouchableOpacity>
-            )}
+            {/* Tiny skip — available on every slide */}
+            <TouchableOpacity
+                style={[styles.skipButton, { top: Math.max(insets.top, Platform.OS === 'ios' ? 12 : 8) + 8 }]}
+                onPress={handleSkip}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+                <Text style={styles.skipText}>Skip</Text>
+            </TouchableOpacity>
 
             {/* Swipeable Pages */}
             <ScrollView
@@ -140,6 +156,7 @@ export default function OnboardingScreen() {
                 pagingEnabled
                 showsHorizontalScrollIndicator={false}
                 onScroll={handleScroll}
+                onMomentumScrollEnd={finalizePage}
                 scrollEventThrottle={16}
                 bounces={false}
                 decelerationRate="fast"
@@ -150,25 +167,25 @@ export default function OnboardingScreen() {
                         <View style={styles.iconArea}>
                             <LinearGradient
                                 colors={page.gradient}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 1 }}
+                                start={{ x: 0, y: 0.5 }}
+                                end={{ x: 1, y: 0.5 }}
                                 style={styles.iconCircleOuter}
                             >
                                 <View style={styles.iconCircleInner}>
-                                    <Ionicons name={page.icon} size={56} color={page.iconColor} />
+                                    <Ionicons name={page.icon} size={60} color={page.iconColor} />
                                 </View>
                             </LinearGradient>
 
                             {/* Decorative floating dots */}
-                            <View style={[styles.floatingDot, styles.dot1, { backgroundColor: page.gradient[0] + '40' }]} />
-                            <View style={[styles.floatingDot, styles.dot2, { backgroundColor: page.gradient[1] + '30' }]} />
-                            <View style={[styles.floatingDot, styles.dot3, { backgroundColor: page.gradient[0] + '20' }]} />
+                            <View style={[styles.floatingDot, styles.dot1, { backgroundColor: page.gradient[0] + '55' }]} />
+                            <View style={[styles.floatingDot, styles.dot2, { backgroundColor: page.gradient[1] + '44' }]} />
+                            <View style={[styles.floatingDot, styles.dot3, { backgroundColor: page.gradient[1] + '28' }]} />
                         </View>
 
                         {/* Text content */}
                         <View style={styles.textArea}>
                             <Text style={styles.title}>{page.title}</Text>
-                            <Text style={[styles.subtitle, { color: page.gradient[0] }]}>
+                            <Text style={[styles.subtitle, { color: page.subtitleColor }]}>
                                 {page.subtitle}
                             </Text>
                             <Text style={styles.description}>{page.description}</Text>
@@ -181,39 +198,28 @@ export default function OnboardingScreen() {
             <View style={styles.bottomArea}>
                 {/* Page Indicators */}
                 <View style={styles.dotsRow}>
-                    {PAGES.map((page, index) => {
-                        const inputRange = [
-                            (index - 1) * SCREEN_WIDTH,
-                            index * SCREEN_WIDTH,
-                            (index + 1) * SCREEN_WIDTH,
-                        ];
-
-                        const dotWidth = scrollX.interpolate({
-                            inputRange,
-                            outputRange: [8, 28, 8],
-                            extrapolate: 'clamp',
-                        });
-
-                        const dotOpacity = scrollX.interpolate({
-                            inputRange,
-                            outputRange: [0.3, 1, 0.3],
-                            extrapolate: 'clamp',
-                        });
-
-                        return (
-                            <Animated.View
-                                key={index}
+                    {PAGES.map((page, index) => (
+                        <TouchableOpacity
+                            key={page.title}
+                            onPress={() => goToPage(index)}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Go to slide ${index + 1}`}
+                            hitSlop={{ top: 12, bottom: 12, left: 6, right: 6 }}
+                        >
+                            <View
                                 style={[
-                                    styles.dot,
-                                    {
-                                        width: dotWidth,
-                                        opacity: dotOpacity,
-                                        backgroundColor: page.gradient[0],
-                                    },
+                                    styles.dotCapsule,
+                                    index === currentPage
+                                        ? { width: 28, backgroundColor: page.gradient[0], opacity: 1 }
+                                        : {
+                                              width: 8,
+                                              backgroundColor: ONBOARDING_THEME.dotInactive,
+                                              opacity: 0.7,
+                                          },
                                 ]}
                             />
-                        );
-                    })}
+                        </TouchableOpacity>
+                    ))}
                 </View>
 
                 {/* Primary action button */}
@@ -239,18 +245,17 @@ export default function OnboardingScreen() {
                 </TouchableOpacity>
 
                 {/* Sign In link — always visible for returning users */}
-                <View style={styles.signInRow}>
-                    <Text style={styles.signInPrompt}>Already have an account?</Text>
-                    <TouchableOpacity
-                        onPress={() => router.push('/(auth)/login' as any)}
-                        activeOpacity={0.7}
-                        hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
-                    >
-                        <Text style={[styles.signInLink, { color: PAGES[currentPage].gradient[0] }]}>
-                            {' '}Sign In
-                        </Text>
-                    </TouchableOpacity>
-                </View>
+                <Pressable
+                    style={({ pressed }) => [styles.signInRow, pressed && styles.signInRowPressed]}
+                    onPress={() => router.replace('/(auth)/login' as any)}
+                    accessibilityRole="link"
+                    accessibilityLabel="Already have an account? Sign In"
+                    hitSlop={{ top: 8, bottom: 8 }}
+                >
+                    <Text style={styles.signInPrompt}>
+                        Already have an account?<Text style={[styles.signInLink, { color: PAGES[currentPage].subtitleColor }]}> Sign In</Text>
+                    </Text>
+                </Pressable>
             </View>
         </View>
     );
@@ -263,28 +268,28 @@ const styles = StyleSheet.create({
     },
     bgGlow: {
         position: 'absolute',
-        top: SCREEN_HEIGHT * 0.15,
-        left: SCREEN_WIDTH * 0.1,
-        width: SCREEN_WIDTH * 0.8,
-        height: SCREEN_WIDTH * 0.8,
-        borderRadius: SCREEN_WIDTH * 0.4,
-        backgroundColor: ONBOARDING_THEME.accent,
-        opacity: 0.12,
+        top: SCREEN_HEIGHT * 0.13,
+        left: SCREEN_WIDTH * 0.08,
+        width: SCREEN_WIDTH * 0.84,
+        height: SCREEN_WIDTH * 0.84,
+        borderRadius: SCREEN_WIDTH * 0.42,
     },
 
-    // Skip
+    // Skip (compact — always visible)
     skipButton: {
         position: 'absolute',
-        top: Platform.OS === 'ios' ? 60 : 45,
-        right: Spacing.lg,
+        top: Platform.OS === 'ios' ? 52 : 40,
+        right: Spacing.md,
         zIndex: 10,
-        paddingVertical: Spacing.xs,
-        paddingHorizontal: Spacing.md,
+        paddingVertical: 4,
+        paddingHorizontal: Spacing.sm,
     },
     skipText: {
-        fontSize: Typography.sizes.bodyLarge,
-        color: ONBOARDING_THEME.textMuted,
-        fontWeight: Typography.weights.medium,
+        fontSize: Typography.sizes.caption,
+        color: ONBOARDING_THEME.textSoft,
+        fontWeight: Typography.weights.semibold,
+        letterSpacing: 0.4,
+        opacity: 0.92,
     },
 
     // Page
@@ -305,9 +310,9 @@ const styles = StyleSheet.create({
         width: 200,
     },
     iconCircleOuter: {
-        width: 140,
-        height: 140,
-        borderRadius: 70,
+        width: 156,
+        height: 156,
+        borderRadius: 78,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
@@ -315,10 +320,10 @@ const styles = StyleSheet.create({
         ...Shadows.glow,
     },
     iconCircleInner: {
-        width: 120,
-        height: 120,
-        borderRadius: 60,
-        backgroundColor: ONBOARDING_THEME.surface,
+        width: 118,
+        height: 118,
+        borderRadius: 59,
+        backgroundColor: ONBOARDING_THEME.surfaceInner,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -385,9 +390,9 @@ const styles = StyleSheet.create({
     dotsRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
+        gap: 10,
     },
-    dot: {
+    dotCapsule: {
         height: 8,
         borderRadius: 4,
     },
@@ -395,7 +400,7 @@ const styles = StyleSheet.create({
     // CTA
     actionButton: {
         width: '100%',
-        borderRadius: BorderRadius.lg,
+        borderRadius: BorderRadius.round,
         overflow: 'hidden',
         borderWidth: 1,
         borderColor: ONBOARDING_THEME.border,
@@ -406,7 +411,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         gap: Spacing.sm,
-        borderRadius: BorderRadius.lg,
+        borderRadius: BorderRadius.round,
     },
     actionButtonText: {
         fontSize: Typography.sizes.subtitle,
@@ -419,6 +424,12 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
+        paddingVertical: Spacing.sm,
+        paddingHorizontal: Spacing.md,
+        borderRadius: BorderRadius.sm,
+    },
+    signInRowPressed: {
+        opacity: 0.75,
     },
     signInPrompt: {
         fontSize: Typography.sizes.body,

@@ -611,6 +611,41 @@ export default function ProfileSetupScreen() {
         }
     };
 
+    /** Exit wizard early — saves partial answers then continues signup / tabs (same as Finish). */
+    const confirmSkipProfileSetup = () => {
+        if (isEditMode) {
+            alert(
+                'Save and exit?',
+                "We'll save what you've changed and return home. You can edit your profile again anytime.",
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                        text: 'Save & exit',
+                        style: 'destructive',
+                        onPress: () => {
+                            void handleFinish();
+                        },
+                    },
+                ]
+            );
+            return;
+        }
+        alert(
+            'Skip profile setup?',
+            "We'll save what you've entered so far. You can finish your profile anytime from Settings.",
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Skip setup',
+                    style: 'destructive',
+                    onPress: () => {
+                        void handleFinish();
+                    },
+                },
+            ]
+        );
+    };
+
     // ── Render ───────────────────────────────────────────────
     const currentPage = ONBOARDING_PAGES[step]?.key ?? 'basics';
     const meta = STEP_META[ONBOARDING_PAGES[step]?.metaIdx ?? 0];
@@ -684,6 +719,20 @@ export default function ProfileSetupScreen() {
 
             {/* ── Progress bar ──────────────────────────────── */}
             <View style={s.progressWrap}>
+                <TouchableOpacity
+                    style={s.skipTinyBtn}
+                    onPress={confirmSkipProfileSetup}
+                    hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
+                    accessibilityRole="button"
+                    accessibilityLabel={isEditMode ? 'Save and exit editor' : 'Skip profile setup'}
+                    accessibilityHint={
+                        isEditMode
+                            ? 'Saves changes so far and returns to the home tabs'
+                            : 'Saves progress so far and continues to sign up'
+                    }
+                >
+                    <Text style={s.skipTinyBtnText}>Skip</Text>
+                </TouchableOpacity>
                 <View style={s.progressTrack}>
                     <Animated.View
                         style={[
@@ -1391,8 +1440,8 @@ function StepMeasurements({ isFemale, waistCm, setWaistCm, hipCm, setHipCm,
                 onUnitChange={(v) => onLengthUnitChange(v as LengthUnit)}
             />
 
-            <TouchableOpacity onPress={onSkip} style={s.skipLink}>
-                <Text style={s.skipLinkText}>Skip for now — I{"'"}ll add these later</Text>
+            <TouchableOpacity onPress={onSkip} style={s.skipMeasurementsTiny} hitSlop={{ top: 8, bottom: 8 }}>
+                <Text style={s.skipMeasurementsTinyText}>Skip — add later</Text>
             </TouchableOpacity>
         </View>
     );
@@ -2148,6 +2197,22 @@ const s = StyleSheet.create({
         borderColor: ONBOARDING_THEME.border,
         backgroundColor: ONBOARDING_THEME.surface,
     },
+    skipTinyBtn: {
+        paddingHorizontal: Spacing.sm,
+        paddingVertical: 5,
+        marginRight: Spacing.sm,
+        borderRadius: BorderRadius.sm,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: ONBOARDING_THEME.border,
+        backgroundColor: ONBOARDING_THEME.surface + 'AA',
+    },
+    skipTinyBtnText: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: ONBOARDING_THEME.textSoft,
+        letterSpacing: 0.35,
+        textTransform: 'uppercase',
+    },
 
     // Step header
     stepHeader: {
@@ -2703,15 +2768,17 @@ const s = StyleSheet.create({
         marginBottom: 6,
         paddingLeft: 2,
     },
-    skipLink: {
-        alignSelf: 'center',
-        paddingVertical: Spacing.md,
+    skipMeasurementsTiny: {
+        alignSelf: 'flex-start',
+        paddingVertical: Spacing.sm,
+        paddingHorizontal: Spacing.xs,
         marginTop: Spacing.sm,
     },
-    skipLinkText: {
-        fontSize: Typography.sizes.body,
-        color: ONBOARDING_THEME.textMuted,
-        textDecorationLine: 'underline',
+    skipMeasurementsTinyText: {
+        fontSize: Typography.sizes.caption,
+        fontWeight: '600',
+        color: ONBOARDING_THEME.textSoft,
+        letterSpacing: 0.25,
     },
 
     bfGuide: {

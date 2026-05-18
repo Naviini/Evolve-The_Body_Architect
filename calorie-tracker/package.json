@@ -69,5 +69,10 @@
     "pngjs": "^7.0.0",
     "typescript": "~5.9.2"
   },
+  "overrides": {
+    "stats-gl": {
+      "three": "0.184.0"
+    }
+  },
   "private": true
 }

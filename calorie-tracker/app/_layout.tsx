@@ -57,11 +57,17 @@ function useProtectedRoute(
     const inAuthGroup = segments[0] === '(auth)';
     const currentPath = segments.join('/');
     const inProfileSetup = currentPath === '(auth)/profile-setup';
+    /** Onboarding carousel can send users here before AsyncStorage onboarding flag exists */
+    const inAuthBypassWhileOnboarding = [
+      '(auth)/login',
+      '(auth)/register',
+      '(auth)/forgot-password',
+    ].includes(currentPath);
 
     if (!onboardingDone) {
       // Allow the first transition from onboarding -> profile setup.
       // onboardingDone state is sourced from AsyncStorage and may lag one render.
-      if (inProfileSetup) return;
+      if (inProfileSetup || inAuthBypassWhileOnboarding) return;
 
       // Always show onboarding to first-timers
       router.replace('/(auth)/onboarding' as any);

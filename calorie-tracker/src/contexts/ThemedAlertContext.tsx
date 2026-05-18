@@ -31,6 +31,7 @@ import {
   Shadows,
 } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export type ThemedAlertButtonStyle = 'default' | 'cancel' | 'destructive';
 
@@ -61,6 +62,7 @@ function normalizeButtons(buttons?: ThemedAlertButton[]): ThemedAlertButton[] {
 
 export function ThemedAlertProvider({ children }: { children: React.ReactNode }) {
   const colors = useThemeColors();
+  const scheme = useColorScheme() ?? 'dark';
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
   const queueRef = useRef<AlertPayload[]>([]);
@@ -126,7 +128,7 @@ export function ThemedAlertProvider({ children }: { children: React.ReactNode })
     if (cb) queueMicrotask(() => cb());
   }, []);
 
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = useMemo(() => createStyles(colors, scheme === 'dark'), [colors, scheme]);
   const messageMaxHeight = Math.min(220, windowHeight * 0.35);
 
   const horizontalActions = state.buttons.length === 2;
@@ -234,7 +236,7 @@ function AlertActionButton({
     <View style={wrapStyle}>
       <TouchableOpacity onPress={() => onPress(btn)} activeOpacity={0.92}>
         <LinearGradient
-          colors={[...Colors.gradients.primary]}
+          colors={[...Colors.gradients.alertPrimary]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={styles.btnGradient}
@@ -246,7 +248,7 @@ function AlertActionButton({
   );
 }
 
-function createStyles(colors: ReturnType<typeof useThemeColors>) {
+function createStyles(colors: ReturnType<typeof useThemeColors>, isDark: boolean) {
   return StyleSheet.create({
     overlayRoot: {
       flex: 1,
@@ -261,10 +263,10 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       zIndex: 1,
     },
     card: {
-      backgroundColor: colors.cardElevated,
-      borderRadius: BorderRadius.lg,
+      backgroundColor: isDark ? '#2D2B4E' : colors.cardElevated,
+      borderRadius: BorderRadius.xl,
       borderWidth: 1,
-      borderColor: Colors.primary + '55',
+      borderColor: isDark ? 'rgba(154, 130, 255, 0.28)' : Colors.primary + '55',
       padding: Spacing.lg,
       ...Shadows.medium,
     },
@@ -298,17 +300,19 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       minHeight: 44,
     },
     btnGradient: {
-      borderRadius: BorderRadius.md,
+      borderRadius: BorderRadius.round,
       alignItems: 'center',
       justifyContent: 'center',
-      paddingVertical: Spacing.sm + 2,
-      paddingHorizontal: Spacing.md,
-      minHeight: 44,
+      paddingVertical: Spacing.md,
+      paddingHorizontal: Spacing.lg,
+      minHeight: 50,
     },
     btnPrimaryText: {
       fontSize: Typography.sizes.bodyLarge,
       fontWeight: Typography.weights.heavy,
       color: '#FFF',
+      letterSpacing: 1,
+      textTransform: 'uppercase',
     },
     btnCancel: {
       borderWidth: 1,
